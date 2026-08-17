@@ -789,6 +789,12 @@
     });
   }
   function clamp(n,min,max){ n = isNaN(n)?0:n; return Math.min(max, Math.max(min,n)); }
+  function whatsappDigits(tel){
+    var digits = String(tel||'').replace(/\D/g,'');
+    if(!digits) return '';
+    if(digits.length <= 11) digits = '55' + digits;
+    return digits;
+  }
   function formatDate(str){
     if(!str) return '—';
     var parts = str.split('-');
@@ -4537,6 +4543,8 @@
           '<button class="btn btn-secondary" id="profileEditBtn">Editar Paciente</button>'+
         '</div>'+
         '<div class="info-grid">'+
+          '<div class="info-item"><div class="lab">E-mail</div><div class="val">'+(p.email?('<a class="link-btn" href="mailto:'+esc(p.email)+'">'+esc(p.email)+'</a>'):'—')+'</div></div>'+
+          '<div class="info-item"><div class="lab">Telefone</div><div class="val">'+(p.telefone?('<a class="link-btn" href="https://wa.me/'+whatsappDigits(p.telefone)+'" target="_blank" rel="noopener">'+esc(p.telefone)+' 💬</a>'):'—')+'</div></div>'+
           '<div class="info-item"><div class="lab">Plano</div><div class="val">'+esc(p.plano)+'</div></div>'+
           '<div class="info-item"><div class="lab">Serviço</div><div class="val">'+esc(p.servico)+'</div></div>'+
           '<div class="info-item"><div class="lab">Status</div><div class="val">'+renovacaoBadge(p)+'</div></div>'+
@@ -4735,6 +4743,8 @@
       '<div class="modal-body">'+
         '<div class="form-grid">'+
           '<div class="form-group full"><label>Nome</label><input type="text" id="f_nome" value="'+esc(p.nome)+'" placeholder="Nome completo"></div>'+
+          '<div class="form-group"><label>E-mail</label><input type="email" id="f_email" value="'+esc(p.email)+'" placeholder="email@exemplo.com"></div>'+
+          '<div class="form-group"><label>Telefone</label><input type="tel" id="f_telefone" value="'+esc(p.telefone)+'" placeholder="(11) 98765-4321"></div>'+
           '<div class="form-group"><label>Plano</label><select id="f_plano">'+
             ['Avulso','Trimestral','Semestral','Anual'].map(function(o){ return '<option value="'+o+'"'+(p.plano===o?' selected':'')+'>'+o+'</option>'; }).join('')+
           '</select></div>'+
@@ -4798,6 +4808,8 @@
     return {
       core: {
         nome: nome,
+        email: document.getElementById('f_email').value.trim(),
+        telefone: document.getElementById('f_telefone').value.trim(),
         plano: document.getElementById('f_plano').value,
         servico: document.getElementById('f_servico').value,
         prioridade: document.getElementById('f_prioridade').value,
