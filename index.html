@@ -319,28 +319,34 @@
   .jornada-day-badge.day-weekday{background:var(--success-bg);color:var(--success);}
   .jornada-day-badge.day-weekend{background:var(--danger-bg);color:var(--danger);}
   .jornada-day-badge.day-none{background:var(--gray-badge-bg);color:var(--text-muted);}
-  .jornada-date-field-wrap{position:relative;display:inline-block;}
-  .jornada-date-trigger{
-    padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:11.5px;
-    font-family:inherit;color:var(--text);background:var(--white);cursor:pointer;
+  .jornada-date-field-wrap{position:relative;display:inline-flex;align-items:center;gap:4px;}
+  .jornada-date-manual-input{
+    padding:3px 6px;border:1px solid var(--border);border-radius:6px;font-size:11px;
+    font-family:inherit;color:var(--text);background:var(--white);width:118px;
   }
-  .jornada-date-trigger:hover,.jornada-date-trigger.open{border-color:var(--primary);color:var(--primary);}
+  .jornada-date-manual-input::-webkit-calendar-picker-indicator{display:none;-webkit-appearance:none;}
+  .jornada-date-manual-input:focus{outline:none;border-color:var(--primary);}
+  .jornada-date-cal-btn{
+    padding:3px 6px;border:1px solid var(--border);border-radius:6px;font-size:12px;
+    font-family:inherit;background:var(--white);cursor:pointer;line-height:1;
+  }
+  .jornada-date-cal-btn:hover,.jornada-date-cal-btn.open{border-color:var(--primary);}
   .jornada-cal-popover{
     position:absolute;top:calc(100% + 4px);left:0;z-index:60;
     background:var(--white);border:1px solid var(--border);border-radius:10px;
-    box-shadow:var(--shadow-lg);padding:10px;width:230px;
+    box-shadow:var(--shadow-lg);padding:7px;width:190px;
   }
-  .jornada-cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-size:12.5px;font-weight:700;color:var(--secondary);}
+  .jornada-cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;font-size:11px;font-weight:700;color:var(--secondary);}
   .jornada-cal-nav{
-    width:22px;height:22px;border:1px solid var(--border);border-radius:6px;background:var(--white);
-    cursor:pointer;font-size:13px;line-height:1;color:var(--text);font-family:inherit;
+    width:17px;height:17px;border:1px solid var(--border);border-radius:5px;background:var(--white);
+    cursor:pointer;font-size:11px;line-height:1;color:var(--text);font-family:inherit;
   }
   .jornada-cal-nav:hover{border-color:var(--primary);color:var(--primary);}
-  .jornada-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
-  .jornada-cal-wd{font-size:10px;text-align:center;color:var(--text-muted);font-weight:700;padding:2px 0;}
+  .jornada-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;}
+  .jornada-cal-wd{font-size:9px;text-align:center;color:var(--text-muted);font-weight:700;padding:1px 0;}
   .jornada-cal-cell{
     position:relative;aspect-ratio:1;display:flex;align-items:center;justify-content:center;
-    font-size:11.5px;border:none;border-radius:6px;background:none;color:var(--text);
+    font-size:10px;border:none;border-radius:5px;background:none;color:var(--text);
     cursor:pointer;font-family:inherit;
   }
   .jornada-cal-cell.empty{cursor:default;}
@@ -372,7 +378,8 @@
     border:1px solid var(--border);margin-bottom:6px;background:var(--white);
   }
   .jornada-kanban-card.status-atrasado{border-color:#FCA5A5;background:var(--danger-bg);}
-  .jornada-kanban-card.status-hoje,.jornada-kanban-card.status-semana{border-color:#FDE68A;background:var(--warning-bg);}
+  .jornada-kanban-card.status-hoje{border-color:#FDE68A;background:var(--warning-bg);}
+  .jornada-kanban-card.status-semana{border-color:#86EFAC;background:var(--success-bg);}
   .jornada-kanban-card.status-concluido{opacity:.65;}
   .jornada-kanban-card.status-concluido .jornada-kanban-card-name{text-decoration:line-through;}
   .jornada-kanban-card-top{display:flex;align-items:flex-start;gap:8px;}
@@ -1426,7 +1433,8 @@
     var isOpen = state.jornadaCalendarOpen && state.jornadaCalendarOpen.key === key;
     return ''+
       '<span class="jornada-date-field-wrap">'+
-        '<button type="button" class="jornada-date-trigger'+(isOpen?' open':'')+'" data-jornada-cal-open="'+key+'">'+(dateStr?formatDate(dateStr):'Selecionar data')+'</button>'+
+        '<input type="date" class="jornada-date-manual-input" data-jornada-cal-manual="'+key+'" value="'+esc(dateStr||'')+'">'+
+        '<button type="button" class="jornada-date-cal-btn'+(isOpen?' open':'')+'" data-jornada-cal-open="'+key+'" title="Abrir calendário">📅</button>'+
         (isOpen ? jornadaCalendarPopoverHtml(key, patientId, dateStr) : '')+
       '</span>';
   }
@@ -1528,6 +1536,15 @@
       state.jornadaCalendarOpen = null;
       jornadaCalendarRefreshForKey(closingKey);
     }
+  }
+  function jornadaCalendarGlobalFocusOut(e){
+    var input = e.target.closest && e.target.closest('[data-jornada-cal-manual]');
+    if(!input) return;
+    var key = input.getAttribute('data-jornada-cal-manual');
+    var keyParts = key.split('-');
+    var pid = parseInt(keyParts[1],10), tid = parseInt(keyParts[2],10);
+    updatePatientTask(pid, tid, 'dataAlvo', input.value);
+    jornadaCalendarRefreshForKey(key);
   }
   function prazoBadge(dateStr){
     if(!dateStr) return '<span class="badge badge-gray">—</span>';
@@ -1811,6 +1828,12 @@
     d.setDate(d.getDate() + n);
     return isoDate(d);
   }
+  function nextBusinessDayIso(dateStr){
+    var d = weekdayIndex(dateStr);
+    if(d === 0) return addDaysIso(dateStr, 1);
+    if(d === 6) return addDaysIso(dateStr, 2);
+    return dateStr;
+  }
   function firstFridayFrom(dateStr){
     var d = new Date(dateStr + 'T00:00:00');
     while(d.getDay() !== 5) d.setDate(d.getDate() + 1);
@@ -1837,7 +1860,7 @@
       var dataAlvo;
       if(t.dia === 'primeira-sexta') dataAlvo = sextaIso;
       else if(t.dia === 'primeiro-sabado') dataAlvo = sabadoIso;
-      else dataAlvo = addDaysIso(dataInicio, t.dia);
+      else dataAlvo = nextBusinessDayIso(addDaysIso(dataInicio, t.dia));
       return { id: idx, nome: t.nome, fase: t.fase, dataAlvo: dataAlvo, concluido: false, dataConclusao: null, observacao: '', arquivado: false, ordem: idx };
     });
   }
@@ -2044,7 +2067,7 @@
     var key = p.id+':'+t.id;
     var status = t.concluido ? 'concluido' : diff < 0 ? 'atrasado' : diff === 0 ? 'hoje' : 'semana';
     var diffText = t.concluido ? 'Concluído' : diff < 0 ? 'Atrasado (' + Math.abs(diff) + 'd)' : diff === 0 ? 'Hoje' : 'Em ' + diff + ' dias';
-    var badgeCls = status === 'concluido' ? 'badge-success' : status === 'atrasado' ? 'badge-danger' : status === 'hoje' ? 'badge-warning' : 'badge-gray';
+    var badgeCls = status === 'concluido' ? 'badge-success' : status === 'atrasado' ? 'badge-danger' : status === 'hoje' ? 'badge-warning' : status === 'semana' ? 'badge-success' : 'badge-gray';
     var expanded = !!state.jornadaKanbanExpanded[key];
     var expandHtml = expanded ? ''+
       '<div class="jornada-kanban-card-expand">'+
@@ -2108,10 +2131,23 @@
     if(!root) return;
     var scrollBox = root.querySelector('.jornada-kanban');
     var savedScrollLeft = scrollBox ? scrollBox.scrollLeft : 0;
+    var savedColScroll = {};
+    root.querySelectorAll('.jornada-kanban-col').forEach(function(col){
+      var opener = col.querySelector('[data-open-profile]');
+      var cardsBox = col.querySelector('.jornada-kanban-cards');
+      if(opener && cardsBox) savedColScroll[opener.getAttribute('data-open-profile')] = cardsBox.scrollTop;
+    });
     root.innerHTML = jornadaKanbanHtml();
     bindJornadaKanbanEvents();
     var newScrollBox = root.querySelector('.jornada-kanban');
     if(newScrollBox) newScrollBox.scrollLeft = savedScrollLeft;
+    root.querySelectorAll('.jornada-kanban-col').forEach(function(col){
+      var opener = col.querySelector('[data-open-profile]');
+      var cardsBox = col.querySelector('.jornada-kanban-cards');
+      if(opener && cardsBox && savedColScroll[opener.getAttribute('data-open-profile')] !== undefined){
+        cardsBox.scrollTop = savedColScroll[opener.getAttribute('data-open-profile')];
+      }
+    });
     var toolbar = document.getElementById('jornadaKanbanToolbarRoot');
     if(toolbar){
       var sortBtn = document.getElementById('jornadaKanbanNomeSortBtn');
@@ -5085,6 +5121,7 @@
     document.querySelectorAll('.card.menu-open').forEach(function(c){ c.classList.remove('menu-open'); });
   });
   document.addEventListener('click', jornadaCalendarGlobalClick);
+  document.addEventListener('focusout', jornadaCalendarGlobalFocusOut);
 
   /* ================= INIT ================= */
   function init(){
