@@ -499,6 +499,18 @@
   .badge-baby{background:var(--baby-bg);color:var(--baby);}
 
   .actions{display:flex;gap:6px;flex-wrap:wrap;}
+  .wa-btn{
+    display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
+    width:24px;height:24px;border-radius:50%;background:#25D366;color:#fff;
+    font-size:13px;text-decoration:none;line-height:1;
+  }
+  .wa-btn:hover{opacity:.85;}
+  .copy-icon-btn{
+    display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
+    width:24px;height:24px;border-radius:50%;background:var(--white);border:1px solid var(--border);
+    font-size:12px;cursor:pointer;font-family:inherit;line-height:1;padding:0;
+  }
+  .copy-icon-btn:hover{border-color:var(--primary);}
   .btn-icon{
     background:var(--white);border:1px solid var(--border);color:var(--secondary);
     padding:6px 11px;border-radius:7px;font-size:12.5px;font-weight:600;cursor:pointer;
@@ -4553,8 +4565,8 @@
           '<button class="btn btn-secondary" id="profileEditBtn">Editar Paciente</button>'+
         '</div>'+
         '<div class="info-grid">'+
-          '<div class="info-item"><div class="lab">E-mail</div><div class="val">'+(p.email?('<a class="link-btn" href="mailto:'+esc(p.email)+'">'+esc(p.email)+'</a>'):'—')+'</div></div>'+
-          '<div class="info-item"><div class="lab">Telefone</div><div class="val" style="display:flex;align-items:center;gap:8px;">'+(p.telefone?(esc(p.telefone)+' <a class="btn-icon" href="https://wa.me/'+whatsappDigits(p.telefone)+'" target="_blank" rel="noopener" title="Abrir conversa no WhatsApp">💬 WhatsApp</a>'):'—')+'</div></div>'+
+          '<div class="info-item"><div class="lab">E-mail</div><div class="val" style="display:flex;align-items:center;gap:8px;">'+(p.email?(esc(p.email)+' <button type="button" class="copy-icon-btn" id="copyEmailBtn" title="Copiar e-mail">📋</button>'):'—')+'</div></div>'+
+          '<div class="info-item"><div class="lab">Telefone</div><div class="val" style="display:flex;align-items:center;gap:8px;">'+(p.telefone?(esc(p.telefone)+' <a class="wa-btn" href="https://wa.me/'+whatsappDigits(p.telefone)+'" target="_blank" rel="noopener" title="Abrir conversa no WhatsApp">💬</a>'):'—')+'</div></div>'+
           '<div class="info-item"><div class="lab">Plano</div><div class="val">'+esc(p.plano)+'</div></div>'+
           '<div class="info-item"><div class="lab">Serviço</div><div class="val">'+esc(p.servico)+'</div></div>'+
           '<div class="info-item"><div class="lab">Status</div><div class="val">'+renovacaoBadge(p)+'</div></div>'+
@@ -4961,6 +4973,18 @@
         var id = state.activeId;
         openFormModal('edit', id);
       });
+      var copyEmailBtn = document.getElementById('copyEmailBtn');
+      if(copyEmailBtn){
+        copyEmailBtn.addEventListener('click', function(){
+          var p = getPatient(state.activeId);
+          if(!p || !p.email) return;
+          navigator.clipboard.writeText(p.email).then(function(){
+            showToast('E-mail copiado.', 'success');
+          }).catch(function(){
+            showToast('Não foi possível copiar o e-mail.', 'danger');
+          });
+        });
+      }
       document.getElementById('profileCompetenciaSelect').addEventListener('change', function(){
         state.competencia = this.value;
         renderModal();
