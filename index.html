@@ -790,9 +790,11 @@
   }
   function clamp(n,min,max){ n = isNaN(n)?0:n; return Math.min(max, Math.max(min,n)); }
   function whatsappDigits(tel){
-    var digits = String(tel||'').replace(/\D/g,'');
+    var raw = String(tel||'');
+    var hasPlus = raw.trim().charAt(0) === '+';
+    var digits = raw.replace(/\D/g,'');
     if(!digits) return '';
-    if(digits.length <= 11) digits = '55' + digits;
+    if(!hasPlus && digits.length <= 11) digits = '55' + digits;
     return digits;
   }
   function formatDate(str){
