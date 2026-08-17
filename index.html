@@ -699,7 +699,7 @@
   var SESSION_KEY = 'crm-ag-session';
   var AUTH_EMAIL = 'angelogarciaconsultoria@gmail.com';
   var AUTH_PASS = '81395504';
-  var DEFAULT_GRUPOS_MUSCULARES = ['Panturrilha','Peito','Quadríceps','Deltoide anterior','Deltoide posterior','Latíssimo','Posterior de coxa','Glúteo máximo','Tríceps','Adutor','Abdômen','Deltoide lateral','Bíceps','Upper back','Eretores'];
+  var DEFAULT_GRUPOS_MUSCULARES = ['Panturrilha','Peito','Quadríceps','Deltoide anterior','Deltoide posterior','Latíssimo','Posterior de coxa','Glúteo máximo','Glúteo médio','Tríceps','Adutor','Abdômen','Deltoide lateral','Bíceps','Upper back','Eretores'];
   var CHART_PALETTE = ['#0072B2','#E69F00','#009E73','#CC79A7','#56B4E9','#D55E00'];
   function chartColorFor(idx){ return CHART_PALETTE[idx % CHART_PALETTE.length]; }
   var MACRO_CATEGORIES = [
@@ -1169,13 +1169,21 @@
   }
   function loadGrupoMuscularList(){
     var raw = localStorage.getItem(GRUPO_MUSCULAR_KEY);
+    var list;
     if(raw){
       try{
         var parsed = JSON.parse(raw);
-        if(Array.isArray(parsed) && parsed.length) return parsed;
+        if(Array.isArray(parsed) && parsed.length) list = parsed;
       }catch(e){}
     }
-    return DEFAULT_GRUPOS_MUSCULARES.slice();
+    if(!list) list = DEFAULT_GRUPOS_MUSCULARES.slice();
+    if(list.indexOf('Glúteo médio') === -1){
+      var idx = list.indexOf('Glúteo máximo');
+      if(idx !== -1) list.splice(idx+1, 0, 'Glúteo médio');
+      else list.push('Glúteo médio');
+      localStorage.setItem(GRUPO_MUSCULAR_KEY, JSON.stringify(list));
+    }
+    return list;
   }
   function saveGrupoMuscularList(){
     localStorage.setItem(GRUPO_MUSCULAR_KEY, JSON.stringify(state.grupoMuscularList));
