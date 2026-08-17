@@ -172,7 +172,7 @@
   .page-title{font-size:22px;margin:0 0 4px;color:var(--secondary);}
   .page-sub{color:var(--text-muted);font-size:13.5px;margin:0 0 24px;}
   .kpi-grid{
-    display:grid;grid-template-columns:repeat(5,1fr);gap:18px;margin-bottom:32px;
+    display:grid;grid-template-columns:repeat(6,1fr);gap:18px;margin-bottom:32px;
   }
   .kpi-card{
     background:var(--white);border-radius:var(--radius);padding:20px 22px;
@@ -184,6 +184,8 @@
   .kpi-card:active{transform:scale(.99);}
   .kpi-card.selected{outline:2px solid var(--primary);outline-offset:-1px;}
   .kpi-grid-sm{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;margin-bottom:32px;max-width:640px;}
+  .quick-access-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:32px;}
+  .quick-access-grid .quick-access-full{grid-column:1/-1;}
   .kpi-card.alt{border-left-color:var(--warning);}
   .kpi-card.danger{border-left-color:var(--danger);}
   .ficha-treino-item{border:1px solid var(--border);border-radius:9px;margin-bottom:8px;overflow:hidden;background:var(--white);}
@@ -215,31 +217,44 @@
     font-size:13px;font-family:inherit;background:var(--white);color:var(--text);text-align:center;
   }
   .volume-grupo-grid input[type=number]:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-light);}
-  .grupo-muscular-manager{margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border);}
-  .compare-chips{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:6px;}
+  .grupo-muscular-manager{margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+  .compare-chips{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-top:4px;}
   .compare-chip{
-    display:inline-flex;align-items:center;gap:6px;padding:4px 6px 4px 10px;
-    border:1.5px solid var(--border);border-radius:999px;font-size:12.5px;background:var(--white);color:var(--text);
+    display:inline-flex;align-items:center;gap:5px;padding:2px 5px 2px 8px;
+    border:1.5px solid var(--border);border-radius:999px;font-size:11.5px;background:var(--white);color:var(--text);
   }
-  .compare-chip-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+  .compare-chip-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
   .compare-chip button{
-    background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:14px;line-height:1;
-    padding:2px 4px;font-family:inherit;
+    background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:13px;line-height:1;
+    padding:2px 3px;font-family:inherit;
   }
   .compare-chip button:hover{color:var(--danger);}
   .compare-chips select{
-    padding:6px 8px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;
-    font-family:inherit;background:var(--white);color:var(--text);max-width:220px;
+    padding:4px 6px;border:1px solid var(--border);border-radius:7px;font-size:11.5px;
+    font-family:inherit;background:var(--white);color:var(--text);max-width:200px;
   }
-  .compare-legend{display:flex;flex-wrap:wrap;gap:14px;margin:10px 0 4px;}
-  .compare-legend-item{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text-muted);}
-  .volume-compare-chart{display:flex;align-items:flex-end;gap:16px;overflow-x:auto;padding:12px 4px 0;min-height:210px;}
+  .compare-legend{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 2px;}
+  .compare-legend-item{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--text-muted);}
+  .volume-compare-chart{display:flex;align-items:flex-end;gap:10px;overflow-x:auto;padding:8px 4px 0;}
   .volume-compare-group{display:flex;flex-direction:column;align-items:center;flex-shrink:0;}
-  .volume-compare-bars{display:flex;align-items:flex-end;gap:3px;height:170px;}
-  .volume-compare-bar-col{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;width:16px;height:100%;}
-  .volume-compare-bar-val{font-size:10px;font-weight:700;margin-bottom:2px;color:var(--text);white-space:nowrap;}
-  .volume-compare-bar{width:100%;border-radius:3px 3px 0 0;min-height:1px;}
-  .volume-compare-label{font-size:11px;color:var(--text-muted);margin-top:6px;text-align:center;max-width:82px;line-height:1.3;}
+  .volume-compare-bars{display:flex;align-items:flex-end;gap:2px;height:90px;}
+  .volume-compare-bar-col{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;width:13px;height:100%;}
+  .volume-compare-bar-val{font-size:9px;font-weight:700;margin-bottom:1px;color:var(--text);white-space:nowrap;}
+  .volume-compare-bar{width:100%;border-radius:2px 2px 0 0;min-height:1px;}
+  .volume-compare-label{font-size:9.5px;color:var(--text-muted);margin-top:3px;text-align:center;max-width:60px;line-height:1.2;}
+  .compare-expand-btn{
+    background:none;border:1px solid var(--border);border-radius:6px;width:24px;height:24px;
+    display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-muted);
+    font-size:13px;line-height:1;flex-shrink:0;padding:0;
+  }
+  .compare-expand-btn:hover{background:#FAFAFA;color:var(--text);}
+  .compare-expanded-overlay{
+    position:fixed;top:0;left:0;right:0;bottom:0;z-index:300;background:var(--white);
+    padding:20px 26px 26px;overflow:auto;
+  }
+  .compare-expanded-overlay .volume-compare-chart{padding-top:14px;}
+  .compare-expanded-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border);}
+  .compare-expanded-header h3{margin:0;font-size:16px;}
   .kpi-card.info{border-left-color:var(--info);}
   .kpi-card.pink{border-left-color:var(--baby);}
   .kpi-card.muted{border-left-color:var(--gray-badge);}
@@ -300,6 +315,41 @@
   input.jornada-task-name:focus{outline:none;border-bottom:1px solid var(--primary);}
   .jornada-task-date-input{padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:11.5px;font-family:inherit;color:var(--text);}
   .jornada-task-date-input:focus{outline:none;border-color:var(--primary);}
+  .jornada-day-badge{font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;white-space:nowrap;}
+  .jornada-day-badge.day-weekday{background:var(--success-bg);color:var(--success);}
+  .jornada-day-badge.day-weekend{background:var(--danger-bg);color:var(--danger);}
+  .jornada-day-badge.day-none{background:var(--gray-badge-bg);color:var(--text-muted);}
+  .jornada-date-field-wrap{position:relative;display:inline-block;}
+  .jornada-date-trigger{
+    padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:11.5px;
+    font-family:inherit;color:var(--text);background:var(--white);cursor:pointer;
+  }
+  .jornada-date-trigger:hover,.jornada-date-trigger.open{border-color:var(--primary);color:var(--primary);}
+  .jornada-cal-popover{
+    position:absolute;top:calc(100% + 4px);left:0;z-index:60;
+    background:var(--white);border:1px solid var(--border);border-radius:10px;
+    box-shadow:var(--shadow-lg);padding:10px;width:230px;
+  }
+  .jornada-cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-size:12.5px;font-weight:700;color:var(--secondary);}
+  .jornada-cal-nav{
+    width:22px;height:22px;border:1px solid var(--border);border-radius:6px;background:var(--white);
+    cursor:pointer;font-size:13px;line-height:1;color:var(--text);font-family:inherit;
+  }
+  .jornada-cal-nav:hover{border-color:var(--primary);color:var(--primary);}
+  .jornada-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+  .jornada-cal-wd{font-size:10px;text-align:center;color:var(--text-muted);font-weight:700;padding:2px 0;}
+  .jornada-cal-cell{
+    position:relative;aspect-ratio:1;display:flex;align-items:center;justify-content:center;
+    font-size:11.5px;border:none;border-radius:6px;background:none;color:var(--text);
+    cursor:pointer;font-family:inherit;
+  }
+  .jornada-cal-cell.empty{cursor:default;}
+  .jornada-cal-cell.weekend{background:var(--danger-bg);}
+  .jornada-cal-cell.today{outline:1.5px solid var(--primary);outline-offset:-1.5px;}
+  .jornada-cal-cell.selected{background:var(--primary);color:var(--white);font-weight:700;}
+  .jornada-cal-cell:not(.empty):hover{outline:1.5px solid var(--primary);outline-offset:-1.5px;}
+  .jornada-cal-dot{position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--success);}
+  .jornada-cal-cell.selected .jornada-cal-dot{background:var(--white);}
   .jornada-task-obs{
     width:100%;margin-top:6px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;
     font-size:12.5px;font-family:inherit;color:var(--text);background:var(--white);
@@ -313,6 +363,10 @@
     margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border);
   }
   .jornada-kanban-cards{max-height:494px;overflow-y:auto;padding-right:4px;}
+  .jornada-kanban-card,.jornada-task,.jornada-template-task{cursor:grab;}
+  .jornada-kanban-card.dragging,.jornada-task.dragging,.jornada-template-task.dragging{opacity:.4;cursor:grabbing;}
+  .jornada-kanban-card.drag-over-top,.jornada-task.drag-over-top,.jornada-template-task.drag-over-top{box-shadow:0 -2px 0 0 var(--primary);}
+  .jornada-kanban-card.drag-over-bottom,.jornada-task.drag-over-bottom,.jornada-template-task.drag-over-bottom{box-shadow:0 2px 0 0 var(--primary);}
   .jornada-kanban-card{
     padding:8px 9px;border-radius:8px;
     border:1px solid var(--border);margin-bottom:6px;background:var(--white);
@@ -602,9 +656,13 @@
   @keyframes toastIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
   @keyframes toastOut{to{opacity:0;transform:translateY(8px);}}
 
+  @media (max-width: 1400px){
+    .kpi-grid{grid-template-columns:repeat(3,1fr);}
+  }
   @media (max-width: 980px){
     .kpi-grid{grid-template-columns:1fr;}
     .kpi-grid-sm{grid-template-columns:1fr;}
+    .quick-access-grid{grid-template-columns:1fr;}
     .info-grid{grid-template-columns:1fr 1fr;}
     .form-grid{grid-template-columns:1fr;}
     header.topbar{padding:0 14px;flex-wrap:wrap;height:auto;padding-top:10px;padding-bottom:10px;gap:10px;}
@@ -622,6 +680,7 @@
 <div id="app"></div>
 <div id="modal-root"></div>
 <div id="toast-root" class="toast-root"></div>
+<div id="chart-expand-root"></div>
 
 <script>
 (function(){
@@ -660,6 +719,9 @@
     sortDir: 'asc',
     competencia: null,
     dashboardFilter: null,
+    dashQuickTreinoSort: 'desc',
+    dashQuickDietaSort: 'desc',
+    dashQuickVencSort: 'asc',
     dashboardTrendDrill: null,
     pesoHistoryOpen: {},
     pesoEditingKey: null,
@@ -674,12 +736,18 @@
     grupoMuscularList: null,
     volumeCompareSelected: {},
     dietaCompareSelected: {},
+    volumeCompareSortDir: 'default',
+    volumeCompareExpanded: false,
+    dietaCompareExpanded: false,
+    jornadaCalendarOpen: null,
     modal: null,
     activeId: null,
     jornadaTemplates: null,
     jornadaEditorModelo: 'trimestral|treino_dieta|default',
     jornadaEditorCollapsedFases: {},
     jornadaModelosCollapsed: false,
+    jornadaResumoCollapsed: false,
+    jornadaKanbanSectionCollapsed: false,
     jornadaKanbanCollapsed: {},
     jornadaKanbanExpanded: {},
     jornadaArquivoSearch: '',
@@ -997,6 +1065,11 @@
     if(!p.createdDate) p.createdDate = todayISODate();
     if(!Array.isArray(p.fichasTreino)) p.fichasTreino = [];
     if(p.prioridade === 'Resolver esta semana') p.prioridade = 'Moderada';
+    if(p.jornada && Array.isArray(p.jornada.tarefas)){
+      p.jornada.tarefas.forEach(function(t, idx){
+        if(t.ordem === undefined || t.ordem === null) t.ordem = idx;
+      });
+    }
     if(p.meses) return p;
     var key = getCurrentMonthKey();
     var wk = weeksInMonth(key);
@@ -1040,7 +1113,7 @@
     Object.keys(clone).forEach(function(tipo){
       wrapped[tipo] = {};
       Object.keys(clone[tipo]).forEach(function(foco){
-        clone[tipo][foco].forEach(function(t){ t._tid = jornadaTemplateIdSeq++; });
+        clone[tipo][foco].forEach(function(t, idx){ t._tid = jornadaTemplateIdSeq++; if(t.ordem === undefined) t.ordem = idx; });
         wrapped[tipo][foco] = [{ id: 'default', isDefault: true, tarefas: clone[tipo][foco] }];
       });
     });
@@ -1061,7 +1134,10 @@
               parsed[tipo][foco].forEach(function(v){
                 var m = /^copy_(\d+)$/.exec(v.id);
                 if(m && parseInt(m[1],10) > maxVariant) maxVariant = parseInt(m[1],10);
-                v.tarefas.forEach(function(t){ if(t._tid > maxTid) maxTid = t._tid; });
+                v.tarefas.forEach(function(t, idx){
+                  if(t._tid > maxTid) maxTid = t._tid;
+                  if(t.ordem === undefined || t.ordem === null) t.ordem = idx;
+                });
               });
             });
           });
@@ -1277,6 +1353,181 @@
     if(!dateStr) return '—';
     var diff = diasParaVencer(dateStr);
     return formatDate(dateStr) + ' (' + diff + ')';
+  }
+  var WEEKDAY_LABELS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+  function weekdayIndex(dateStr){
+    if(!dateStr) return null;
+    return new Date(dateStr + 'T00:00:00').getDay();
+  }
+  function isWeekendDate(dateStr){
+    var d = weekdayIndex(dateStr);
+    return d === 0 || d === 6;
+  }
+  function jornadaDateBadge(dateStr, badgeKey){
+    var attr = badgeKey !== undefined ? ' data-jornada-day-badge="'+badgeKey+'"' : '';
+    if(!dateStr) return '<span class="jornada-day-badge day-none"'+attr+'>Sem data</span>';
+    var d = weekdayIndex(dateStr);
+    var cls = isWeekendDate(dateStr) ? 'day-weekend' : 'day-weekday';
+    var diff = diasParaVencer(dateStr);
+    return '<span class="jornada-day-badge '+cls+'"'+attr+' title="'+(isWeekendDate(dateStr)?'Fim de semana — seu descanso':'Dia útil')+'">'+
+      formatDate(dateStr)+' · '+WEEKDAY_LABELS[d]+' ('+diff+')</span>';
+  }
+  function addMonthsToKey(monthKey, n){
+    var p = parseMonthKey(monthKey);
+    var d = new Date(p.year, p.month + n, 1);
+    return monthKeyOf(d);
+  }
+  function jornadaTaskDatesForPatient(p){
+    var map = {};
+    if(p && p.jornada){
+      p.jornada.tarefas.forEach(function(t){
+        if(t.arquivado || !t.dataAlvo) return;
+        if(!map[t.dataAlvo]) map[t.dataAlvo] = [];
+        map[t.dataAlvo].push(t.nome);
+      });
+    }
+    return map;
+  }
+  function jornadaCalendarPopoverHtml(key, patientId, currentValue){
+    var open = state.jornadaCalendarOpen;
+    var viewKey = (open && open.key === key && open.viewMonthKey) ? open.viewMonthKey : (currentValue ? currentValue.slice(0,7) : getCurrentMonthKey());
+    var parsed = parseMonthKey(viewKey);
+    var year = parsed.year, month = parsed.month;
+    var p = getPatient(patientId);
+    var taskDates = jornadaTaskDatesForPatient(p);
+    var startWeekday = new Date(year, month, 1).getDay();
+    var daysInMonth = new Date(year, month+1, 0).getDate();
+    var todayIso = todayISODate();
+    var cells = '';
+    for(var i=0;i<startWeekday;i++){ cells += '<span class="jornada-cal-cell empty"></span>'; }
+    for(var day=1; day<=daysInMonth; day++){
+      var dateStr = year + '-' + String(month+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
+      var weekday = new Date(year, month, day).getDay();
+      var isWeekend = weekday===0 || weekday===6;
+      var hasTask = !!taskDates[dateStr];
+      var isSelected = dateStr === currentValue;
+      var isToday = dateStr === todayIso;
+      var cls = 'jornada-cal-cell'+(isWeekend?' weekend':'')+(isSelected?' selected':'')+(isToday?' today':'');
+      var title = hasTask ? ' title="'+esc(taskDates[dateStr].join(', '))+'"' : '';
+      cells += '<button type="button" class="'+cls+'" data-jornada-cal-pick="'+key+'|'+dateStr+'"'+title+'>'+day+(hasTask?'<span class="jornada-cal-dot"></span>':'')+'</button>';
+    }
+    var weekdayHeaders = ['D','S','T','Q','Q','S','S'].map(function(w){ return '<span class="jornada-cal-wd">'+w+'</span>'; }).join('');
+    return ''+
+      '<div class="jornada-cal-popover">'+
+        '<div class="jornada-cal-header">'+
+          '<button type="button" class="jornada-cal-nav" data-jornada-cal-nav="'+key+'|prev">‹</button>'+
+          '<span>'+monthLabel(viewKey)+'</span>'+
+          '<button type="button" class="jornada-cal-nav" data-jornada-cal-nav="'+key+'|next">›</button>'+
+        '</div>'+
+        '<div class="jornada-cal-grid">'+weekdayHeaders+cells+'</div>'+
+      '</div>';
+  }
+  function jornadaDateFieldHtml(key, patientId, dateStr){
+    var isOpen = state.jornadaCalendarOpen && state.jornadaCalendarOpen.key === key;
+    return ''+
+      '<span class="jornada-date-field-wrap">'+
+        '<button type="button" class="jornada-date-trigger'+(isOpen?' open':'')+'" data-jornada-cal-open="'+key+'">'+(dateStr?formatDate(dateStr):'Selecionar data')+'</button>'+
+        (isOpen ? jornadaCalendarPopoverHtml(key, patientId, dateStr) : '')+
+      '</span>';
+  }
+  function jornadaCalendarRefreshForKey(key){
+    if(key.indexOf('profile-') === 0){
+      if(state.modal === 'profile') renderModal();
+    } else if(key.indexOf('kanban-') === 0){
+      refreshJornadaKanban();
+    }
+  }
+  function bindDragReorder(rootEl, itemSelector, groupSelector, getKey, onReorder){
+    if(!rootEl) return;
+    var items = rootEl.querySelectorAll(itemSelector);
+    var draggedItem = null;
+    function clearIndicators(){
+      items.forEach(function(i){ i.classList.remove('drag-over-top','drag-over-bottom'); });
+    }
+    items.forEach(function(item){
+      item.setAttribute('draggable', 'true');
+      item.addEventListener('dragstart', function(e){
+        draggedItem = item;
+        item.classList.add('dragging');
+        if(e.dataTransfer){
+          e.dataTransfer.effectAllowed = 'move';
+          try{ e.dataTransfer.setData('text/plain', getKey(item)); }catch(err){}
+        }
+      });
+      item.addEventListener('dragend', function(){
+        item.classList.remove('dragging');
+        clearIndicators();
+        draggedItem = null;
+      });
+      item.addEventListener('dragover', function(e){
+        if(!draggedItem || draggedItem === item) return;
+        var group = item.closest(groupSelector);
+        if(!group || group !== draggedItem.closest(groupSelector)) return;
+        e.preventDefault();
+        var rect = item.getBoundingClientRect();
+        var before = (e.clientY - rect.top) < rect.height/2;
+        clearIndicators();
+        item.classList.add(before ? 'drag-over-top' : 'drag-over-bottom');
+      });
+      item.addEventListener('drop', function(e){
+        if(!draggedItem || draggedItem === item) return;
+        var group = item.closest(groupSelector);
+        if(!group || group !== draggedItem.closest(groupSelector)) return;
+        e.preventDefault();
+        var rect = item.getBoundingClientRect();
+        var before = (e.clientY - rect.top) < rect.height/2;
+        clearIndicators();
+        var groupItems = Array.prototype.filter.call(group.querySelectorAll(itemSelector), function(i){ return i.closest(groupSelector) === group; });
+        var orderedKeys = groupItems.map(getKey);
+        var draggedKey = getKey(draggedItem);
+        var targetKey = getKey(item);
+        orderedKeys = orderedKeys.filter(function(k){ return k !== draggedKey; });
+        var targetIdx = orderedKeys.indexOf(targetKey);
+        var insertIdx = before ? targetIdx : targetIdx+1;
+        orderedKeys.splice(insertIdx, 0, draggedKey);
+        onReorder(orderedKeys);
+      });
+    });
+  }
+  function jornadaCalendarGlobalClick(e){
+    var openBtn = e.target.closest('[data-jornada-cal-open]');
+    if(openBtn){
+      var key = openBtn.getAttribute('data-jornada-cal-open');
+      if(state.jornadaCalendarOpen && state.jornadaCalendarOpen.key === key){
+        state.jornadaCalendarOpen = null;
+      } else {
+        state.jornadaCalendarOpen = { key: key, viewMonthKey: null };
+      }
+      jornadaCalendarRefreshForKey(key);
+      return;
+    }
+    var navBtn = e.target.closest('[data-jornada-cal-nav]');
+    if(navBtn){
+      var navParts = navBtn.getAttribute('data-jornada-cal-nav').split('|');
+      var navKey = navParts[0], dir = navParts[1];
+      if(state.jornadaCalendarOpen && state.jornadaCalendarOpen.key === navKey){
+        var baseKey = state.jornadaCalendarOpen.viewMonthKey || getCurrentMonthKey();
+        state.jornadaCalendarOpen.viewMonthKey = addMonthsToKey(baseKey, dir==='next'?1:-1);
+        jornadaCalendarRefreshForKey(navKey);
+      }
+      return;
+    }
+    var pickBtn = e.target.closest('[data-jornada-cal-pick]');
+    if(pickBtn){
+      var pickParts = pickBtn.getAttribute('data-jornada-cal-pick').split('|');
+      var pickKey = pickParts[0], dateStr = pickParts[1];
+      var keyParts = pickKey.split('-');
+      var pid = parseInt(keyParts[1],10), tid = parseInt(keyParts[2],10);
+      updatePatientTask(pid, tid, 'dataAlvo', dateStr);
+      state.jornadaCalendarOpen = null;
+      jornadaCalendarRefreshForKey(pickKey);
+      return;
+    }
+    if(state.jornadaCalendarOpen && !e.target.closest('.jornada-cal-popover') && !e.target.closest('[data-jornada-cal-open]')){
+      var closingKey = state.jornadaCalendarOpen.key;
+      state.jornadaCalendarOpen = null;
+      jornadaCalendarRefreshForKey(closingKey);
+    }
   }
   function prazoBadge(dateStr){
     if(!dateStr) return '<span class="badge badge-gray">—</span>';
@@ -1587,7 +1838,7 @@
       if(t.dia === 'primeira-sexta') dataAlvo = sextaIso;
       else if(t.dia === 'primeiro-sabado') dataAlvo = sabadoIso;
       else dataAlvo = addDaysIso(dataInicio, t.dia);
-      return { id: idx, nome: t.nome, fase: t.fase, dataAlvo: dataAlvo, concluido: false, dataConclusao: null, observacao: '', arquivado: false };
+      return { id: idx, nome: t.nome, fase: t.fase, dataAlvo: dataAlvo, concluido: false, dataConclusao: null, observacao: '', arquivado: false, ordem: idx };
     });
   }
   function resetJornadaTemplate(tipo, foco){
@@ -1596,7 +1847,9 @@
     saveJornadaTemplates();
   }
   function addTemplateTask(tipo, foco, variantId, fase){
-    getJornadaVariant(tipo, foco, variantId).tarefas.push({ fase: fase, nome: 'Nova tarefa', dia: 0, _tid: jornadaTemplateIdSeq++ });
+    var tplList = getJornadaVariant(tipo, foco, variantId).tarefas;
+    var tplMaxOrdem = tplList.reduce(function(m,t){ return Math.max(m, t.ordem||0); }, -1);
+    tplList.push({ fase: fase, nome: 'Nova tarefa', dia: 0, _tid: jornadaTemplateIdSeq++, ordem: tplMaxOrdem+1 });
     saveJornadaTemplates();
   }
   function removeTemplateTask(tipo, foco, variantId, tid){
@@ -1634,11 +1887,14 @@
       });
     });
     var columns = Object.keys(byPatient).map(function(id){ return byPatient[id]; });
-    columns.forEach(function(col){ col.tasks.sort(function(a,b){ return a.diff - b.diff; }); });
+    columns.forEach(function(col){
+      col.minDiff = Math.min.apply(null, col.tasks.map(function(t){ return t.diff; }));
+      col.tasks.sort(function(a,b){ return (a.task.ordem||0) - (b.task.ordem||0); });
+    });
     columns.sort(function(a,b){
       var pa = PRIORITY_RANK[a.patient.prioridade], pb = PRIORITY_RANK[b.patient.prioridade];
       if(pa !== pb) return pa - pb;
-      return a.tasks[0].diff - b.tasks[0].diff;
+      return a.minDiff - b.minDiff;
     });
     return columns;
   }
@@ -1793,11 +2049,12 @@
     var expandHtml = expanded ? ''+
       '<div class="jornada-kanban-card-expand">'+
         '<input type="text" class="jornada-task-name" data-kanban-task-nome="'+key+'" value="'+esc(t.nome)+'">'+
-        '<input type="date" class="jornada-task-date-input" data-kanban-task-data="'+key+'" value="'+esc(t.dataAlvo)+'">'+
+        jornadaDateFieldHtml('kanban-'+p.id+'-'+t.id, p.id, t.dataAlvo)+
+        jornadaDateBadge(t.dataAlvo, key)+
         '<input type="text" class="jornada-task-obs" data-kanban-task-obs="'+key+'" value="'+esc(t.observacao)+'" placeholder="Observação / mensagem a enviar (opcional)">'+
       '</div>' : '';
     return ''+
-      '<div class="jornada-kanban-card status-'+status+'">'+
+      '<div class="jornada-kanban-card status-'+status+'" data-kanban-drag-key="'+key+'">'+
         '<div class="jornada-kanban-card-top">'+
           '<input type="checkbox" data-jornada-done="'+key+'" '+(t.concluido?'checked':'')+'>'+
           '<div class="jornada-kanban-card-body" data-kanban-card-toggle="'+key+'">'+
@@ -1849,8 +2106,12 @@
   function refreshJornadaKanban(){
     var root = document.getElementById('jornadaKanbanRoot');
     if(!root) return;
+    var scrollBox = root.querySelector('.jornada-kanban');
+    var savedScrollLeft = scrollBox ? scrollBox.scrollLeft : 0;
     root.innerHTML = jornadaKanbanHtml();
     bindJornadaKanbanEvents();
+    var newScrollBox = root.querySelector('.jornada-kanban');
+    if(newScrollBox) newScrollBox.scrollLeft = savedScrollLeft;
     var toolbar = document.getElementById('jornadaKanbanToolbarRoot');
     if(toolbar){
       var sortBtn = document.getElementById('jornadaKanbanNomeSortBtn');
@@ -1895,14 +2156,6 @@
       });
       el.addEventListener('click', function(e){ e.stopPropagation(); });
     });
-    root.querySelectorAll('[data-kanban-task-data]').forEach(function(el){
-      el.addEventListener('change', function(){
-        var parts = this.getAttribute('data-kanban-task-data').split(':');
-        updatePatientTask(parseInt(parts[0],10), parseInt(parts[1],10), 'dataAlvo', this.value);
-        refreshJornadaKanban();
-      });
-      el.addEventListener('click', function(e){ e.stopPropagation(); });
-    });
     root.querySelectorAll('[data-kanban-task-obs]').forEach(function(el){
       el.addEventListener('blur', function(){
         var parts = this.getAttribute('data-kanban-task-obs').split(':');
@@ -1918,6 +2171,16 @@
         state.jornadaKanbanCollapsed[id] = !state.jornadaKanbanCollapsed[id];
         refreshJornadaKanban();
       });
+    });
+    root.querySelectorAll('.jornada-kanban-cards').forEach(function(colEl){
+      bindDragReorder(colEl, '.jornada-kanban-card', '.jornada-kanban-cards',
+        function(item){ return item.getAttribute('data-kanban-drag-key'); },
+        function(orderedKeys){
+          var pid = parseInt(orderedKeys[0].split(':')[0], 10);
+          var tids = orderedKeys.map(function(k){ return parseInt(k.split(':')[1],10); });
+          reorderPatientTasks(pid, tids);
+          refreshJornadaKanban();
+        });
     });
   }
   function jornadaFimBadge(dataFimPrevista){
@@ -2006,10 +2269,13 @@
       '<div class="section-header-row">'+
         '<h2 class="section-title">Kanban</h2>'+
         '<button class="info-icon-btn" type="button" data-info-toggle="info-jornada-agora">i</button>'+
+        '<button class="btn-icon" type="button" id="jornadaKanbanSectionToggleBtn" style="margin-left:auto;">'+(state.jornadaKanbanSectionCollapsed?'Mostrar':'Recolher')+'</button>'+
       '</div>'+
       '<div class="info-popover" id="info-jornada-agora">Um quadro por paciente com os marcos da jornada que vencem essa semana ou já passaram do prazo. Marque como feito direto aqui — o cartão fica marcado mas continua na tela até você arquivar.</div>'+
-      '<div id="jornadaKanbanToolbarRoot">'+jornadaKanbanToolbarHtml()+'</div>'+
-      '<div style="margin-bottom:32px;" id="jornadaKanbanRoot">'+jornadaKanbanHtml()+'</div>'+
+      '<div id="jornadaKanbanSectionWrap" style="'+(state.jornadaKanbanSectionCollapsed?'display:none;':'')+'">'+
+        '<div id="jornadaKanbanToolbarRoot">'+jornadaKanbanToolbarHtml()+'</div>'+
+        '<div style="margin-bottom:32px;" id="jornadaKanbanRoot">'+jornadaKanbanHtml()+'</div>'+
+      '</div>'+
       '<div class="section-header-row">'+
         '<h2 class="section-title">Histórico (Arquivados)</h2>'+
         '<button class="info-icon-btn" type="button" data-info-toggle="info-jornada-arquivo">i</button>'+
@@ -2022,19 +2288,22 @@
       '<div class="section-header-row">'+
         '<h2 class="section-title">Pacientes com Jornada Ativa</h2>'+
         '<button class="info-icon-btn" type="button" data-info-toggle="info-jornada-resumo">i</button>'+
+        '<button class="btn-icon" type="button" id="jornadaResumoToggleBtn" style="margin-left:auto;">'+(state.jornadaResumoCollapsed?'Mostrar':'Recolher')+'</button>'+
       '</div>'+
       '<div class="info-popover" id="info-jornada-resumo">Para iniciar uma jornada, cadastre ou edite um paciente e escolha a Jornada. Previsão de Fim é colorida automaticamente (verde ≥16 dias, amarelo ≤15 dias, vermelho se já passou), igual o Status de Consulta.</div>'+
-      '<input type="text" id="jornadaResumoSearchInput" class="search-input" style="width:100%;margin-bottom:10px;" placeholder="Buscar por nome..." value="'+esc(state.jornadaResumoSearch)+'">'+
-      '<div class="card" style="margin-bottom:32px;">'+
-        '<table><thead><tr>'+
-          '<th class="th-sort" data-jresumo-sort="nome">Nome'+jornadaResumoSortArrow('nome')+'</th>'+
-          filterThHtml('jornadaResumoTipoFilter', 'Tipo', 'Todos os Tipos', [{value:'trimestral',label:'Trimestral'},{value:'semestral',label:'Semestral'}])+
-          filterThHtml('jornadaResumoModeloFilter', 'Modelo', 'Todos os Modelos', jornadaResumoModeloOptions())+
-          '<th class="th-sort" data-jresumo-sort="dataInicio">Início'+jornadaResumoSortArrow('dataInicio')+'</th>'+
-          '<th class="th-sort" data-jresumo-sort="dataFimPrevista">Previsão de Fim'+jornadaResumoSortArrow('dataFimPrevista')+'</th>'+
-          '<th class="th-sort" data-jresumo-sort="progresso">Progresso'+jornadaResumoSortArrow('progresso')+'</th>'+
-        '</tr></thead>'+
-        '<tbody id="jornadaResumoTableBody">'+jornadaResumoRows()+'</tbody></table>'+
+      '<div id="jornadaResumoWrap" style="'+(state.jornadaResumoCollapsed?'display:none;':'')+'margin-bottom:32px;">'+
+        '<input type="text" id="jornadaResumoSearchInput" class="search-input" style="width:100%;margin-bottom:10px;" placeholder="Buscar por nome..." value="'+esc(state.jornadaResumoSearch)+'">'+
+        '<div class="card">'+
+          '<table><thead><tr>'+
+            '<th class="th-sort" data-jresumo-sort="nome">Nome'+jornadaResumoSortArrow('nome')+'</th>'+
+            filterThHtml('jornadaResumoTipoFilter', 'Tipo', 'Todos os Tipos', [{value:'trimestral',label:'Trimestral'},{value:'semestral',label:'Semestral'}])+
+            filterThHtml('jornadaResumoModeloFilter', 'Modelo', 'Todos os Modelos', jornadaResumoModeloOptions())+
+            '<th class="th-sort" data-jresumo-sort="dataInicio">Início'+jornadaResumoSortArrow('dataInicio')+'</th>'+
+            '<th class="th-sort" data-jresumo-sort="dataFimPrevista">Previsão de Fim'+jornadaResumoSortArrow('dataFimPrevista')+'</th>'+
+            '<th class="th-sort" data-jresumo-sort="progresso">Progresso'+jornadaResumoSortArrow('progresso')+'</th>'+
+          '</tr></thead>'+
+          '<tbody id="jornadaResumoTableBody">'+jornadaResumoRows()+'</tbody></table>'+
+        '</div>'+
       '</div>'+
       '<div class="section-header-row">'+
         '<h2 class="section-title">Modelos de Jornada</h2>'+
@@ -2070,13 +2339,13 @@
     var tasks = variant.tarefas;
     var groups = faseLabels.map(function(label, fase){
       var collapsed = !!state.jornadaEditorCollapsedFases[fase];
-      var faseTasks = tasks.filter(function(t){ return t.fase === fase; });
+      var faseTasks = tasks.filter(function(t){ return t.fase === fase; }).sort(function(a,b){ return (a.ordem||0) - (b.ordem||0); });
       var faseOptions = faseLabels.map(function(l, i){ return '<option value="'+i+'"'+(i===fase?' selected':'')+'>'+esc(l)+'</option>'; }).join('');
       var rows = faseTasks.map(function(t){
         var diaValue = (t.dia === 'primeira-sexta' || t.dia === 'primeiro-sabado') ? '' : t.dia;
         var diaTitle = t.dia === 'primeira-sexta' ? 'Hoje: 1ª sexta após o início. Editar substitui por um número fixo de dias.' : t.dia === 'primeiro-sabado' ? 'Hoje: 1º sábado após o início. Editar substitui por um número fixo de dias.' : 'Dias após o início';
         return ''+
-          '<div class="jornada-template-task">'+
+          '<div class="jornada-template-task" data-tpl-drag-key="'+t._tid+'">'+
             '<input type="text" class="jornada-template-nome" data-tpl-field="nome" data-tpl-tid="'+t._tid+'" value="'+esc(t.nome)+'">'+
             '<input type="number" class="jornada-template-dia" data-tpl-field="dia" data-tpl-tid="'+t._tid+'" value="'+diaValue+'" title="'+esc(diaTitle)+'" placeholder="dias">'+
             '<select class="jornada-template-fase" data-tpl-field="fase" data-tpl-tid="'+t._tid+'">'+faseOptions+'</select>'+
@@ -2186,6 +2455,14 @@
         }
       });
     }
+    root.querySelectorAll('.jornada-fase-group-body').forEach(function(groupEl){
+      bindDragReorder(groupEl, '.jornada-template-task', '.jornada-fase-group-body',
+        function(item){ return parseInt(item.getAttribute('data-tpl-drag-key'),10); },
+        function(orderedKeys){
+          reorderTemplateTasks(tipo, foco, variantId, orderedKeys);
+          refreshJornadaTemplateEditor();
+        });
+    });
   }
   function attachJornadaEvents(){
     var content = document.getElementById('content');
@@ -2213,6 +2490,16 @@
       state.jornadaAfazeresCollapsed = !state.jornadaAfazeresCollapsed;
       document.getElementById('jornadaAfazeresCard').style.display = state.jornadaAfazeresCollapsed ? 'none' : '';
       this.textContent = state.jornadaAfazeresCollapsed ? 'Mostrar' : 'Recolher';
+    });
+    document.getElementById('jornadaResumoToggleBtn').addEventListener('click', function(){
+      state.jornadaResumoCollapsed = !state.jornadaResumoCollapsed;
+      document.getElementById('jornadaResumoWrap').style.display = state.jornadaResumoCollapsed ? 'none' : '';
+      this.textContent = state.jornadaResumoCollapsed ? 'Mostrar' : 'Recolher';
+    });
+    document.getElementById('jornadaKanbanSectionToggleBtn').addEventListener('click', function(){
+      state.jornadaKanbanSectionCollapsed = !state.jornadaKanbanSectionCollapsed;
+      document.getElementById('jornadaKanbanSectionWrap').style.display = state.jornadaKanbanSectionCollapsed ? 'none' : '';
+      this.textContent = state.jornadaKanbanSectionCollapsed ? 'Mostrar' : 'Recolher';
     });
     document.getElementById('jornadaKanbanSearchInput').addEventListener('input', function(){
       state.jornadaKanbanSearch = this.value;
@@ -2274,10 +2561,12 @@
     bindProfileOpeners(tbody);
   }
   function refreshAllJornadaViews(){
+    var savedScrollY = window.scrollY;
     refreshJornadaKanban();
     refreshJornadaAfazeres();
     refreshJornadaPainel();
     refreshJornadaResumoTable();
+    window.scrollTo(window.scrollX, savedScrollY);
   }
   function materialBadge(v){
     return v ? '<span class="badge badge-success">Enviado</span>' : '<span class="badge badge-gray">Pendente</span>';
@@ -2417,7 +2706,8 @@
     aniversariantes: { title: 'Aniversariantes da Semana' },
     inativos: { title: 'Pacientes Inativos' },
     treinoVencido: { title: 'Ficha de Treino Vencida' },
-    treinoAVencer: { title: 'Ficha de Treino a Vencer' }
+    treinoAVencer: { title: 'Ficha de Treino a Vencer' },
+    renovacaoAntecipada: { title: 'Renovação Antecipada' }
   };
   function dashboardFilterPatients(key){
     var today = new Date();
@@ -2432,6 +2722,7 @@
       }
       if(key === 'consulta') return consultaStatus(p) === 'proximo';
       if(key === 'inativos') return renovacaoStatus(p) === 'Vencido';
+      if(key === 'renovacaoAntecipada') return renovacaoStatus(p) === 'Renovação antecipada';
       return false;
     });
     return list.sort(function(a,b){ return a.nome.localeCompare(b.nome, 'pt-BR'); });
@@ -2678,6 +2969,10 @@
         '<div class="kpi-label">Pacientes Inativos</div>'+
         '<div class="kpi-value">'+dashboardFilterPatients('inativos').length+'</div>'+
       '</button>'+
+      '<button class="kpi-card info'+(state.dashboardFilter==='renovacaoAntecipada'?' selected':'')+'" data-kpi="renovacaoAntecipada">'+
+        '<div class="kpi-label">Renovação Antecipada</div>'+
+        '<div class="kpi-value">'+dashboardFilterPatients('renovacaoAntecipada').length+'</div>'+
+      '</button>'+
     '</div>'+
     '<div class="section-header-row">'+
       '<h2 class="section-title">Fichas de Treino</h2>'+
@@ -2738,7 +3033,8 @@
       '<button class="info-icon-btn" type="button" data-info-toggle="info-comparacao">i</button>'+
     '</div>'+
     '<div class="info-popover" id="info-comparacao">Últimos 6 meses lado a lado — engajamento médio, % de check-in enviado, pacientes em risco e novos cadastros. O mês atual fica destacado.</div>'+
-    '<div class="card" style="padding:16px;">'+comparacaoMensalHtml()+'</div>';
+    '<div class="card" style="padding:16px;margin-bottom:32px;">'+comparacaoMensalHtml()+'</div>'+
+    dashboardQuickAccessHtml();
   }
   function bindInfoIcons(container){
     var btns = container.querySelectorAll('.info-icon-btn');
@@ -2765,7 +3061,8 @@
     var kpiBtns = document.querySelectorAll('[data-kpi]');
     for(var i=0;i<kpiBtns.length;i++){
       kpiBtns[i].addEventListener('click', function(){
-        state.dashboardFilter = this.getAttribute('data-kpi');
+        var key = this.getAttribute('data-kpi');
+        state.dashboardFilter = (state.dashboardFilter === key) ? null : key;
         render();
       });
     }
@@ -2773,6 +3070,20 @@
     if(closeBtn){
       closeBtn.addEventListener('click', function(){
         state.dashboardFilter = null;
+        render();
+      });
+    }
+    var quickSortBtns = document.querySelectorAll('[data-quick-sort]');
+    for(var qs=0;qs<quickSortBtns.length;qs++){
+      quickSortBtns[qs].addEventListener('click', function(){
+        var key = this.getAttribute('data-quick-sort');
+        if(key === 'vencimentos'){
+          state.dashQuickVencSort = state.dashQuickVencSort === 'asc' ? 'desc' : 'asc';
+        } else if(key === 'treino'){
+          state.dashQuickTreinoSort = state.dashQuickTreinoSort === 'asc' ? 'desc' : 'asc';
+        } else if(key === 'dieta'){
+          state.dashQuickDietaSort = state.dashQuickDietaSort === 'asc' ? 'desc' : 'asc';
+        }
         render();
       });
     }
@@ -2882,11 +3193,30 @@
     else if(field === 'dataAlvo') task.dataAlvo = value;
     savePatients();
   }
+  function reorderPatientTasks(patientId, orderedTaskIds){
+    var p = getPatient(patientId);
+    if(!p || !p.jornada) return;
+    orderedTaskIds.forEach(function(tid, idx){
+      var task = p.jornada.tarefas.filter(function(t){ return t.id === tid; })[0];
+      if(task) task.ordem = idx;
+    });
+    savePatients();
+  }
+  function reorderTemplateTasks(tipo, foco, variantId, orderedTids){
+    var variant = getJornadaVariant(tipo, foco, variantId);
+    if(!variant) return;
+    orderedTids.forEach(function(tid, idx){
+      var task = variant.tarefas.filter(function(t){ return t._tid === tid; })[0];
+      if(task) task.ordem = idx;
+    });
+    saveJornadaTemplates();
+  }
   function addPatientTask(patientId, fase){
     var p = getPatient(patientId);
     if(!p || !p.jornada) return;
     var maxId = p.jornada.tarefas.reduce(function(m,t){ return Math.max(m, t.id); }, -1);
-    p.jornada.tarefas.push({ id: maxId+1, nome: 'Nova tarefa', fase: fase, dataAlvo: todayISODate(), concluido: false, dataConclusao: null, observacao: '', arquivado: false });
+    var maxOrdem = p.jornada.tarefas.reduce(function(m,t){ return Math.max(m, t.ordem||0); }, -1);
+    p.jornada.tarefas.push({ id: maxId+1, nome: 'Nova tarefa', fase: fase, dataAlvo: todayISODate(), concluido: false, dataConclusao: null, observacao: '', arquivado: false, ordem: maxOrdem+1 });
     savePatients();
   }
   function removePatientTask(patientId, taskId){
@@ -2983,6 +3313,110 @@
     var idx = p.fichasTreino.findIndex(function(f){ return f.id === fichaId; });
     if(idx !== -1) p.fichasTreino.splice(idx, 1);
     savePatients();
+  }
+  /* ---- Acesso Rápido (Dashboard) ---- */
+  function pacientesSemVigencia(){
+    return state.patients.filter(function(p){
+      return renovacaoStatus(p) !== 'Vencido' && !p.vencimento;
+    }).sort(function(a,b){ return a.nome.localeCompare(b.nome, 'pt-BR'); });
+  }
+  function pacientesSemConsultaMarcada(){
+    return state.patients.filter(function(p){
+      return renovacaoStatus(p) !== 'Vencido' && consultaStatus(p) === 'atrasado';
+    }).sort(function(a,b){ return a.nome.localeCompare(b.nome, 'pt-BR'); });
+  }
+  function pacientesVencimentosList(sortDir){
+    var list = state.patients.filter(function(p){
+      return renovacaoStatus(p) !== 'Vencido' && p.vencimento;
+    });
+    list.sort(function(a,b){
+      if(a.vencimento === b.vencimento) return a.nome.localeCompare(b.nome, 'pt-BR');
+      if(sortDir === 'asc') return a.vencimento < b.vencimento ? -1 : 1;
+      return a.vencimento > b.vencimento ? -1 : 1;
+    });
+    return list;
+  }
+  function pacientesSemAtualizacao(kind, sortDir){
+    var temServico = kind === 'treino' ? temServicoTreino : temServicoDieta;
+    var fichasOrdenadas = kind === 'treino' ? fichasTreinoOrdenadas : fichasDietaOrdenadas;
+    var list = state.patients.filter(function(p){
+      return renovacaoStatus(p) !== 'Vencido' && temServico(p);
+    }).map(function(p){
+      var ultima = fichasOrdenadas(p)[0] || null;
+      var dias = ultima ? daysBetween(ultima.dataPassado, todayISODate()) : null;
+      return { p: p, dias: dias };
+    });
+    list.sort(function(a,b){
+      var av = a.dias === null ? Infinity : a.dias;
+      var bv = b.dias === null ? Infinity : b.dias;
+      if(av === bv) return a.p.nome.localeCompare(b.p.nome, 'pt-BR');
+      return sortDir === 'asc' ? av - bv : bv - av;
+    });
+    return list;
+  }
+  function semVigenciaRows(){
+    var list = pacientesSemVigencia();
+    if(!list.length) return '<tr><td colspan="2"><div class="empty-state">Nenhum paciente sem vigência. 🎉</div></td></tr>';
+    return list.map(function(p){
+      return '<tr><td><button class="link-btn" data-open-profile="'+p.id+'">'+esc(p.nome)+'</button></td><td>'+priorityBadge(p.prioridade)+'</td></tr>';
+    }).join('');
+  }
+  function semConsultaMarcadaRows(){
+    var list = pacientesSemConsultaMarcada();
+    if(!list.length) return '<tr><td colspan="2"><div class="empty-state">Nenhum paciente sem consulta marcada. 🎉</div></td></tr>';
+    return list.map(function(p){
+      return '<tr><td><button class="link-btn" data-open-profile="'+p.id+'">'+esc(p.nome)+'</button></td><td>'+consultaBadge(p)+'</td></tr>';
+    }).join('');
+  }
+  function vencimentosQuickRows(){
+    var list = pacientesVencimentosList(state.dashQuickVencSort);
+    if(!list.length) return '<tr><td colspan="2"><div class="empty-state">Nenhum paciente com vencimento cadastrado.</div></td></tr>';
+    return list.map(function(p){
+      return '<tr><td><button class="link-btn" data-open-profile="'+p.id+'">'+esc(p.nome)+'</button></td><td>'+prazoBadge(p.vencimento)+'</td></tr>';
+    }).join('');
+  }
+  function semAtualizacaoRows(kind){
+    var sortDir = kind === 'treino' ? state.dashQuickTreinoSort : state.dashQuickDietaSort;
+    var list = pacientesSemAtualizacao(kind, sortDir);
+    if(!list.length) return '<tr><td colspan="2"><div class="empty-state">Nenhum paciente com serviço de '+(kind==='treino'?'Treino':'Dieta')+'.</div></td></tr>';
+    return list.map(function(item){
+      var diasLabel = item.dias === null ? 'Nunca atualizado' : (item.dias + (Math.abs(item.dias) === 1 ? ' dia' : ' dias'));
+      var cls = item.dias === null || item.dias >= 30 ? 'badge-danger' : item.dias >= 15 ? 'badge-warning' : 'badge-gray';
+      return '<tr><td><button class="link-btn" data-open-profile="'+item.p.id+'">'+esc(item.p.nome)+'</button></td><td><span class="badge '+cls+'">'+esc(diasLabel)+'</span></td></tr>';
+    }).join('');
+  }
+  function quickSortBtnHtml(key, currentDir){
+    return '<button class="btn-icon" type="button" data-quick-sort="'+key+'">'+(currentDir==='desc'?'Maior → Menor':'Menor → Maior')+' ⇅</button>';
+  }
+  function dashboardQuickAccessHtml(){
+    return ''+
+    '<div class="section-header-row">'+
+      '<h2 class="section-title">Acesso Rápido</h2>'+
+      '<button class="info-icon-btn" type="button" data-info-toggle="info-acesso-rapido">i</button>'+
+    '</div>'+
+    '<div class="info-popover" id="info-acesso-rapido">Pontos de atenção que passam batido no dia a dia: vigência não preenchida, treino/dieta sem atualizar, vencimentos chegando e consultas sem data marcada.</div>'+
+    '<div class="quick-access-grid">'+
+      '<div class="card" style="padding:16px;">'+
+        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Vigência</h3></div>'+
+        '<table><thead><tr><th>Nome</th><th>Prioridade</th></tr></thead><tbody>'+semVigenciaRows()+'</tbody></table>'+
+      '</div>'+
+      '<div class="card" style="padding:16px;">'+
+        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Vencimentos</h3>'+quickSortBtnHtml('vencimentos', state.dashQuickVencSort)+'</div>'+
+        '<table><thead><tr><th>Nome</th><th>Vencimento</th></tr></thead><tbody>'+vencimentosQuickRows()+'</tbody></table>'+
+      '</div>'+
+      '<div class="card" style="padding:16px;">'+
+        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Atualização Recente — Treino</h3>'+quickSortBtnHtml('treino', state.dashQuickTreinoSort)+'</div>'+
+        '<table><thead><tr><th>Nome</th><th>Última atualização</th></tr></thead><tbody>'+semAtualizacaoRows('treino')+'</tbody></table>'+
+      '</div>'+
+      '<div class="card" style="padding:16px;">'+
+        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Atualização Recente — Dieta</h3>'+quickSortBtnHtml('dieta', state.dashQuickDietaSort)+'</div>'+
+        '<table><thead><tr><th>Nome</th><th>Última atualização</th></tr></thead><tbody>'+semAtualizacaoRows('dieta')+'</tbody></table>'+
+      '</div>'+
+      '<div class="card quick-access-full" style="padding:16px;">'+
+        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Consulta Marcada</h3></div>'+
+        '<table><thead><tr><th>Nome</th><th>Status Consulta</th></tr></thead><tbody>'+semConsultaMarcadaRows()+'</tbody></table>'+
+      '</div>'+
+    '</div>';
   }
   function fichaTreinoFilterPatients(key){
     return state.patients.filter(function(p){
@@ -3105,57 +3539,197 @@
       return '<span class="compare-legend-item"><span class="compare-chip-dot" style="background:'+chartColorFor(idx)+';"></span>'+formatDate(f.dataPassado)+'</span>';
     }).join('')+'</div>';
   }
-  function volumeCompareChartHtml(p){
-    var selectedIds = state.volumeCompareSelected[p.id] || [];
-    var available = fichasTreinoOrdenadas(p).filter(function(f){
+  function fichasTreinoComVolume(p){
+    return fichasTreinoOrdenadas(p).filter(function(f){
       return f.volumePorGrupo && Object.keys(f.volumePorGrupo).some(function(g){ return (f.volumePorGrupo[g]||0) > 0; });
     });
+  }
+  function fichasDietaComMacro(p){
+    return fichasDietaOrdenadas(p).filter(function(f){
+      return MACRO_CATEGORIES.some(function(cat){ return (parseFloat(f[cat.key])||0) > 0; });
+    });
+  }
+  function seedDefaultCompareSelections(p){
+    state.volumeCompareSelected[p.id] = fichasTreinoComVolume(p).slice(0,2).map(function(f){ return f.id; });
+    state.dietaCompareSelected[p.id] = fichasDietaComMacro(p).slice(0,2).map(function(f){ return f.id; });
+    state.volumeCompareExpanded = false;
+    state.dietaCompareExpanded = false;
+    var expandRoot = document.getElementById('chart-expand-root');
+    if(expandRoot) expandRoot.innerHTML = '';
+  }
+  function volumeCompareBodyHtml(p){
+    var selectedIds = state.volumeCompareSelected[p.id] || [];
+    var available = fichasTreinoComVolume(p);
     var cp = compareChipsAndPicker(available, selectedIds, 'volume-compare-remove', 'volume-compare-add', p.id);
-    var header = '<div class="mini-label" style="text-align:left;margin-top:18px;">Volume por grupamento muscular — comparação</div>'+cp.html;
-    if(!available.length) return header + '<div class="empty-state" style="padding:12px;">Nenhuma ficha com volume por grupo muscular registrado ainda.</div>';
+    if(!available.length) return { chips: cp.html, chart: '<div class="empty-state" style="padding:12px;">Nenhuma ficha com volume por grupo muscular registrado ainda.</div>' };
     var chrono = cp.chrono;
-    if(chrono.length < 2) return header + '<div class="empty-state" style="padding:12px;">Selecione pelo menos 2 datas pra comparar.</div>';
+    if(!chrono.length) return { chips: cp.html, chart: '<div class="empty-state" style="padding:12px;">Selecione uma data pra ver o gráfico (ou 2+ pra comparar).</div>' };
+    var sortDir = state.volumeCompareSortDir;
     var groups = state.grupoMuscularList.filter(function(g){
       return chrono.some(function(f){ return (f.volumePorGrupo[g]||0) > 0; });
     });
+    if(sortDir !== 'default'){
+      var totals = {};
+      groups.forEach(function(g){ totals[g] = chrono.reduce(function(sum,f){ return sum + (f.volumePorGrupo[g]||0); }, 0); });
+      groups = groups.slice().sort(function(a,b){ return sortDir==='asc' ? totals[a]-totals[b] : totals[b]-totals[a]; });
+    }
     var bars = compareBarsHtml(groups, chrono, function(f, g){ return f.volumePorGrupo[g] || 0; });
-    var first = chrono[0], last = chrono[chrono.length-1];
-    var totalFirst = 0, totalLast = 0;
-    var deltas = groups.map(function(g){
-      var vf = first.volumePorGrupo[g]||0, vl = last.volumePorGrupo[g]||0;
-      totalFirst += vf; totalLast += vl;
-      return { grupo: g, delta: vl - vf };
+    var summary = '';
+    if(chrono.length >= 2){
+      var first = chrono[0], last = chrono[chrono.length-1];
+      var totalFirst = 0, totalLast = 0;
+      var deltas = groups.map(function(g){
+        var vf = first.volumePorGrupo[g]||0, vl = last.volumePorGrupo[g]||0;
+        totalFirst += vf; totalLast += vl;
+        return { grupo: g, delta: vl - vf };
+      });
+      var totalDelta = totalLast - totalFirst;
+      var pct = totalFirst ? (totalDelta/totalFirst*100) : 0;
+      deltas.sort(function(a,b){ return Math.abs(b.delta) - Math.abs(a.delta); });
+      var top3 = deltas.slice(0,3).filter(function(d){ return d.delta !== 0; });
+      summary = '<div class="cell-muted" style="margin-top:8px;">Volume total ('+formatDate(first.dataPassado)+' → '+formatDate(last.dataPassado)+'): '+
+        (totalDelta>=0?'↑ +':'↓ ')+totalDelta.toFixed(1)+' ('+(pct>=0?'+':'')+pct.toFixed(1)+'%)'+
+        (top3.length ? ' · Maiores variações: '+top3.map(function(d){ return esc(d.grupo)+' '+(d.delta>=0?'↑ +':'↓ ')+d.delta.toFixed(1); }).join(', ') : '')+
+      '</div>';
+    }
+    return { chips: cp.html, chart: compareLegendHtml(chrono) + '<div class="volume-compare-chart">'+bars+'</div>' + summary };
+  }
+  function volumeCompareChartHtml(p){
+    var sortDir = state.volumeCompareSortDir;
+    var sortLabel = sortDir==='asc' ? 'Volume ▲' : sortDir==='desc' ? 'Volume ▼' : 'Ordenar por volume';
+    var sortBtn = '<button type="button" class="btn-icon" id="volumeCompareSortBtn">'+sortLabel+'</button>';
+    var expandBtn = '<button type="button" class="compare-expand-btn" id="volumeCompareExpandBtn" title="Expandir só esse gráfico pra tela cheia">⛶</button>';
+    var r = volumeCompareBodyHtml(p);
+    var header = '<div class="mini-label" style="text-align:left;margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;"><span>Volume por grupamento muscular — comparação</span><span style="display:flex;gap:6px;align-items:center;">'+sortBtn+expandBtn+'</span></div>';
+    return header + r.chips + r.chart;
+  }
+  function renderVolumeCompareOverlay(){
+    var p = getPatient(state.activeId);
+    var root = document.getElementById('chart-expand-root');
+    if(!p || !root) return;
+    var sortDir = state.volumeCompareSortDir;
+    var sortLabel = sortDir==='asc' ? 'Volume ▲' : sortDir==='desc' ? 'Volume ▼' : 'Ordenar por volume';
+    var r = volumeCompareBodyHtml(p);
+    root.innerHTML = '<div class="compare-expanded-overlay">'+
+      '<div class="compare-expanded-header"><h3>Volume por grupamento muscular — '+esc(p.nome)+'</h3>'+
+        '<div style="display:flex;gap:8px;align-items:center;">'+
+          '<button type="button" class="btn-icon" id="volumeCompareOverlaySortBtn">'+sortLabel+'</button>'+
+          '<button type="button" class="compare-expand-btn" id="volumeCompareOverlayCloseBtn" title="Recolher">✕</button>'+
+        '</div>'+
+      '</div>'+
+      r.chips + r.chart +
+    '</div>';
+    bindVolumeCompareOverlayEvents();
+  }
+  function bindVolumeCompareOverlayEvents(){
+    var root = document.getElementById('chart-expand-root');
+    if(!root) return;
+    var sortBtn = root.querySelector('#volumeCompareOverlaySortBtn');
+    if(sortBtn){
+      sortBtn.addEventListener('click', function(){
+        state.volumeCompareSortDir = state.volumeCompareSortDir === 'default' ? 'desc' : state.volumeCompareSortDir === 'desc' ? 'asc' : 'default';
+        renderVolumeCompareOverlay();
+      });
+    }
+    var closeBtn = root.querySelector('#volumeCompareOverlayCloseBtn');
+    if(closeBtn){
+      closeBtn.addEventListener('click', function(){ closeCompareOverlay(); });
+    }
+    root.querySelectorAll('[data-volume-compare-add]').forEach(function(sel){
+      sel.addEventListener('change', function(){
+        if(!this.value) return;
+        var pid = parseInt(this.getAttribute('data-volume-compare-add'),10);
+        if(!state.volumeCompareSelected[pid]) state.volumeCompareSelected[pid] = [];
+        state.volumeCompareSelected[pid].push(parseInt(this.value,10));
+        renderVolumeCompareOverlay();
+      });
     });
-    var totalDelta = totalLast - totalFirst;
-    var pct = totalFirst ? (totalDelta/totalFirst*100) : 0;
-    deltas.sort(function(a,b){ return Math.abs(b.delta) - Math.abs(a.delta); });
-    var top3 = deltas.slice(0,3).filter(function(d){ return d.delta !== 0; });
-    var summary = 'Volume total ('+formatDate(first.dataPassado)+' → '+formatDate(last.dataPassado)+'): '+
-      (totalDelta>=0?'↑ +':'↓ ')+totalDelta.toFixed(1)+' ('+(pct>=0?'+':'')+pct.toFixed(1)+'%)'+
-      (top3.length ? ' · Maiores variações: '+top3.map(function(d){ return esc(d.grupo)+' '+(d.delta>=0?'↑ +':'↓ ')+d.delta.toFixed(1); }).join(', ') : '');
-    return header + compareLegendHtml(chrono) + '<div class="volume-compare-chart">'+bars+'</div>' + '<div class="cell-muted" style="margin-top:8px;">'+summary+'</div>';
+    root.querySelectorAll('[data-volume-compare-remove]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var fid = parseInt(this.getAttribute('data-volume-compare-remove'),10);
+        var pid = state.activeId;
+        if(state.volumeCompareSelected[pid]){
+          state.volumeCompareSelected[pid] = state.volumeCompareSelected[pid].filter(function(x){ return x !== fid; });
+        }
+        renderVolumeCompareOverlay();
+      });
+    });
+  }
+  function closeCompareOverlay(){
+    var root = document.getElementById('chart-expand-root');
+    if(root) root.innerHTML = '';
+    state.volumeCompareExpanded = false;
+    state.dietaCompareExpanded = false;
+    refreshFichaTreinoList();
+    refreshFichaDietaList();
+  }
+  function dietaCompareBodyHtml(p){
+    var selectedIds = state.dietaCompareSelected[p.id] || [];
+    var available = fichasDietaComMacro(p);
+    var cp = compareChipsAndPicker(available, selectedIds, 'dieta-compare-remove', 'dieta-compare-add', p.id);
+    if(!available.length) return { chips: cp.html, chart: '<div class="empty-state" style="padding:12px;">Nenhuma ficha com calorias/macronutrientes registrado ainda.</div>' };
+    var chrono = cp.chrono;
+    if(!chrono.length) return { chips: cp.html, chart: '<div class="empty-state" style="padding:12px;">Selecione uma data pra ver o gráfico (ou 2+ pra comparar).</div>' };
+    var bars = compareBarsHtml(MACRO_CATEGORIES, chrono, function(f, cat){ return parseFloat(f[cat.key]) || 0; });
+    var summary = '';
+    if(chrono.length >= 2){
+      var first = chrono[0], last = chrono[chrono.length-1];
+      var summaryParts = MACRO_CATEGORIES.map(function(cat){
+        var vf = parseFloat(first[cat.key])||0, vl = parseFloat(last[cat.key])||0;
+        var d = vl - vf;
+        var shortLabel = cat.key==='calorias'?'kcal':cat.key==='proteinas'?'prot':cat.key==='carboidratos'?'carbo':'gord';
+        var unit = cat.key==='calorias'?' kcal':'g';
+        return shortLabel+' '+(d>=0?'↑ +':'↓ ')+d.toFixed(1)+unit;
+      });
+      summary = '<div class="cell-muted" style="margin-top:8px;">Variação ('+formatDate(first.dataPassado)+' → '+formatDate(last.dataPassado)+'): '+summaryParts.join(' · ')+'</div>';
+    }
+    return { chips: cp.html, chart: compareLegendHtml(chrono) + '<div class="volume-compare-chart">'+bars+'</div>' + summary };
   }
   function dietaCompareChartHtml(p){
-    var selectedIds = state.dietaCompareSelected[p.id] || [];
-    var available = fichasDietaOrdenadas(p).filter(function(f){
-      return MACRO_CATEGORIES.some(function(cat){ return (parseFloat(f[cat.key])||0) > 0; });
+    var expandBtn = '<button type="button" class="compare-expand-btn" id="dietaCompareExpandBtn" title="Expandir só esse gráfico pra tela cheia">⛶</button>';
+    var r = dietaCompareBodyHtml(p);
+    var header = '<div class="mini-label" style="text-align:left;margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;"><span>Calorias e macronutrientes — comparação</span>'+expandBtn+'</div>';
+    return header + r.chips + r.chart;
+  }
+  function renderDietaCompareOverlay(){
+    var p = getPatient(state.activeId);
+    var root = document.getElementById('chart-expand-root');
+    if(!p || !root) return;
+    var r = dietaCompareBodyHtml(p);
+    root.innerHTML = '<div class="compare-expanded-overlay">'+
+      '<div class="compare-expanded-header"><h3>Calorias e macronutrientes — '+esc(p.nome)+'</h3>'+
+        '<button type="button" class="compare-expand-btn" id="dietaCompareOverlayCloseBtn" title="Recolher">✕</button>'+
+      '</div>'+
+      r.chips + r.chart +
+    '</div>';
+    bindDietaCompareOverlayEvents();
+  }
+  function bindDietaCompareOverlayEvents(){
+    var root = document.getElementById('chart-expand-root');
+    if(!root) return;
+    var closeBtn = root.querySelector('#dietaCompareOverlayCloseBtn');
+    if(closeBtn){
+      closeBtn.addEventListener('click', function(){ closeCompareOverlay(); });
+    }
+    root.querySelectorAll('[data-dieta-compare-add]').forEach(function(sel){
+      sel.addEventListener('change', function(){
+        if(!this.value) return;
+        var pid = parseInt(this.getAttribute('data-dieta-compare-add'),10);
+        if(!state.dietaCompareSelected[pid]) state.dietaCompareSelected[pid] = [];
+        state.dietaCompareSelected[pid].push(parseInt(this.value,10));
+        renderDietaCompareOverlay();
+      });
     });
-    var cp = compareChipsAndPicker(available, selectedIds, 'dieta-compare-remove', 'dieta-compare-add', p.id);
-    var header = '<div class="mini-label" style="text-align:left;margin-top:18px;">Calorias e macronutrientes — comparação</div>'+cp.html;
-    if(!available.length) return header + '<div class="empty-state" style="padding:12px;">Nenhuma ficha com calorias/macronutrientes registrado ainda.</div>';
-    var chrono = cp.chrono;
-    if(chrono.length < 2) return header + '<div class="empty-state" style="padding:12px;">Selecione pelo menos 2 datas pra comparar.</div>';
-    var bars = compareBarsHtml(MACRO_CATEGORIES, chrono, function(f, cat){ return parseFloat(f[cat.key]) || 0; });
-    var first = chrono[0], last = chrono[chrono.length-1];
-    var summaryParts = MACRO_CATEGORIES.map(function(cat){
-      var vf = parseFloat(first[cat.key])||0, vl = parseFloat(last[cat.key])||0;
-      var d = vl - vf;
-      var shortLabel = cat.key==='calorias'?'kcal':cat.key==='proteinas'?'prot':cat.key==='carboidratos'?'carbo':'gord';
-      var unit = cat.key==='calorias'?' kcal':'g';
-      return shortLabel+' '+(d>=0?'↑ +':'↓ ')+d.toFixed(1)+unit;
+    root.querySelectorAll('[data-dieta-compare-remove]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var fid = parseInt(this.getAttribute('data-dieta-compare-remove'),10);
+        var pid = state.activeId;
+        if(state.dietaCompareSelected[pid]){
+          state.dietaCompareSelected[pid] = state.dietaCompareSelected[pid].filter(function(x){ return x !== fid; });
+        }
+        renderDietaCompareOverlay();
+      });
     });
-    var summary = 'Variação ('+formatDate(first.dataPassado)+' → '+formatDate(last.dataPassado)+'): '+summaryParts.join(' · ');
-    return header + compareLegendHtml(chrono) + '<div class="volume-compare-chart">'+bars+'</div>' + '<div class="cell-muted" style="margin-top:8px;">'+summary+'</div>';
   }
   function fichaTreinoListHtml(p){
     return grupoMuscularManagerHtml() +
@@ -3193,8 +3767,7 @@
       });
     });
     root.querySelectorAll('[data-ficha-field]').forEach(function(el){
-      var isTextarea = el.tagName === 'TEXTAREA';
-      el.addEventListener(isTextarea ? 'blur' : 'change', function(){
+      el.addEventListener('blur', function(){
         var fid = parseInt(this.getAttribute('data-ficha-id'),10);
         var field = this.getAttribute('data-ficha-field');
         updateFichaTreino(state.activeId, fid, field, this.value);
@@ -3237,6 +3810,13 @@
         refreshFichaTreinoList();
       });
     }
+    var volumeSortBtn = root.querySelector('#volumeCompareSortBtn');
+    if(volumeSortBtn){
+      volumeSortBtn.addEventListener('click', function(){
+        state.volumeCompareSortDir = state.volumeCompareSortDir === 'default' ? 'desc' : state.volumeCompareSortDir === 'desc' ? 'asc' : 'default';
+        refreshFichaTreinoList();
+      });
+    }
     root.querySelectorAll('[data-grupo-muscular-remove]').forEach(function(btn){
       btn.addEventListener('click', function(){
         var g = this.getAttribute('data-grupo-muscular-remove');
@@ -3264,6 +3844,13 @@
         refreshFichaTreinoList();
       });
     });
+    var volumeExpandBtn = root.querySelector('#volumeCompareExpandBtn');
+    if(volumeExpandBtn){
+      volumeExpandBtn.addEventListener('click', function(){
+        state.volumeCompareExpanded = true;
+        renderVolumeCompareOverlay();
+      });
+    }
   }
   function fichaTreinoDraftListHtml(){
     return fichaTreinoItemsHtml(sortFichas(state.formDraftFichas), state.formDraftFichaOpen, 'ficha-draft');
@@ -3293,8 +3880,7 @@
       });
     });
     root.querySelectorAll('[data-ficha-draft-field]').forEach(function(el){
-      var isTextarea = el.tagName === 'TEXTAREA';
-      el.addEventListener(isTextarea ? 'blur' : 'change', function(){
+      el.addEventListener('blur', function(){
         var fid = parseInt(this.getAttribute('data-ficha-draft-id'),10);
         var field = this.getAttribute('data-ficha-draft-field');
         var f = state.formDraftFichas.filter(function(x){ return x.id === fid; })[0];
@@ -3360,8 +3946,7 @@
       });
     });
     root.querySelectorAll('[data-ficha-dieta-field]').forEach(function(el){
-      var isTextarea = el.tagName === 'TEXTAREA';
-      el.addEventListener(isTextarea ? 'blur' : 'change', function(){
+      el.addEventListener('blur', function(){
         var fid = parseInt(this.getAttribute('data-ficha-dieta-id'),10);
         var field = this.getAttribute('data-ficha-dieta-field');
         updateFichaDieta(state.activeId, fid, field, this.value);
@@ -3403,6 +3988,13 @@
         refreshFichaDietaList();
       });
     });
+    var dietaExpandBtn = root.querySelector('#dietaCompareExpandBtn');
+    if(dietaExpandBtn){
+      dietaExpandBtn.addEventListener('click', function(){
+        state.dietaCompareExpanded = true;
+        renderDietaCompareOverlay();
+      });
+    }
   }
   function fichaDietaDraftListHtml(){
     return fichaDietaItemsHtml(sortFichas(state.formDraftFichasDieta), state.formDraftFichaDietaOpen, 'ficha-dieta-draft');
@@ -3432,8 +4024,7 @@
       });
     });
     root.querySelectorAll('[data-ficha-dieta-draft-field]').forEach(function(el){
-      var isTextarea = el.tagName === 'TEXTAREA';
-      el.addEventListener(isTextarea ? 'blur' : 'change', function(){
+      el.addEventListener('blur', function(){
         var fid = parseInt(this.getAttribute('data-ficha-dieta-draft-id'),10);
         var field = this.getAttribute('data-ficha-dieta-draft-field');
         var f = state.formDraftFichasDieta.filter(function(x){ return x.id === fid; })[0];
@@ -3596,7 +4187,7 @@
       filterThHtml('overviewConsultaFilter', 'Status Consulta', 'Todos', [
         {value:'emdia', label:'Em dia'}, {value:'proximo', label:'Próximo'}, {value:'atrasado', label:'Atrasado'}
       ])+
-      '<th>Meta do Mês</th>'+headerCells+
+      '<th>Meta da Próxima Consulta</th>'+headerCells+
       filterThHtml('overviewMediaFilter', 'Média', 'Todas', [
         {value:'Ruim', label:'Ruim'}, {value:'Mediano', label:'Mediano'}, {value:'Bom', label:'Bom'}
       ])+
@@ -3636,7 +4227,7 @@
       '<h2 class="section-title">Visão Geral — Engajamento e Check-in ('+monthLabel(state.competencia)+')</h2>'+
       '<button class="info-icon-btn" type="button" data-info-toggle="info-visao-geral">i</button>'+
     '</div>'+
-    '<div class="info-popover" id="info-visao-geral">Semana a semana, todos os pacientes. Status Consulta é automático pela data (verde ≥16 dias, amarelo ≤15 dias, vermelho se já passou) — ao lado da Meta do Mês pra cruzar as duas informações. Números coloridos = engajamento (verde 9-10, amarelo 7-8, vermelho 0-6, padrão NPS); ✓/✗ = check-in; "—" = ainda não avaliado.</div>'+
+    '<div class="info-popover" id="info-visao-geral">Semana a semana, todos os pacientes. Status Consulta é automático pela data (verde ≥16 dias, amarelo ≤15 dias, vermelho se já passou) — ao lado da Meta da Próxima Consulta pra cruzar as duas informações. Números coloridos = engajamento (verde 9-10, amarelo 7-8, vermelho 0-6, padrão NPS); ✓/✗ = check-in; "—" = ainda não avaliado.</div>'+
     '<div class="card table-scroll">'+overviewTableHtml(state.competencia)+'</div>'+
     '<div class="section-header-row" style="margin-top:32px;">'+
       '<h2 class="section-title">Material Pós-Consulta Pendente</h2>'+
@@ -3868,6 +4459,7 @@
   /* ================= MODALS ================= */
   function closeModal(silent){
     document.getElementById('modal-root').innerHTML = '';
+    document.getElementById('chart-expand-root').innerHTML = '';
     state.modal = null;
     state.activeId = null;
   }
@@ -3876,6 +4468,8 @@
   function openProfileModal(id){
     state.modal = 'profile';
     state.activeId = id;
+    var p = getPatient(id);
+    if(p) seedDefaultCompareSelections(p);
     renderModal();
   }
   function profileModalHtml(p, monthKey){
@@ -3915,7 +4509,7 @@
         '</div>'+
         '<div class="form-group" style="max-width:260px;"><label>Competência</label><select id="profileCompetenciaSelect" class="filter-select">'+monthSelectOptions(monthKey)+'</select></div>'+
         '<div class="profile-section">'+
-          '<h3>Meta do Mês</h3>'+
+          '<h3>Meta da Próxima Consulta</h3>'+
           '<div class="meta-box">'+metaBoxText(data)+'</div>'+
         '</div>'+
         '<div class="profile-section">'+
@@ -3954,17 +4548,18 @@
     }
     var faseLabels = JORNADA_FASES[p.jornada.tipo];
     var groups = faseLabels.map(function(label, fase){
-      var tasks = p.jornada.tarefas.filter(function(t){ return t.fase === fase; });
+      var tasks = p.jornada.tarefas.filter(function(t){ return t.fase === fase; }).sort(function(a,b){ return (a.ordem||0) - (b.ordem||0); });
       var rows = tasks.map(function(t){
         var status = jornadaTaskStatus(t);
         var dateLabel = t.concluido ? ('Concluído em ' + formatDate(t.dataConclusao)) : formatDateWithDiff(t.dataAlvo);
         return ''+
-          '<div class="jornada-task status-'+status+'">'+
+          '<div class="jornada-task status-'+status+'" data-jornada-drag-key="'+t.id+'">'+
             '<input type="checkbox" data-jornada-task-toggle="'+t.id+'" '+(t.concluido?'checked':'')+'>'+
             '<div class="jornada-task-body">'+
               '<div class="jornada-task-edit-row">'+
                 '<input type="text" class="jornada-task-name" data-jornada-task-nome="'+t.id+'" value="'+esc(t.nome)+'">'+
-                '<input type="date" class="jornada-task-date-input" data-jornada-task-data="'+t.id+'" value="'+esc(t.dataAlvo)+'">'+
+                jornadaDateFieldHtml('profile-'+p.id+'-'+t.id, p.id, t.dataAlvo)+
+                jornadaDateBadge(t.dataAlvo, t.id)+
                 '<button type="button" class="btn-icon btn-danger-outline" data-jornada-task-remove="'+t.id+'">Remover</button>'+
               '</div>'+
               '<div class="jornada-task-date">'+dateLabel+'</div>'+
@@ -3973,7 +4568,7 @@
           '</div>';
       }).join('');
       return '<div class="jornada-fase-title">'+label+'</div>'+
-        (rows || '<div class="cell-muted" style="margin-bottom:8px;">Nenhuma tarefa nessa fase.</div>')+
+        '<div class="jornada-fase-tasks" data-fase-group="'+fase+'">'+(rows || '<div class="cell-muted" style="margin-bottom:8px;">Nenhuma tarefa nessa fase.</div>')+'</div>'+
         '<button type="button" class="btn-icon" data-jornada-task-add="'+fase+'">+ Adicionar tarefa</button>';
     }).join('');
     var modeloNome = p.jornada.modeloNome || ((p.jornada.tipo==='trimestral'?'Trimestral':'Semestral')+' — '+JORNADA_FOCO_LABEL[p.jornada.foco]);
@@ -4031,7 +4626,7 @@
     var isPeso = weekly.metaTipo === 'peso';
     return ''+
       '<div class="form-group full">'+
-        '<label>Meta do Mês</label>'+
+        '<label>Meta da Próxima Consulta</label>'+
         '<div class="meta-type-toggle">'+
           '<button type="button" class="meta-type-btn'+(!isPeso?' active':'')+'" data-meta-type="outro">Texto</button>'+
           '<button type="button" class="meta-type-btn'+(isPeso?' active':'')+'" data-meta-type="peso">Meta de Peso</button>'+
@@ -4332,13 +4927,6 @@
           updatePatientTask(state.activeId, parseInt(this.getAttribute('data-jornada-task-nome'),10), 'nome', this.value.trim());
         });
       }
-      var jornadaDataInputs = document.querySelectorAll('[data-jornada-task-data]');
-      for(var jd=0;jd<jornadaDataInputs.length;jd++){
-        jornadaDataInputs[jd].addEventListener('change', function(){
-          updatePatientTask(state.activeId, parseInt(this.getAttribute('data-jornada-task-data'),10), 'dataAlvo', this.value);
-          renderModal();
-        });
-      }
       var jornadaRemoveBtns = document.querySelectorAll('[data-jornada-task-remove]');
       for(var jr=0;jr<jornadaRemoveBtns.length;jr++){
         jornadaRemoveBtns[jr].addEventListener('click', function(){
@@ -4353,6 +4941,15 @@
           renderModal();
         });
       }
+      document.querySelectorAll('.jornada-fase-tasks').forEach(function(groupEl){
+        bindDragReorder(groupEl, '.jornada-task', '.jornada-fase-tasks',
+          function(item){ return item.getAttribute('data-jornada-drag-key'); },
+          function(orderedKeys){
+            var tids = orderedKeys.map(function(k){ return parseInt(k,10); });
+            reorderPatientTasks(state.activeId, tids);
+            renderModal();
+          });
+      });
       var jornadaRemoveBtn = document.getElementById('jornadaRemoveBtn');
       if(jornadaRemoveBtn){
         jornadaRemoveBtn.addEventListener('click', function(){
@@ -4487,6 +5084,7 @@
     document.querySelectorAll('.filter-menu.open').forEach(function(m){ m.classList.remove('open'); });
     document.querySelectorAll('.card.menu-open').forEach(function(c){ c.classList.remove('menu-open'); });
   });
+  document.addEventListener('click', jornadaCalendarGlobalClick);
 
   /* ================= INIT ================= */
   function init(){
