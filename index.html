@@ -4546,7 +4546,7 @@
         '</div>'+
         '<div class="info-grid">'+
           '<div class="info-item"><div class="lab">E-mail</div><div class="val">'+(p.email?('<a class="link-btn" href="mailto:'+esc(p.email)+'">'+esc(p.email)+'</a>'):'—')+'</div></div>'+
-          '<div class="info-item"><div class="lab">Telefone</div><div class="val">'+(p.telefone?('<a class="link-btn" href="https://wa.me/'+whatsappDigits(p.telefone)+'" target="_blank" rel="noopener">'+esc(p.telefone)+' 💬</a>'):'—')+'</div></div>'+
+          '<div class="info-item"><div class="lab">Telefone</div><div class="val" style="display:flex;align-items:center;gap:8px;">'+(p.telefone?(esc(p.telefone)+' <a class="btn-icon" href="https://wa.me/'+whatsappDigits(p.telefone)+'" target="_blank" rel="noopener" title="Abrir conversa no WhatsApp">💬 WhatsApp</a>'):'—')+'</div></div>'+
           '<div class="info-item"><div class="lab">Plano</div><div class="val">'+esc(p.plano)+'</div></div>'+
           '<div class="info-item"><div class="lab">Serviço</div><div class="val">'+esc(p.servico)+'</div></div>'+
           '<div class="info-item"><div class="lab">Status</div><div class="val">'+renovacaoBadge(p)+'</div></div>'+
