@@ -701,16 +701,28 @@
 <div id="toast-root" class="toast-root"></div>
 <div id="chart-expand-root"></div>
 
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 <script>
 (function(){
   "use strict";
 
+  var firebaseConfig = {
+    apiKey: "AIzaSyCFCfuzcJ2SfF_eV9imX7VDlzPH_ZChFDc",
+    authDomain: "agcentralcrm.firebaseapp.com",
+    projectId: "agcentralcrm",
+    storageBucket: "agcentralcrm.firebasestorage.app",
+    messagingSenderId: "320508821570",
+    appId: "1:320508821570:web:eb460521cb8a27fe83eddb"
+  };
+  firebase.initializeApp(firebaseConfig);
+  var auth = firebase.auth();
+  var db = firebase.firestore();
+
   var STORAGE_KEY = 'crm-ag-pacientes';
   var JORNADA_TEMPLATES_KEY = 'crm-ag-jornada-templates';
   var GRUPO_MUSCULAR_KEY = 'crm-ag-grupos-musculares';
-  var SESSION_KEY = 'crm-ag-session';
-  var AUTH_EMAIL = 'angelogarciaconsultoria@gmail.com';
-  var AUTH_PASS = '81395504';
   var DEFAULT_GRUPOS_MUSCULARES = ['Panturrilha','Peito','Quadríceps','Deltoide anterior','Deltoide posterior','Latíssimo','Posterior de coxa','Glúteo máximo','Glúteo médio','Tríceps','Adutor','Abdômen','Deltoide lateral','Bíceps','Upper back','Eretores'];
   var CHART_PALETTE = ['#0072B2','#E69F00','#009E73','#CC79A7','#56B4E9','#D55E00'];
   function chartColorFor(idx){ return CHART_PALETTE[idx % CHART_PALETTE.length]; }
@@ -725,6 +737,7 @@
 
   var state = {
     loggedIn: false,
+    booting: true,
     patients: [],
     tab: 'dashboard',
     search: '',
@@ -1114,20 +1127,27 @@
     delete p.metaMes; delete p.observacoes; delete p.engajamento; delete p.checkin;
     return p;
   }
-  function loadPatients(){
-    var raw = localStorage.getItem(STORAGE_KEY);
-    if(raw){
-      try{
-        var parsed = JSON.parse(raw);
-        if(Array.isArray(parsed)) return parsed.map(migratePatient);
-      }catch(e){}
-    }
-    var seeded = seedPatients();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded));
-    return seeded;
+  function loadPatientsAsync(){
+    return db.collection('crmData').doc('patients').get().then(function(doc){
+      if(doc.exists && Array.isArray(doc.data().list)){
+        return doc.data().list.map(migratePatient);
+      }
+      var list;
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if(raw){
+        try{
+          var parsed = JSON.parse(raw);
+          if(Array.isArray(parsed)) list = parsed.map(migratePatient);
+        }catch(e){}
+      }
+      if(!list) list = seedPatients();
+      return db.collection('crmData').doc('patients').set({ list: list }).then(function(){ return list; });
+    });
   }
   function savePatients(){
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.patients));
+    db.collection('crmData').doc('patients').set({ list: state.patients }).catch(function(err){
+      showToast('Erro ao salvar dados: ' + err.message, 'danger');
+    });
   }
   var jornadaTemplateIdSeq = 1;
   var jornadaVariantIdSeq = 1;
@@ -1146,59 +1166,79 @@
     });
     return wrapped;
   }
-  function loadJornadaTemplates(){
-    var raw = localStorage.getItem(JORNADA_TEMPLATES_KEY);
-    if(raw){
-      try{
-        var parsed = JSON.parse(raw);
-        var ok = parsed && parsed.trimestral && parsed.trimestral.treino_dieta &&
-          Array.isArray(parsed.trimestral.treino_dieta) && parsed.trimestral.treino_dieta[0] &&
-          Array.isArray(parsed.trimestral.treino_dieta[0].tarefas);
-        if(ok){
-          var maxTid = 0, maxVariant = 0;
-          Object.keys(parsed).forEach(function(tipo){
-            Object.keys(parsed[tipo]).forEach(function(foco){
-              parsed[tipo][foco].forEach(function(v){
-                var m = /^copy_(\d+)$/.exec(v.id);
-                if(m && parseInt(m[1],10) > maxVariant) maxVariant = parseInt(m[1],10);
-                v.tarefas.forEach(function(t, idx){
-                  if(t._tid > maxTid) maxTid = t._tid;
-                  if(t.ordem === undefined || t.ordem === null) t.ordem = idx;
-                });
-              });
-            });
+  function parseJornadaTemplatesRaw(parsed){
+    var ok = parsed && parsed.trimestral && parsed.trimestral.treino_dieta &&
+      Array.isArray(parsed.trimestral.treino_dieta) && parsed.trimestral.treino_dieta[0] &&
+      Array.isArray(parsed.trimestral.treino_dieta[0].tarefas);
+    if(!ok) return null;
+    var maxTid = 0, maxVariant = 0;
+    Object.keys(parsed).forEach(function(tipo){
+      Object.keys(parsed[tipo]).forEach(function(foco){
+        parsed[tipo][foco].forEach(function(v){
+          var m = /^copy_(\d+)$/.exec(v.id);
+          if(m && parseInt(m[1],10) > maxVariant) maxVariant = parseInt(m[1],10);
+          v.tarefas.forEach(function(t, idx){
+            if(t._tid > maxTid) maxTid = t._tid;
+            if(t.ordem === undefined || t.ordem === null) t.ordem = idx;
           });
-          jornadaTemplateIdSeq = maxTid + 1;
-          jornadaVariantIdSeq = maxVariant + 1;
-          return parsed;
-        }
-      }catch(e){}
-    }
-    return seedJornadaTemplates(JORNADA_TEMPLATES_DEFAULT);
+        });
+      });
+    });
+    jornadaTemplateIdSeq = maxTid + 1;
+    jornadaVariantIdSeq = maxVariant + 1;
+    return parsed;
+  }
+  function loadJornadaTemplatesAsync(){
+    return db.collection('crmData').doc('jornadaTemplates').get().then(function(doc){
+      if(doc.exists && doc.data().data){
+        var fromFirestore = parseJornadaTemplatesRaw(doc.data().data);
+        if(fromFirestore) return fromFirestore;
+      }
+      var result = null;
+      var raw = localStorage.getItem(JORNADA_TEMPLATES_KEY);
+      if(raw){
+        try{ result = parseJornadaTemplatesRaw(JSON.parse(raw)); }catch(e){}
+      }
+      if(!result) result = seedJornadaTemplates(JORNADA_TEMPLATES_DEFAULT);
+      return db.collection('crmData').doc('jornadaTemplates').set({ data: result }).then(function(){ return result; });
+    });
   }
   function saveJornadaTemplates(){
-    localStorage.setItem(JORNADA_TEMPLATES_KEY, JSON.stringify(state.jornadaTemplates));
+    db.collection('crmData').doc('jornadaTemplates').set({ data: state.jornadaTemplates }).catch(function(err){
+      showToast('Erro ao salvar modelos: ' + err.message, 'danger');
+    });
   }
-  function loadGrupoMuscularList(){
-    var raw = localStorage.getItem(GRUPO_MUSCULAR_KEY);
-    var list;
-    if(raw){
-      try{
-        var parsed = JSON.parse(raw);
-        if(Array.isArray(parsed) && parsed.length) list = parsed;
-      }catch(e){}
-    }
-    if(!list) list = DEFAULT_GRUPOS_MUSCULARES.slice();
+  function backfillGluteoMedio(list){
     if(list.indexOf('Glúteo médio') === -1){
       var idx = list.indexOf('Glúteo máximo');
       if(idx !== -1) list.splice(idx+1, 0, 'Glúteo médio');
       else list.push('Glúteo médio');
-      localStorage.setItem(GRUPO_MUSCULAR_KEY, JSON.stringify(list));
     }
     return list;
   }
+  function loadGrupoMuscularListAsync(){
+    return db.collection('crmData').doc('grupoMuscularList').get().then(function(doc){
+      if(doc.exists && Array.isArray(doc.data().list) && doc.data().list.length){
+        var fromFirestore = backfillGluteoMedio(doc.data().list.slice());
+        return db.collection('crmData').doc('grupoMuscularList').set({ list: fromFirestore }).then(function(){ return fromFirestore; });
+      }
+      var list;
+      var raw = localStorage.getItem(GRUPO_MUSCULAR_KEY);
+      if(raw){
+        try{
+          var parsed = JSON.parse(raw);
+          if(Array.isArray(parsed) && parsed.length) list = parsed;
+        }catch(e){}
+      }
+      if(!list) list = DEFAULT_GRUPOS_MUSCULARES.slice();
+      backfillGluteoMedio(list);
+      return db.collection('crmData').doc('grupoMuscularList').set({ list: list }).then(function(){ return list; });
+    });
+  }
   function saveGrupoMuscularList(){
-    localStorage.setItem(GRUPO_MUSCULAR_KEY, JSON.stringify(state.grupoMuscularList));
+    db.collection('crmData').doc('grupoMuscularList').set({ list: state.grupoMuscularList }).catch(function(err){
+      showToast('Erro ao salvar grupos musculares: ' + err.message, 'danger');
+    });
   }
   function getJornadaVariant(tipo, foco, variantId){
     return state.jornadaTemplates[tipo][foco].find(function(v){ return v.id === variantId; });
@@ -2639,6 +2679,10 @@
   /* ---------------- render root ---------------- */
   function render(){
     var app = document.getElementById('app');
+    if(state.booting){
+      app.innerHTML = '<div class="login-wrap"><div class="login-card"><p class="sub">Carregando...</p></div></div>';
+      return;
+    }
     if(!state.loggedIn){
       app.innerHTML = loginTemplate();
       attachLoginEvents();
@@ -2647,6 +2691,20 @@
     }
     app.innerHTML = appTemplate();
     attachAppEvents();
+  }
+  function loadAllDataAndRender(){
+    Promise.all([loadPatientsAsync(), loadJornadaTemplatesAsync(), loadGrupoMuscularListAsync()]).then(function(results){
+      state.patients = results[0];
+      state.jornadaTemplates = results[1];
+      state.grupoMuscularList = results[2];
+      state.booting = false;
+      render();
+    }).catch(function(err){
+      state.booting = false;
+      state.loggedIn = false;
+      render();
+      alert('Erro ao carregar dados: ' + err.message);
+    });
   }
 
   /* ================= LOGIN ================= */
@@ -2680,15 +2738,19 @@
       var email = document.getElementById('loginEmail').value.trim();
       var pass = document.getElementById('loginPassword').value;
       var errBox = document.getElementById('loginError');
-      if(email === AUTH_EMAIL && pass === AUTH_PASS){
+      var submitBtn = form.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      errBox.classList.remove('show');
+      auth.signInWithEmailAndPassword(email, pass).then(function(){
         state.loggedIn = true;
-        state.patients = loadPatients();
-        localStorage.setItem(SESSION_KEY, '1');
+        state.booting = true;
         render();
-      } else {
+        loadAllDataAndRender();
+      }).catch(function(){
+        submitBtn.disabled = false;
         errBox.textContent = 'E-mail ou senha inválidos.';
         errBox.classList.add('show');
-      }
+      });
     });
   }
 
@@ -2715,9 +2777,11 @@
 
   function attachAppEvents(){
     document.getElementById('logoutBtn').addEventListener('click', function(){
-      state.loggedIn = false;
-      localStorage.removeItem(SESSION_KEY);
-      render();
+      auth.signOut().then(function(){
+        state.loggedIn = false;
+        state.patients = [];
+        render();
+      });
     });
     var tabs = document.querySelectorAll('.nav-tab');
     for(var i=0;i<tabs.length;i++){
@@ -5174,13 +5238,18 @@
   /* ================= INIT ================= */
   function init(){
     state.competencia = getCurrentMonthKey();
-    state.jornadaTemplates = loadJornadaTemplates();
-    state.grupoMuscularList = loadGrupoMuscularList();
-    if(localStorage.getItem(SESSION_KEY) === '1'){
-      state.loggedIn = true;
-      state.patients = loadPatients();
-    }
+    state.booting = true;
     render();
+    auth.onAuthStateChanged(function(user){
+      if(user){
+        state.loggedIn = true;
+        loadAllDataAndRender();
+      } else {
+        state.loggedIn = false;
+        state.booting = false;
+        render();
+      }
+    });
   }
   init();
 })();
