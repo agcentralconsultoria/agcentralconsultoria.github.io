@@ -2288,6 +2288,12 @@
     return ''+
       '<h1 class="page-title" style="margin-bottom:0;">Jornada do Paciente</h1>'+
       '<div class="section-header-row" style="margin-top:24px;">'+
+        '<h2 class="section-title">Painel</h2>'+
+        '<button class="info-icon-btn" type="button" data-info-toggle="info-jornada-painel">i</button>'+
+      '</div>'+
+      '<div class="info-popover" id="info-jornada-painel">Quantos marcos estão atrasados, pra hoje, pra essa semana, ou já concluídos — visão rápida antes de entrar no Kanban.</div>'+
+      '<div class="card" style="padding:16px;margin-bottom:32px;" id="jornadaPainelRoot">'+jornadaUrgencyChartHtml()+'</div>'+
+      '<div class="section-header-row">'+
         '<h2 class="section-title">Afazeres de Hoje</h2>'+
         '<button class="info-icon-btn" type="button" data-info-toggle="info-jornada-afazeres">i</button>'+
         '<button class="btn-icon" type="button" id="jornadaAfazeresToggleBtn" style="margin-left:auto;">'+(state.jornadaAfazeresCollapsed?'Mostrar':'Recolher')+'</button>'+
@@ -2297,11 +2303,14 @@
         '<div id="jornadaAfazeresRoot">'+jornadaAfazeresHtml()+'</div>'+
       '</div>'+
       '<div class="section-header-row">'+
-        '<h2 class="section-title">Painel</h2>'+
-        '<button class="info-icon-btn" type="button" data-info-toggle="info-jornada-painel">i</button>'+
+        '<h2 class="section-title">Histórico (Arquivados)</h2>'+
+        '<button class="info-icon-btn" type="button" data-info-toggle="info-jornada-arquivo">i</button>'+
+        '<button class="btn-icon" type="button" id="jornadaArquivoToggleBtn" style="margin-left:auto;">'+(state.jornadaArquivoCollapsed?'Mostrar':'Recolher')+'</button>'+
       '</div>'+
-      '<div class="info-popover" id="info-jornada-painel">Quantos marcos estão atrasados, pra hoje, pra essa semana, ou já concluídos — visão rápida antes de entrar no Kanban.</div>'+
-      '<div class="card" style="padding:16px;margin-bottom:32px;" id="jornadaPainelRoot">'+jornadaUrgencyChartHtml()+'</div>'+
+      '<div class="info-popover" id="info-jornada-arquivo">Tarefas que você arquivou no quadro acima. Nada aqui é apagado — dá pra restaurar a qualquer momento.</div>'+
+      '<div class="card" style="padding:16px;margin-bottom:32px;'+(state.jornadaArquivoCollapsed?'display:none;':'')+'" id="jornadaArquivoCard">'+
+        jornadaArquivoHtml()+
+      '</div>'+
       '<div class="section-header-row">'+
         '<h2 class="section-title">Kanban</h2>'+
         '<button class="info-icon-btn" type="button" data-info-toggle="info-jornada-agora">i</button>'+
@@ -2311,15 +2320,6 @@
       '<div id="jornadaKanbanSectionWrap" style="'+(state.jornadaKanbanSectionCollapsed?'display:none;':'')+'">'+
         '<div id="jornadaKanbanToolbarRoot">'+jornadaKanbanToolbarHtml()+'</div>'+
         '<div style="margin-bottom:32px;" id="jornadaKanbanRoot">'+jornadaKanbanHtml()+'</div>'+
-      '</div>'+
-      '<div class="section-header-row">'+
-        '<h2 class="section-title">Histórico (Arquivados)</h2>'+
-        '<button class="info-icon-btn" type="button" data-info-toggle="info-jornada-arquivo">i</button>'+
-        '<button class="btn-icon" type="button" id="jornadaArquivoToggleBtn" style="margin-left:auto;">'+(state.jornadaArquivoCollapsed?'Mostrar':'Recolher')+'</button>'+
-      '</div>'+
-      '<div class="info-popover" id="info-jornada-arquivo">Tarefas que você arquivou no quadro acima. Nada aqui é apagado — dá pra restaurar a qualquer momento.</div>'+
-      '<div class="card" style="padding:16px;margin-bottom:32px;'+(state.jornadaArquivoCollapsed?'display:none;':'')+'" id="jornadaArquivoCard">'+
-        jornadaArquivoHtml()+
       '</div>'+
       '<div class="section-header-row">'+
         '<h2 class="section-title">Pacientes com Jornada Ativa</h2>'+
