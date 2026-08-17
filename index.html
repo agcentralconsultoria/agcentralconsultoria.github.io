@@ -3532,7 +3532,7 @@
           extraFieldsHtml = '<div class="mini-label" style="text-align:left;margin-top:10px;">Calorias e macronutrientes</div>'+
             '<div class="volume-grupo-grid">'+macroInputs+'</div>';
         } else {
-          var grupoInputs = state.grupoMuscularList.map(function(g){
+          var grupoInputs = state.grupoMuscularList.slice().sort(function(a,b){ return a.localeCompare(b, 'pt-BR'); }).map(function(g){
             var val = (f.volumePorGrupo && f.volumePorGrupo[g] !== undefined) ? f.volumePorGrupo[g] : '';
             return '<div><div class="mini-label">'+esc(g)+'</div><input type="number" min="0" step="0.5" data-'+attrPrefix+'-grupo="'+esc(g)+'" data-'+attrPrefix+'-id="'+f.id+'" value="'+esc(String(val))+'" placeholder="séries"></div>';
           }).join('');
