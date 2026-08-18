@@ -243,6 +243,7 @@
   .volume-compare-bars{display:flex;align-items:flex-end;gap:2px;height:90px;}
   .volume-compare-bar-col{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;width:13px;height:100%;}
   .volume-compare-bar-val{font-size:9px;font-weight:700;margin-bottom:1px;color:var(--text);white-space:nowrap;}
+  .volume-compare-bar-gkg{font-size:8px;color:var(--text-muted);margin-bottom:1px;white-space:nowrap;}
   .volume-compare-bar{width:100%;border-radius:2px 2px 0 0;min-height:1px;}
   .volume-compare-label{font-size:9.5px;color:var(--text-muted);margin-top:3px;text-align:center;max-width:60px;line-height:1.2;}
   .compare-expand-btn{
@@ -251,6 +252,13 @@
     font-size:13px;line-height:1;flex-shrink:0;padding:0;
   }
   .compare-expand-btn:hover{background:#FAFAFA;color:var(--text);}
+  .compare-gkg-toggle-btn{
+    background:none;border:1px solid var(--border);border-radius:6px;height:24px;padding:0 8px;
+    display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-muted);
+    font-size:11px;font-weight:700;line-height:1;flex-shrink:0;
+  }
+  .compare-gkg-toggle-btn:hover{background:#FAFAFA;color:var(--text);}
+  .compare-gkg-toggle-btn.active{background:var(--primary-light);color:var(--primary);border-color:var(--primary);}
   .compare-expanded-overlay{
     position:fixed;top:0;left:0;right:0;bottom:0;z-index:300;background:var(--white);
     padding:20px 26px 26px;overflow:auto;
@@ -756,7 +764,7 @@
       { label: 'Carboidratos', val: parseFloat(f.carboidratos) || 0 },
       { label: 'Gorduras', val: parseFloat(f.gorduras) || 0 }
     ].map(function(r){
-      return '<div><div class="mini-label">'+r.label+' (g/kg)</div><div style="font-weight:700;">'+(r.val/pesoAtual).toFixed(1)+'</div></div>';
+      return '<div><div class="mini-label">'+r.label+'</div><div style="font-weight:700;">'+(r.val/pesoAtual).toFixed(1)+' g/kg</div></div>';
     }).join('');
     return '<div class="mini-label" style="text-align:left;margin-top:8px;">Por kg de peso corporal (peso atual: '+pesoAtual+' kg)</div>'+
       '<div class="volume-grupo-grid">'+rows+'</div>';
@@ -848,6 +856,7 @@
     volumeCompareSortDir: 'default',
     volumeCompareExpanded: false,
     dietaCompareExpanded: false,
+    dietaCompareShowGkg: false,
     jornadaCalendarOpen: null,
     modal: null,
     activeId: null,
@@ -3693,8 +3702,7 @@
           extraFieldsHtml = '<div class="mini-label" style="text-align:left;margin-top:10px;">Calorias e macronutrientes</div>'+
             '<div class="macro-columns">'+
               '<div class="macro-col"><div class="mini-label" style="text-align:left;">Nutrientes do Cardápio</div><div class="volume-grupo-grid" style="grid-template-columns:1fr;">'+macroInputs+'</div></div>'+
-              '<div class="macro-col">'+macroGkgHtml(f, pesoAtual)+'</div>'+
-              '<div class="macro-col">'+macroDistributionHtml(f)+'</div>'+
+              '<div class="macro-col">'+macroGkgHtml(f, pesoAtual)+'<div style="margin-top:14px;">'+macroDistributionHtml(f)+'</div></div>'+
             '</div>';
         } else {
           var grupoInputs = state.grupoMuscularList.slice().sort(function(a,b){ return a.localeCompare(b, 'pt-BR'); }).map(function(g){
@@ -3752,15 +3760,18 @@
     return { chrono: chrono, html: '<div class="compare-chips">'+chipsHtml+picker+'</div>' };
   }
   function fmtNum(v){ return v % 1 === 0 ? String(v) : v.toFixed(1); }
-  function compareBarsHtml(categories, chrono, getVal){
+  function compareBarsHtml(categories, chrono, getVal, opts){
+    opts = opts || {};
     var max = 0;
     categories.forEach(function(cat){ chrono.forEach(function(f){ max = Math.max(max, getVal(f, cat)); }); });
     if(max <= 0) max = 1;
     return categories.map(function(cat){
+      var showGkgForCat = opts.showGkg && opts.pesoAtual && cat && cat.key && cat.key !== 'calorias';
       var cols = chrono.map(function(f, idx){
         var val = getVal(f, cat);
         var pct = val>0 ? Math.max(Math.round((val/max)*100), 4) : 0;
-        return '<div class="volume-compare-bar-col"><div class="volume-compare-bar-val">'+(val?fmtNum(val):'')+'</div><div class="volume-compare-bar" style="height:'+pct+'%;background:'+chartColorFor(idx)+';"></div></div>';
+        var gkgHtml = showGkgForCat && val ? '<div class="volume-compare-bar-gkg">'+(val/opts.pesoAtual).toFixed(1)+' g/kg</div>' : '';
+        return '<div class="volume-compare-bar-col"><div class="volume-compare-bar-val">'+(val?fmtNum(val):'')+'</div>'+gkgHtml+'<div class="volume-compare-bar" style="height:'+pct+'%;background:'+chartColorFor(idx)+';"></div></div>';
       }).join('');
       return '<div class="volume-compare-group"><div class="volume-compare-bars">'+cols+'</div><div class="volume-compare-label">'+esc(cat.label||cat)+'</div></div>';
     }).join('');
@@ -3901,7 +3912,8 @@
     if(!available.length) return { chips: cp.html, chart: '<div class="empty-state" style="padding:12px;">Nenhuma ficha com calorias/macronutrientes registrado ainda.</div>' };
     var chrono = cp.chrono;
     if(!chrono.length) return { chips: cp.html, chart: '<div class="empty-state" style="padding:12px;">Selecione uma data pra ver o gráfico (ou 2+ pra comparar).</div>' };
-    var bars = compareBarsHtml(MACRO_CATEGORIES, chrono, function(f, cat){ return parseFloat(f[cat.key]) || 0; });
+    var pesoAtual = latestPesoAtual(p);
+    var bars = compareBarsHtml(MACRO_CATEGORIES, chrono, function(f, cat){ return parseFloat(f[cat.key]) || 0; }, { pesoAtual: pesoAtual, showGkg: state.dietaCompareShowGkg });
     var summary = '';
     if(chrono.length >= 2){
       var first = chrono[0], last = chrono[chrono.length-1];
@@ -3917,9 +3929,10 @@
     return { chips: cp.html, chart: compareLegendHtml(chrono) + '<div class="volume-compare-chart">'+bars+'</div>' + summary };
   }
   function dietaCompareChartHtml(p){
+    var gkgBtn = '<button type="button" class="compare-gkg-toggle-btn'+(state.dietaCompareShowGkg?' active':'')+'" id="dietaCompareGkgToggleBtn" title="Mostrar/ocultar distribuição por kg de peso corporal">g/kg</button>';
     var expandBtn = '<button type="button" class="compare-expand-btn" id="dietaCompareExpandBtn" title="Expandir só esse gráfico pra tela cheia">⛶</button>';
     var r = dietaCompareBodyHtml(p);
-    var header = '<div class="mini-label" style="text-align:left;margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;"><span>Calorias e macronutrientes — comparação</span>'+expandBtn+'</div>';
+    var header = '<div class="mini-label" style="text-align:left;margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;"><span>Calorias e macronutrientes — comparação</span><span style="display:flex;gap:6px;">'+gkgBtn+expandBtn+'</span></div>';
     return header + r.chips + r.chart;
   }
   function renderDietaCompareOverlay(){
@@ -3927,9 +3940,11 @@
     var root = document.getElementById('chart-expand-root');
     if(!p || !root) return;
     var r = dietaCompareBodyHtml(p);
+    var gkgBtn = '<button type="button" class="compare-gkg-toggle-btn'+(state.dietaCompareShowGkg?' active':'')+'" id="dietaCompareOverlayGkgToggleBtn" title="Mostrar/ocultar distribuição por kg de peso corporal">g/kg</button>';
     root.innerHTML = '<div class="compare-expanded-overlay">'+
       '<div class="compare-expanded-header"><h3>Calorias e macronutrientes — '+esc(p.nome)+'</h3>'+
-        '<button type="button" class="compare-expand-btn" id="dietaCompareOverlayCloseBtn" title="Recolher">✕</button>'+
+        '<span style="display:flex;gap:6px;">'+gkgBtn+
+        '<button type="button" class="compare-expand-btn" id="dietaCompareOverlayCloseBtn" title="Recolher">✕</button></span>'+
       '</div>'+
       r.chips + r.chart +
     '</div>';
@@ -3938,6 +3953,13 @@
   function bindDietaCompareOverlayEvents(){
     var root = document.getElementById('chart-expand-root');
     if(!root) return;
+    var overlayGkgToggleBtn = root.querySelector('#dietaCompareOverlayGkgToggleBtn');
+    if(overlayGkgToggleBtn){
+      overlayGkgToggleBtn.addEventListener('click', function(){
+        state.dietaCompareShowGkg = !state.dietaCompareShowGkg;
+        renderDietaCompareOverlay();
+      });
+    }
     var closeBtn = root.querySelector('#dietaCompareOverlayCloseBtn');
     if(closeBtn){
       closeBtn.addEventListener('click', function(){ closeCompareOverlay(); });
@@ -4224,6 +4246,13 @@
       dietaExpandBtn.addEventListener('click', function(){
         state.dietaCompareExpanded = true;
         renderDietaCompareOverlay();
+      });
+    }
+    var dietaGkgToggleBtn = root.querySelector('#dietaCompareGkgToggleBtn');
+    if(dietaGkgToggleBtn){
+      dietaGkgToggleBtn.addEventListener('click', function(){
+        state.dietaCompareShowGkg = !state.dietaCompareShowGkg;
+        refreshFichaDietaList();
       });
     }
   }
