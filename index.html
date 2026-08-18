@@ -725,7 +725,64 @@
   }
   @media (max-width: 600px){
     .info-grid{grid-template-columns:1fr;}
-    .nav-tabs{order:3;width:100%;}
+
+    /* ---- cabecalho compacto ---- */
+    header.topbar{padding:8px 12px;gap:8px;}
+    .logo-box{width:30px;height:30px;}
+    .brand-text strong{font-size:14px;}
+    .brand-text span{font-size:10px;}
+    .header-user{display:none;}
+    .header-right{gap:8px;margin-left:auto;}
+    .logout-btn{padding:7px 10px;font-size:12px;}
+    .nav-tabs{order:3;width:100%;gap:4px;}
+    .nav-tab{flex:1;padding:9px 4px;font-size:13px;text-align:center;}
+
+    /* ---- cartoes de numeros (KPI) em 2 colunas ---- */
+    .kpi-grid,.kpi-grid-sm{grid-template-columns:1fr 1fr;gap:10px;margin-bottom:22px;}
+    .kpi-card{padding:12px 12px 14px;border-left-width:3px;}
+    .kpi-label{font-size:10px;letter-spacing:.2px;line-height:1.3;}
+    .kpi-value{font-size:26px;margin-top:5px;}
+
+    /* ---- tabelas viram cartoes empilhados ---- */
+    table:not(.peso-history-table) thead{display:none;}
+    table:not(.peso-history-table),
+    table:not(.peso-history-table) tbody{display:block;width:100%;}
+    table:not(.peso-history-table) tr{
+      display:block;background:var(--white);border:1px solid var(--border);
+      border-radius:10px;padding:10px 12px;margin-bottom:8px;
+    }
+    table:not(.peso-history-table) td{
+      display:inline-block;border-bottom:none;padding:3px 8px 3px 0;vertical-align:middle;
+    }
+    table:not(.peso-history-table) td:first-child:not(:last-child){
+      display:block;font-weight:700;font-size:14.5px;padding:0 0 7px;
+    }
+    table:not(.peso-history-table) td:first-child:not(:last-child) .link-btn{
+      font-weight:700;font-size:14.5px;text-align:left;
+    }
+
+    /* ---- alvos de toque maiores ---- */
+    .btn-icon{padding:8px 12px;font-size:13px;}
+    .btn{padding:11px 16px;}
+    .section-header-row{flex-wrap:wrap;}
+
+    /* ---- formularios: 16px evita o zoom automatico do iPhone ---- */
+    .form-group input,.form-group select,.form-group textarea,
+    .volume-grupo-grid input[type=number]{font-size:16px;}
+
+    /* ---- janelas (modais) ocupando a tela ---- */
+    .modal-overlay{padding:10px;align-items:flex-start;}
+    .modal,.modal.modal-wide{max-width:100%;}
+    .modal-header{padding:14px 16px;}
+    .modal-header h2{font-size:15.5px;}
+    .modal-body{padding:16px;max-height:80vh;}
+    .modal-footer{padding:12px 16px;}
+
+    /* ---- Kanban: uma coluna por vez, deslizando ---- */
+    .jornada-kanban{max-width:100%;gap:10px;}
+    .jornada-kanban-col{flex:0 0 84vw;}
+
+    .container{padding:14px 12px 40px;}
   }
 </style>
 </head>
