@@ -884,6 +884,8 @@
     dashQuickTreinoSort: 'desc',
     dashQuickDietaSort: 'desc',
     dashQuickVencSort: 'asc',
+    dashQuickTreinoUnit: 'semanas',
+    dashQuickDietaUnit: 'dias',
     dashboardTrendDrill: null,
     pesoHistoryOpen: {},
     pesoEditingKey: null,
@@ -1033,6 +1035,13 @@
     var a = new Date(dateStrA+'T00:00:00');
     var b = new Date(dateStrB+'T00:00:00');
     return Math.round((b-a)/86400000);
+  }
+  function elapsedWeeksText(dateStr){
+    var dias = daysBetween(dateStr, todayISODate());
+    if(dias === null) return '';
+    if(dias < 7) return 'essa semana';
+    var w = Math.round(dias/7);
+    return 'há ' + w + (w === 1 ? ' semana' : ' semanas');
   }
   function nthFridayDate(monthKey, weekIndex){
     var parsed = parseMonthKey(monthKey);
@@ -3509,6 +3518,18 @@
         render();
       });
     }
+    var quickUnitBtns = document.querySelectorAll('[data-quick-unit]');
+    for(var qu=0;qu<quickUnitBtns.length;qu++){
+      quickUnitBtns[qu].addEventListener('click', function(){
+        var key = this.getAttribute('data-quick-unit');
+        if(key === 'treino'){
+          state.dashQuickTreinoUnit = state.dashQuickTreinoUnit === 'dias' ? 'semanas' : 'dias';
+        } else if(key === 'dieta'){
+          state.dashQuickDietaUnit = state.dashQuickDietaUnit === 'dias' ? 'semanas' : 'dias';
+        }
+        render();
+      });
+    }
     var trendCols = document.querySelectorAll('[data-trend-drill-metric]');
     for(var t=0;t<trendCols.length;t++){
       trendCols[t].addEventListener('click', function(){
@@ -3810,18 +3831,31 @@
       return '<tr><td><button class="link-btn" data-open-profile="'+p.id+'">'+esc(p.nome)+'</button></td><td>'+prazoBadge(p.vencimento)+'</td></tr>';
     }).join('');
   }
+  function formatDiasOuSemanas(dias, unit){
+    if(dias === null) return 'Nunca atualizado';
+    if(unit === 'semanas' && dias >= 7){
+      var w = Math.floor(dias/7);
+      return w + (w === 1 ? ' semana' : ' semanas');
+    }
+    return dias + (Math.abs(dias) === 1 ? ' dia' : ' dias');
+  }
   function semAtualizacaoRows(kind){
     var sortDir = kind === 'treino' ? state.dashQuickTreinoSort : state.dashQuickDietaSort;
+    var unit = kind === 'treino' ? state.dashQuickTreinoUnit : state.dashQuickDietaUnit;
     var list = pacientesSemAtualizacao(kind, sortDir);
     if(!list.length) return '<tr><td colspan="2"><div class="empty-state">Nenhum paciente com serviço de '+(kind==='treino'?'Treino':'Dieta')+'.</div></td></tr>';
     return list.map(function(item){
-      var diasLabel = item.dias === null ? 'Nunca atualizado' : (item.dias + (Math.abs(item.dias) === 1 ? ' dia' : ' dias'));
+      var diasLabel = formatDiasOuSemanas(item.dias, unit);
       var cls = item.dias === null || item.dias >= 30 ? 'badge-danger' : item.dias >= 15 ? 'badge-warning' : 'badge-gray';
       return '<tr><td><button class="link-btn" data-open-profile="'+item.p.id+'">'+esc(item.p.nome)+'</button></td><td><span class="badge '+cls+'">'+esc(diasLabel)+'</span></td></tr>';
     }).join('');
   }
   function quickSortBtnHtml(key, currentDir){
     return '<button class="btn-icon" type="button" data-quick-sort="'+key+'">'+(currentDir==='desc'?'Maior → Menor':'Menor → Maior')+' ⇅</button>';
+  }
+  function quickUnitBtnHtml(key, currentUnit){
+    var label = currentUnit === 'semanas' ? 'Ver em dias' : 'Ver em semanas';
+    return '<button class="btn-icon" type="button" data-quick-unit="'+key+'">'+label+'</button>';
   }
   function dashboardQuickAccessHtml(){
     return ''+
@@ -3832,24 +3866,24 @@
     '<div class="info-popover" id="info-acesso-rapido">Pontos de atenção que passam batido no dia a dia: vigência não preenchida, treino/dieta sem atualizar, vencimentos chegando e consultas sem data marcada.</div>'+
     '<div class="quick-access-grid">'+
       '<div class="card" style="padding:16px;">'+
-        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Vigência</h3></div>'+
-        '<table><thead><tr><th>Nome</th><th>Prioridade</th></tr></thead><tbody>'+semVigenciaRows()+'</tbody></table>'+
+        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Atualização Recente — Treino</h3><div style="display:flex;gap:6px;">'+quickUnitBtnHtml('treino', state.dashQuickTreinoUnit)+quickSortBtnHtml('treino', state.dashQuickTreinoSort)+'</div></div>'+
+        '<table><thead><tr><th>Nome</th><th>Última atualização</th></tr></thead><tbody>'+semAtualizacaoRows('treino')+'</tbody></table>'+
       '</div>'+
       '<div class="card" style="padding:16px;">'+
         '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Vencimentos</h3>'+quickSortBtnHtml('vencimentos', state.dashQuickVencSort)+'</div>'+
         '<table><thead><tr><th>Nome</th><th>Vencimento</th></tr></thead><tbody>'+vencimentosQuickRows()+'</tbody></table>'+
       '</div>'+
       '<div class="card" style="padding:16px;">'+
-        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Atualização Recente — Treino</h3>'+quickSortBtnHtml('treino', state.dashQuickTreinoSort)+'</div>'+
-        '<table><thead><tr><th>Nome</th><th>Última atualização</th></tr></thead><tbody>'+semAtualizacaoRows('treino')+'</tbody></table>'+
-      '</div>'+
-      '<div class="card" style="padding:16px;">'+
-        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Atualização Recente — Dieta</h3>'+quickSortBtnHtml('dieta', state.dashQuickDietaSort)+'</div>'+
+        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Atualização Recente — Dieta</h3><div style="display:flex;gap:6px;">'+quickUnitBtnHtml('dieta', state.dashQuickDietaUnit)+quickSortBtnHtml('dieta', state.dashQuickDietaSort)+'</div></div>'+
         '<table><thead><tr><th>Nome</th><th>Última atualização</th></tr></thead><tbody>'+semAtualizacaoRows('dieta')+'</tbody></table>'+
       '</div>'+
-      '<div class="card quick-access-full" style="padding:16px;">'+
+      '<div class="card" style="padding:16px;">'+
         '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Consulta Marcada</h3></div>'+
         '<table><thead><tr><th>Nome</th><th>Status Consulta</th></tr></thead><tbody>'+semConsultaMarcadaRows()+'</tbody></table>'+
+      '</div>'+
+      '<div class="card quick-access-full" style="padding:16px;">'+
+        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Vigência</h3></div>'+
+        '<table><thead><tr><th>Nome</th><th>Prioridade</th></tr></thead><tbody>'+semVigenciaRows()+'</tbody></table>'+
       '</div>'+
     '</div>';
   }
@@ -3883,7 +3917,7 @@
       var isCurrent = idx === 0;
       var isOpen = !!openMap[f.id];
       var statusBadge = kind === 'dieta' ? '' : (f.dataVencimento ? prazoBadge(f.dataVencimento) : '<span class="badge badge-gray">Sem vencimento</span>');
-      var summaryText = 'Passado ' + formatDate(f.dataPassado) + (kind !== 'dieta' && f.dataVencimento ? (' · vence ' + formatDate(f.dataVencimento)) : '');
+      var summaryText = 'Passado ' + formatDate(f.dataPassado) + (kind !== 'dieta' ? (' (' + elapsedWeeksText(f.dataPassado) + ')') : '') + (kind !== 'dieta' && f.dataVencimento ? (' · vence ' + formatDate(f.dataVencimento)) : '');
       var header = ''+
         '<button type="button" class="ficha-treino-header" data-'+attrPrefix+'-toggle="'+f.id+'">'+
           '<span class="ficha-treino-summary">'+esc(summaryText)+'</span>'+
