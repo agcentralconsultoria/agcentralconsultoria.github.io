@@ -589,6 +589,8 @@
   .profile-section h3{font-size:13px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);margin:0 0 10px;font-weight:700;}
   .meta-box{background:var(--primary-light);border:1px solid #FDBA74;color:#9A3412;padding:12px 14px;border-radius:9px;font-size:14px;font-weight:600;}
   .obs-box{background:#FAFAFA;border:1px solid var(--border);padding:12px 14px;border-radius:9px;font-size:14px;color:var(--text);line-height:1.5;white-space:pre-wrap;}
+  .obscheckin-item{margin-bottom:6px;}
+  .obscheckin-item:last-child{margin-bottom:0;}
   .engagement-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}
   .eng-item{border-radius:9px;padding:14px 6px;text-align:center;}
   .eng-item .wk{font-size:10.5px;font-weight:700;text-transform:uppercase;opacity:.85;}
@@ -1045,6 +1047,8 @@
     while(chk.length < wk) chk.push(null);
     var peso = (stored && Array.isArray(stored.peso)) ? stored.peso.slice(0, wk) : [];
     while(peso.length < wk) peso.push(null);
+    var obsCheckin = (stored && Array.isArray(stored.obsCheckin)) ? stored.obsCheckin.slice(0, wk) : [];
+    while(obsCheckin.length < wk) obsCheckin.push('');
     return {
       metaMes: stored ? (stored.metaMes || '') : '',
       metaTipo: stored ? (stored.metaTipo || 'outro') : 'outro',
@@ -1054,7 +1058,8 @@
       observacoes: stored ? (stored.observacoes || '') : '',
       engajamento: eng,
       checkin: chk,
-      peso: peso
+      peso: peso,
+      obsCheckin: obsCheckin
     };
   }
   function nextId(){
@@ -4614,6 +4619,10 @@
       var mark = v === true ? '✓' : v === false ? '✗' : '—';
       return '<div class="checkin-item '+cls+'"><div class="wk">Sem '+(i+1)+'</div><div class="mark">'+mark+'</div></div>';
     }).join('');
+    var obsCheckinHtml = (data.obsCheckin || []).map(function(v,i){
+      if(!v) return '';
+      return '<div class="obscheckin-item"><b>Sem '+(i+1)+':</b> '+esc(v)+'</div>';
+    }).filter(function(x){ return x; }).join('');
     return ''+
     '<div class="modal modal-wide">'+
       '<div class="modal-header">'+
@@ -4651,6 +4660,10 @@
         '<div class="profile-section">'+
           '<h3>Check-ins Semanais</h3>'+
           '<div class="checkin-grid" style="grid-template-columns:repeat('+wk+',1fr);">'+chkHtml+'</div>'+
+        '</div>'+
+        '<div class="profile-section">'+
+          '<h3>Observações do Check-in</h3>'+
+          '<div class="obs-box">'+(obsCheckinHtml || 'Sem observações de check-in.')+'</div>'+
         '</div>'+
         '<div class="profile-section">'+
           '<h3>Observações</h3>'+
@@ -4752,6 +4765,9 @@
         '<option value="nao"'+(v===false?' selected':'')+'>Não enviou</option>';
       return '<div class="checkin-form-item"><span class="mini-label" style="margin:0;">Sem '+(i+1)+'</span><select id="f_chk_'+i+'" class="checkin-select">'+opts+'</select></div>';
     }).join('');
+    var obsCheckinInputs = (weekly.obsCheckin || []).map(function(v,i){
+      return '<div><div class="mini-label">Sem '+(i+1)+'<\div><input type="text" id="f_obscheckin_'+i+'" value="'+esc(v||'')+'" placeholder="Observação do check-in..."></div>';
+    }).join('');
     var pesoInputs = weekly.peso.map(function(v,i){
       return '<div><div class="mini-label">Sem '+(i+1)+'</div><input type="number" step="0.1" id="f_peso_'+i+'" value="'+(v===null?'':v)+'" placeholder="kg"></div>';
     }).join('');
@@ -4778,6 +4794,7 @@
       '</div>'+
       '<div class="form-group full"><label>Engajamento Semanal (0-10 — deixe em branco se ainda não avaliou)</label><div class="field-row5" style="grid-template-columns:repeat('+wk+',1fr);">'+engInputs+'</div></div>'+
       '<div class="form-group full"><label>Check-in Semanal ('+monthLabel(monthKey)+' tem '+wk+' semanas)</label><div class="field-row5" style="grid-template-columns:repeat('+wk+',1fr);">'+chkInputs+'</div></div>'+
+      '<div class="form-group full"><label>Observação do Check-in (o que o paciente escreveu, ou sua anotação)</label><div class="field-row5" style="grid-template-columns:repeat('+wk+',1fr);">'+obsCheckinInputs+'</div></div>'+
       '<div class="form-group full"><label>Peso Semanal (kg)</label><div class="field-row5" style="grid-template-columns:repeat('+wk+',1fr);">'+pesoInputs+'</div></div>'+
       '<div class="form-group full"><label>Observações do Mês</label><textarea id="f_obs" placeholder="Observações sobre esse mês...">'+esc(weekly.observacoes)+'</textarea></div>';
   }
@@ -4888,6 +4905,10 @@
       var rawPeso = document.getElementById('f_peso_'+m).value;
       peso.push(rawPeso === '' ? null : parseFloat(rawPeso));
     }
+    var obsCheckin = [];
+    for(var o=0;o<wk;o++){
+      obsCheckin.push(document.getElementById('f_obscheckin_'+o).value.trim());
+    }
     var metaTipo = document.getElementById('f_meta_tipo').value;
     var jornadaInicioEl = document.getElementById('f_jornada_inicio');
     var jornadaModeloEl = document.getElementById('f_jornada_modelo');
@@ -4919,7 +4940,8 @@
         observacoes: document.getElementById('f_obs').value.trim(),
         engajamento: eng,
         checkin: chk,
-        peso: peso
+        peso: peso,
+        obsCheckin: obsCheckin
       }
     };
   }
