@@ -886,6 +886,7 @@
     dashQuickVencSort: 'asc',
     dashQuickTreinoUnit: 'semanas',
     dashQuickDietaUnit: 'dias',
+    dashQuickConsultaSort: 'desc',
     dashboardTrendDrill: null,
     pesoHistoryOpen: {},
     pesoEditingKey: null,
@@ -1036,12 +1037,17 @@
     var b = new Date(dateStrB+'T00:00:00');
     return Math.round((b-a)/86400000);
   }
-  function elapsedWeeksText(dateStr){
-    var dias = daysBetween(dateStr, todayISODate());
+  function elapsedWeeksText(dias){
     if(dias === null) return '';
     if(dias < 7) return 'essa semana';
     var w = Math.round(dias/7);
     return 'há ' + w + (w === 1 ? ' semana' : ' semanas');
+  }
+  function fichaTreinoTempoClass(dias){
+    if(dias === null) return 'badge-gray';
+    if(dias < 28) return 'badge-success';
+    if(dias < 56) return 'badge-warning';
+    return 'badge-danger';
   }
   function nthFridayDate(monthKey, weekIndex){
     var parsed = parseMonthKey(monthKey);
@@ -3514,6 +3520,8 @@
           state.dashQuickTreinoSort = state.dashQuickTreinoSort === 'asc' ? 'desc' : 'asc';
         } else if(key === 'dieta'){
           state.dashQuickDietaSort = state.dashQuickDietaSort === 'asc' ? 'desc' : 'asc';
+        } else if(key === 'consulta'){
+          state.dashQuickConsultaSort = state.dashQuickConsultaSort === 'asc' ? 'desc' : 'asc';
         }
         render();
       });
@@ -3774,12 +3782,21 @@
       return renovacaoStatus(p) !== 'Vencido' && !p.vencimento;
     }).sort(function(a,b){ return a.nome.localeCompare(b.nome, 'pt-BR'); });
   }
-  function pacientesSemConsultaMarcada(){
-    return state.patients.filter(function(p){
+  function pacientesSemConsultaMarcada(sortDir){
+    var list = state.patients.filter(function(p){
       if(renovacaoStatus(p) === 'Vencido') return false;
       var status = consultaStatus(p);
       return status === 'atrasado' || status === 'semdata';
-    }).sort(function(a,b){ return a.nome.localeCompare(b.nome, 'pt-BR'); });
+    });
+    list.sort(function(a,b){
+      var diffA = consultaDiffDays(a);
+      var diffB = consultaDiffDays(b);
+      var av = diffA === null ? Infinity : -diffA;
+      var bv = diffB === null ? Infinity : -diffB;
+      if(av === bv) return a.nome.localeCompare(b.nome, 'pt-BR');
+      return sortDir === 'asc' ? av - bv : bv - av;
+    });
+    return list;
   }
   function pacientesVencimentosList(sortDir){
     var list = state.patients.filter(function(p){
@@ -3818,7 +3835,7 @@
     }).join('');
   }
   function semConsultaMarcadaRows(){
-    var list = pacientesSemConsultaMarcada();
+    var list = pacientesSemConsultaMarcada(state.dashQuickConsultaSort);
     if(!list.length) return '<tr><td colspan="2"><div class="empty-state">Nenhum paciente sem consulta marcada. 🎉</div></td></tr>';
     return list.map(function(p){
       return '<tr><td><button class="link-btn" data-open-profile="'+p.id+'">'+esc(p.nome)+'</button></td><td>'+consultaBadge(p)+'</td></tr>';
@@ -3846,7 +3863,7 @@
     if(!list.length) return '<tr><td colspan="2"><div class="empty-state">Nenhum paciente com serviço de '+(kind==='treino'?'Treino':'Dieta')+'.</div></td></tr>';
     return list.map(function(item){
       var diasLabel = formatDiasOuSemanas(item.dias, unit);
-      var cls = item.dias === null || item.dias >= 30 ? 'badge-danger' : item.dias >= 15 ? 'badge-warning' : 'badge-gray';
+      var cls = kind === 'treino' ? fichaTreinoTempoClass(item.dias) : (item.dias === null || item.dias >= 30 ? 'badge-danger' : item.dias >= 15 ? 'badge-warning' : 'badge-gray');
       return '<tr><td><button class="link-btn" data-open-profile="'+item.p.id+'">'+esc(item.p.nome)+'</button></td><td><span class="badge '+cls+'">'+esc(diasLabel)+'</span></td></tr>';
     }).join('');
   }
@@ -3878,7 +3895,7 @@
         '<table><thead><tr><th>Nome</th><th>Última atualização</th></tr></thead><tbody>'+semAtualizacaoRows('dieta')+'</tbody></table>'+
       '</div>'+
       '<div class="card" style="padding:16px;">'+
-        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Consulta Marcada</h3></div>'+
+        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Consulta Marcada</h3>'+quickSortBtnHtml('consulta', state.dashQuickConsultaSort)+'</div>'+
         '<table><thead><tr><th>Nome</th><th>Status Consulta</th></tr></thead><tbody>'+semConsultaMarcadaRows()+'</tbody></table>'+
       '</div>'+
       '<div class="card quick-access-full" style="padding:16px;">'+
@@ -3917,10 +3934,12 @@
       var isCurrent = idx === 0;
       var isOpen = !!openMap[f.id];
       var statusBadge = kind === 'dieta' ? '' : (f.dataVencimento ? prazoBadge(f.dataVencimento) : '<span class="badge badge-gray">Sem vencimento</span>');
-      var summaryText = 'Passado ' + formatDate(f.dataPassado) + (kind !== 'dieta' ? (' (' + elapsedWeeksText(f.dataPassado) + ')') : '') + (kind !== 'dieta' && f.dataVencimento ? (' · vence ' + formatDate(f.dataVencimento)) : '');
+      var diasPassado = daysBetween(f.dataPassado, todayISODate());
+      var summaryText = 'Passado ' + formatDate(f.dataPassado) + (kind !== 'dieta' && f.dataVencimento ? (' · vence ' + formatDate(f.dataVencimento)) : '');
+      var tempoBadge = kind !== 'dieta' ? ' <span class="badge '+fichaTreinoTempoClass(diasPassado)+'">'+esc(elapsedWeeksText(diasPassado))+'</span>' : '';
       var header = ''+
         '<button type="button" class="ficha-treino-header" data-'+attrPrefix+'-toggle="'+f.id+'">'+
-          '<span class="ficha-treino-summary">'+esc(summaryText)+'</span>'+
+          '<span class="ficha-treino-summary">'+esc(summaryText)+'</span>'+tempoBadge+
           '<span class="badge '+(isCurrent?'badge-info':'badge-gray')+'">'+(isCurrent?'Atual':'Substituída')+'</span>'+
           statusBadge+
           '<span class="ficha-treino-arrow">'+(isOpen?'▴':'▾')+'</span>'+
