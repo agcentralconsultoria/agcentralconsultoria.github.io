@@ -591,6 +591,10 @@
   .obs-box{background:#FAFAFA;border:1px solid var(--border);padding:12px 14px;border-radius:9px;font-size:14px;color:var(--text);line-height:1.5;white-space:pre-wrap;}
   .obscheckin-item{margin-bottom:6px;}
   .obscheckin-item:last-child{margin-bottom:0;}
+  .obscheckin-autosize{
+    width:100%;min-height:34px;resize:vertical;overflow:hidden;font-family:inherit;
+    font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;
+  }
   .engagement-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}
   .eng-item{border-radius:9px;padding:14px 6px;text-align:center;}
   .eng-item .wk{font-size:10.5px;font-weight:700;text-transform:uppercase;opacity:.85;}
@@ -941,7 +945,7 @@
     m.pesoData[weekIndex] = dateStr;
     savePatients();
   }
-  function updateWeekEntry(patientId, monthKey, weekIndex, engVal, chkVal){
+  function updateWeekEntry(patientId, monthKey, weekIndex, engVal, chkVal, obsVal){
     var p = getPatient(patientId);
     if(!p) return;
     if(!p.meses) p.meses = {};
@@ -950,10 +954,13 @@
     var wk = weeksInMonth(monthKey);
     if(!Array.isArray(m.engajamento)) m.engajamento = [];
     if(!Array.isArray(m.checkin)) m.checkin = [];
+    if(!Array.isArray(m.obsCheckin)) m.obsCheckin = [];
     while(m.engajamento.length < wk) m.engajamento.push(null);
     while(m.checkin.length < wk) m.checkin.push(null);
+    while(m.obsCheckin.length < wk) m.obsCheckin.push('');
     m.engajamento[weekIndex] = engVal;
     m.checkin[weekIndex] = chkVal;
+    m.obsCheckin[weekIndex] = obsVal;
     savePatients();
   }
   function pesoGoalPace(p){
@@ -4753,6 +4760,16 @@
       });
     });
   }
+  function bindObsCheckinAutosize(){
+    document.querySelectorAll('.obscheckin-autosize').forEach(function(el){
+      el.style.height = 'auto';
+      el.style.height = el.scrollHeight + 'px';
+      el.addEventListener('input', function(){
+        this.style.height = 'auto';
+        this.style.height = this.scrollHeight + 'px';
+      });
+    });
+  }
   function weeklyFieldsHtml(monthKey, weekly){
     var wk = weekly.engajamento.length;
     var engInputs = weekly.engajamento.map(function(v,i){
@@ -4766,7 +4783,7 @@
       return '<div class="checkin-form-item"><span class="mini-label" style="margin:0;">Sem '+(i+1)+'</span><select id="f_chk_'+i+'" class="checkin-select">'+opts+'</select></div>';
     }).join('');
     var obsCheckinInputs = (weekly.obsCheckin || []).map(function(v,i){
-      return '<div><div class="mini-label">Sem '+(i+1)+'<\div><input type="text" id="f_obscheckin_'+i+'" value="'+esc(v||'')+'" placeholder="Observação do check-in..."></div>';
+      return '<div><div class="mini-label">Sem '+(i+1)+'</div><textarea class="obscheckin-autosize" id="f_obscheckin_'+i+'" placeholder="Observação do check-in...">'+esc(v||'')+'</textarea></div>';
     }).join('');
     var pesoInputs = weekly.peso.map(function(v,i){
       return '<div><div class="mini-label">Sem '+(i+1)+'</div><input type="number" step="0.1" id="f_peso_'+i+'" value="'+(v===null?'':v)+'" placeholder="kg"></div>';
@@ -4981,6 +4998,7 @@
     var data = getMonthData(p, monthKey);
     var engVal = data.engajamento[weekIndex];
     var chkVal = data.checkin[weekIndex];
+    var obsVal = (data.obsCheckin && data.obsCheckin[weekIndex]) || '';
     return ''+
     '<div class="modal">'+
       '<div class="modal-header">'+
@@ -4994,6 +5012,7 @@
           '<option value="sim"'+(chkVal===true?' selected':'')+'>Enviou</option>'+
           '<option value="nao"'+(chkVal===false?' selected':'')+'>Não enviou</option>'+
         '</select></div>'+
+        '<div class="form-group"><label>Observação do Check-in</label><textarea id="f_week_obs" placeholder="Observação do check-in...">'+esc(obsVal)+'</textarea></div>'+
       '</div>'+
       '<div class="modal-footer">'+
         '<button class="btn btn-secondary" id="formCancelBtn">Cancelar</button>'+
@@ -5154,8 +5173,10 @@
         var weekly = getMonthData(editingPatient, newKey);
         document.getElementById('weeklyFieldsContainer').innerHTML = weeklyFieldsHtml(newKey, weekly);
         bindMetaTypeToggle();
+        bindObsCheckinAutosize();
       });
       bindMetaTypeToggle();
+      bindObsCheckinAutosize();
       document.getElementById('f_servico').addEventListener('change', function(){
         var treinoWrap = document.getElementById('fichaTreinoFormWrap');
         treinoWrap.style.display = temServicoTreino({ servico: this.value }) ? '' : 'none';
@@ -5240,7 +5261,8 @@
         var engVal = engRaw === '' ? null : clamp(parseInt(engRaw,10), 0, 10);
         var chkRaw = document.getElementById('f_week_chk').value;
         var chkVal = chkRaw === 'sim' ? true : chkRaw === 'nao' ? false : null;
-        updateWeekEntry(state.activeId, state.weekEditMonthKey, state.weekEditIndex, engVal, chkVal);
+        var obsVal = document.getElementById('f_week_obs').value.trim();
+        updateWeekEntry(state.activeId, state.weekEditMonthKey, state.weekEditIndex, engVal, chkVal, obsVal);
         closeModal();
         render();
         showToast('Semana atualizada.', 'success');
