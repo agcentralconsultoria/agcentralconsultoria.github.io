@@ -1153,10 +1153,15 @@
     var actualDelta = latest.value - baseline.value;
     var expectedDelta = (clampedElapsed / totalDays) * targetDelta;
     var dir = targetDelta >= 0 ? 1 : -1;
+    var EPS = 0.05;
+    var reachedMax = hasMax && (actualDelta - max) * dir >= -EPS;
+    var reachedMin = hasMin && (actualDelta - min) * dir >= -EPS;
     var status;
-    if(actualDelta * dir < 0) status = 'fora';
-    else if(actualDelta * dir >= expectedDelta * dir * 0.9) status = 'noritmo';
-    else status = 'atrasado';
+    if(hasMin && hasMax){
+      status = reachedMax ? 'batida' : (reachedMin ? 'minima' : 'atrasado');
+    } else {
+      status = (reachedMax || reachedMin) ? 'batida' : 'atrasado';
+    }
     return {
       status: status,
       min: hasMin ? min : null,
@@ -1171,7 +1176,7 @@
     var pace = pesoGoalPace(p);
     var paceHtml = '';
     if(pace){
-      var paceLabels = { noritmo: ['No ritmo','badge-success'], atrasado: ['Atrasado','badge-warning'], fora: ['Fora da meta','badge-danger'] };
+      var paceLabels = { batida: ['Meta batida','badge-success'], minima: ['Meta mínima','badge-warning'], atrasado: ['Atrasado','badge-danger'] };
       var lbl = paceLabels[pace.status];
       var metaTxt = (pace.min !== null && pace.max !== null) ? (pace.min+' a '+pace.max+' kg') : (pace.targetDelta+' kg');
       paceHtml = '<div style="margin-bottom:10px;">'+
