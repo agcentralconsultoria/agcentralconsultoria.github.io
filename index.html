@@ -838,14 +838,17 @@
     jornadaTemplates: null,
     jornadaEditorModelo: 'trimestral|treino_dieta|default',
     jornadaEditorCollapsedFases: {},
-    jornadaModelosCollapsed: false,
+    jornadaModelosCollapsed: true,
     jornadaResumoCollapsed: false,
     jornadaKanbanSectionCollapsed: false,
     jornadaKanbanCollapsed: {},
     jornadaKanbanExpanded: {},
     jornadaArquivoSearch: '',
     jornadaArquivoCollapsed: true,
-    jornadaAfazeresCollapsed: false,
+    jornadaAfazeresCollapsed: true,
+    pacientesTableCollapsed: false,
+    visaoGeralCollapsed: true,
+    materialPendenteCollapsed: true,
     jornadaAfazeresCollapsedPatients: {},
     jornadaKanbanSortBy: 'prioridade',
     jornadaKanbanSortDir: 'asc',
@@ -4068,7 +4071,7 @@
   function fichaTreinoFormFieldHtml(p){
     return ''+
       '<div class="form-group full" id="fichaTreinoFormWrap" style="'+(temServicoTreino(p)?'':'display:none;')+'">'+
-        '<label>Fichas de Treino</label>'+
+        '<label>💪 Fichas de Treino</label>'+
         '<div id="fichaTreinoFormRoot">'+fichaTreinoDraftListHtml()+'</div>'+
         '<button type="button" class="btn-icon" id="fichaTreinoFormAddBtn">+ Nova ficha</button>'+
       '</div>';
@@ -4213,7 +4216,7 @@
   function fichaDietaFormFieldHtml(p){
     return ''+
       '<div class="form-group full" id="fichaDietaFormWrap" style="'+(temServicoDieta(p)?'':'display:none;')+'">'+
-        '<label>Fichas de Dieta</label>'+
+        '<label>🍎 Fichas de Dieta</label>'+
         '<div id="fichaDietaFormRoot">'+fichaDietaDraftListHtml()+'</div>'+
         '<button type="button" class="btn-icon" id="fichaDietaFormAddBtn">+ Nova ficha</button>'+
       '</div>';
@@ -4453,34 +4456,46 @@
       '</div>'+
       '<button class="btn btn-primary" id="newPatientBtn">+ Novo Paciente</button>'+
     '</div>'+
-    '<div class="card">'+
-      '<table><thead><tr>'+
-        '<th class="th-sort" data-sort="nome">Nome'+sortArrow('nome')+'</th>'+
-        filterThHtml('planoFilter', 'Plano', 'Todos os Planos', ['Avulso','Trimestral','Semestral','Anual'])+
-        filterThHtml('prioridadeFilter', 'Prioridade', 'Todas as Prioridades', ['Modo Bebezinho','Urgente','Moderada','Sem urgência'])+
-        filterThHtml('statusFilter', 'Status', 'Todos os Status', [
-          {value:'Ativo', label:'Ativo'}, {value:'Atenção', label:'Atenção'}, {value:'Renovação antecipada', label:'Renovação antecipada'}
-        ])+
-        '<th>Ações</th>'+
-      '</tr></thead>'+
-      '<tbody id="patientsTableBody">'+renderPatientRows()+'</tbody></table>'+
+    '<div class="section-header-row">'+
+      '<h2 class="section-title">Pacientes</h2>'+
+      '<button class="btn-icon" type="button" id="pacientesTableToggleBtn" style="margin-left:auto;">'+(state.pacientesTableCollapsed?'Mostrar':'Recolher')+'</button>'+
+    '</div>'+
+    '<div id="pacientesTableWrap" style="'+(state.pacientesTableCollapsed?'display:none;':'')+'">'+
+      '<div class="card">'+
+        '<table><thead><tr>'+
+          '<th class="th-sort" data-sort="nome">Nome'+sortArrow('nome')+'</th>'+
+          filterThHtml('planoFilter', 'Plano', 'Todos os Planos', ['Avulso','Trimestral','Semestral','Anual'])+
+          filterThHtml('prioridadeFilter', 'Prioridade', 'Todas as Prioridades', ['Modo Bebezinho','Urgente','Moderada','Sem urgência'])+
+          filterThHtml('statusFilter', 'Status', 'Todos os Status', [
+            {value:'Ativo', label:'Ativo'}, {value:'Atenção', label:'Atenção'}, {value:'Renovação antecipada', label:'Renovação antecipada'}
+          ])+
+          '<th>Ações</th>'+
+        '</tr></thead>'+
+        '<tbody id="patientsTableBody">'+renderPatientRows()+'</tbody></table>'+
+      '</div>'+
     '</div>'+
     '<div class="section-header-row" style="margin-top:32px;">'+
       '<h2 class="section-title">Visão Geral — Engajamento e Check-in ('+monthLabel(state.competencia)+')</h2>'+
       '<button class="info-icon-btn" type="button" data-info-toggle="info-visao-geral">i</button>'+
       '<button class="btn-icon" type="button" data-info-toggle="info-week-calendar" title="Ver quais dias correspondem a cada semana">📅 Ver semanas</button>'+
+      '<button class="btn-icon" type="button" id="visaoGeralToggleBtn" style="margin-left:auto;">'+(state.visaoGeralCollapsed?'Mostrar':'Recolher')+'</button>'+
     '</div>'+
     '<div class="info-popover" id="info-visao-geral">Semana a semana, todos os pacientes. Status Consulta é automático pela data (verde ≥16 dias, amarelo ≤15 dias, vermelho se já passou) — ao lado da Meta da Próxima Consulta pra cruzar as duas informações. Números coloridos = engajamento (verde 9-10, amarelo 7-8, vermelho 0-6, padrão NPS); ✓/✗ = check-in; "—" = ainda não avaliado.</div>'+
     '<div class="info-popover" id="info-week-calendar">'+weekMiniCalendarHtml(state.competencia)+'</div>'+
-    '<div class="card table-scroll">'+overviewTableHtml(state.competencia)+'</div>'+
+    '<div id="visaoGeralWrap" style="'+(state.visaoGeralCollapsed?'display:none;':'')+'">'+
+      '<div class="card table-scroll">'+overviewTableHtml(state.competencia)+'</div>'+
+    '</div>'+
     '<div class="section-header-row" style="margin-top:32px;">'+
       '<h2 class="section-title">Material Pós-Consulta Pendente</h2>'+
       '<button class="info-icon-btn" type="button" data-info-toggle="info-material">i</button>'+
+      '<button class="btn-icon" type="button" id="materialPendenteToggleBtn" style="margin-left:auto;">'+(state.materialPendenteCollapsed?'Mostrar':'Recolher')+'</button>'+
     '</div>'+
     '<div class="info-popover" id="info-material">Pacientes que ainda não receberam o material/dossiê pós-consulta.</div>'+
-    '<div class="card">'+
-      '<table><thead><tr><th>Nome</th><th>Data da Consulta</th><th>Status Consulta</th><th>Prioridade</th></tr></thead>'+
-      '<tbody>'+materialPendenteRows()+'</tbody></table>'+
+    '<div id="materialPendenteWrap" style="'+(state.materialPendenteCollapsed?'display:none;':'')+'">'+
+      '<div class="card">'+
+        '<table><thead><tr><th>Nome</th><th>Data da Consulta</th><th>Status Consulta</th><th>Prioridade</th></tr></thead>'+
+        '<tbody>'+materialPendenteRows()+'</tbody></table>'+
+      '</div>'+
     '</div>';
   }
   function renderPatientRows(){
@@ -4510,6 +4525,21 @@
     document.getElementById('searchInput').addEventListener('input', function(e){
       state.search = e.target.value;
       refreshPatientsTable();
+    });
+    document.getElementById('pacientesTableToggleBtn').addEventListener('click', function(){
+      state.pacientesTableCollapsed = !state.pacientesTableCollapsed;
+      document.getElementById('pacientesTableWrap').style.display = state.pacientesTableCollapsed ? 'none' : '';
+      this.textContent = state.pacientesTableCollapsed ? 'Mostrar' : 'Recolher';
+    });
+    document.getElementById('visaoGeralToggleBtn').addEventListener('click', function(){
+      state.visaoGeralCollapsed = !state.visaoGeralCollapsed;
+      document.getElementById('visaoGeralWrap').style.display = state.visaoGeralCollapsed ? 'none' : '';
+      this.textContent = state.visaoGeralCollapsed ? 'Mostrar' : 'Recolher';
+    });
+    document.getElementById('materialPendenteToggleBtn').addEventListener('click', function(){
+      state.materialPendenteCollapsed = !state.materialPendenteCollapsed;
+      document.getElementById('materialPendenteWrap').style.display = state.materialPendenteCollapsed ? 'none' : '';
+      this.textContent = state.materialPendenteCollapsed ? 'Mostrar' : 'Recolher';
     });
     var overviewNomeInput = document.getElementById('overviewNomeFilterInput');
     if(overviewNomeInput){
