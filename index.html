@@ -735,25 +735,30 @@
 <div id="toast-root" class="toast-root"></div>
 <div id="chart-expand-root"></div>
 
-<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import {
     getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut,
     sendEmailVerification, multiFactor, TotpMultiFactorGenerator, getMultiFactorResolver
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-  var authApp = initializeApp({
+  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  var appConfig = {
     apiKey: "AIzaSyCFCfuzcJ2SfF_eV9imX7VDlzPH_ZChFDc",
     authDomain: "agcentralcrm.firebaseapp.com",
     projectId: "agcentralcrm",
     storageBucket: "agcentralcrm.firebasestorage.app",
     messagingSenderId: "320508821570",
     appId: "1:320508821570:web:eb460521cb8a27fe83eddb"
-  }, "authApp");
+  };
+  var authApp = initializeApp(appConfig, "authApp");
   var mfaAuth = getAuth(authApp);
+  var firestoreDb = getFirestore(authApp);
   window.__mfa = {
     auth: mfaAuth,
+    db: firestoreDb,
+    doc: doc,
+    getDoc: getDoc,
+    setDoc: setDoc,
     onAuthStateChanged: onAuthStateChanged,
     signInWithEmailAndPassword: signInWithEmailAndPassword,
     signOut: signOut,
@@ -768,17 +773,7 @@
 (function(){
   "use strict";
 
-  var firebaseConfig = {
-    apiKey: "AIzaSyCFCfuzcJ2SfF_eV9imX7VDlzPH_ZChFDc",
-    authDomain: "agcentralcrm.firebaseapp.com",
-    projectId: "agcentralcrm",
-    storageBucket: "agcentralcrm.firebasestorage.app",
-    messagingSenderId: "320508821570",
-    appId: "1:320508821570:web:eb460521cb8a27fe83eddb"
-  };
-  firebase.initializeApp(firebaseConfig);
-  var db = firebase.firestore();
-  var mfa = null; // populado quando o SDK modular de auth (window.__mfa) terminar de carregar
+  var mfa = null; // populado quando o SDK modular (window.__mfa) terminar de carregar — inclui auth e Firestore, no mesmo app
   var pendingTotpSecret = null;
   var pendingMfaResolver = null;
   function whenMfaReady(cb){
@@ -1371,9 +1366,9 @@
     return p;
   }
   function loadPatientsAsync(){
-    return db.collection('crmData').doc('patients').get().then(function(doc){
-      if(doc.exists && Array.isArray(doc.data().list)){
-        return doc.data().list.map(migratePatient);
+    return mfa.getDoc(mfa.doc(mfa.db, 'crmData', 'patients')).then(function(snap){
+      if(snap.exists() && Array.isArray(snap.data().list)){
+        return snap.data().list.map(migratePatient);
       }
       var list;
       var raw = localStorage.getItem(STORAGE_KEY);
@@ -1384,11 +1379,11 @@
         }catch(e){}
       }
       if(!list) list = seedPatients();
-      return db.collection('crmData').doc('patients').set({ list: list }).then(function(){ return list; });
+      return mfa.setDoc(mfa.doc(mfa.db, 'crmData', 'patients'), { list: list }).then(function(){ return list; });
     });
   }
   function savePatients(){
-    db.collection('crmData').doc('patients').set({ list: state.patients }).catch(function(err){
+    mfa.setDoc(mfa.doc(mfa.db, 'crmData', 'patients'), { list: state.patients }).catch(function(err){
       showToast('Erro ao salvar dados: ' + err.message, 'danger');
     });
   }
@@ -1432,9 +1427,9 @@
     return parsed;
   }
   function loadJornadaTemplatesAsync(){
-    return db.collection('crmData').doc('jornadaTemplates').get().then(function(doc){
-      if(doc.exists && doc.data().data){
-        var fromFirestore = parseJornadaTemplatesRaw(doc.data().data);
+    return mfa.getDoc(mfa.doc(mfa.db, 'crmData', 'jornadaTemplates')).then(function(snap){
+      if(snap.exists() && snap.data().data){
+        var fromFirestore = parseJornadaTemplatesRaw(snap.data().data);
         if(fromFirestore) return fromFirestore;
       }
       var result = null;
@@ -1443,11 +1438,11 @@
         try{ result = parseJornadaTemplatesRaw(JSON.parse(raw)); }catch(e){}
       }
       if(!result) result = seedJornadaTemplates(JORNADA_TEMPLATES_DEFAULT);
-      return db.collection('crmData').doc('jornadaTemplates').set({ data: result }).then(function(){ return result; });
+      return mfa.setDoc(mfa.doc(mfa.db, 'crmData', 'jornadaTemplates'), { data: result }).then(function(){ return result; });
     });
   }
   function saveJornadaTemplates(){
-    db.collection('crmData').doc('jornadaTemplates').set({ data: state.jornadaTemplates }).catch(function(err){
+    mfa.setDoc(mfa.doc(mfa.db, 'crmData', 'jornadaTemplates'), { data: state.jornadaTemplates }).catch(function(err){
       showToast('Erro ao salvar modelos: ' + err.message, 'danger');
     });
   }
@@ -1460,10 +1455,10 @@
     return list;
   }
   function loadGrupoMuscularListAsync(){
-    return db.collection('crmData').doc('grupoMuscularList').get().then(function(doc){
-      if(doc.exists && Array.isArray(doc.data().list) && doc.data().list.length){
-        var fromFirestore = backfillGluteoMedio(doc.data().list.slice());
-        return db.collection('crmData').doc('grupoMuscularList').set({ list: fromFirestore }).then(function(){ return fromFirestore; });
+    return mfa.getDoc(mfa.doc(mfa.db, 'crmData', 'grupoMuscularList')).then(function(snap){
+      if(snap.exists() && Array.isArray(snap.data().list) && snap.data().list.length){
+        var fromFirestore = backfillGluteoMedio(snap.data().list.slice());
+        return mfa.setDoc(mfa.doc(mfa.db, 'crmData', 'grupoMuscularList'), { list: fromFirestore }).then(function(){ return fromFirestore; });
       }
       var list;
       var raw = localStorage.getItem(GRUPO_MUSCULAR_KEY);
@@ -1475,11 +1470,11 @@
       }
       if(!list) list = DEFAULT_GRUPOS_MUSCULARES.slice();
       backfillGluteoMedio(list);
-      return db.collection('crmData').doc('grupoMuscularList').set({ list: list }).then(function(){ return list; });
+      return mfa.setDoc(mfa.doc(mfa.db, 'crmData', 'grupoMuscularList'), { list: list }).then(function(){ return list; });
     });
   }
   function saveGrupoMuscularList(){
-    db.collection('crmData').doc('grupoMuscularList').set({ list: state.grupoMuscularList }).catch(function(err){
+    mfa.setDoc(mfa.doc(mfa.db, 'crmData', 'grupoMuscularList'), { list: state.grupoMuscularList }).catch(function(err){
       showToast('Erro ao salvar grupos musculares: ' + err.message, 'danger');
     });
   }
