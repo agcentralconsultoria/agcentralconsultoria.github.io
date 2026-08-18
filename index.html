@@ -5157,6 +5157,7 @@
         '<button class="modal-close" id="modalCloseBtn">&times;</button>'+
       '</div>'+
       '<div class="modal-body">'+
+        (isEdit ? '<div class="profile-top" style="margin-bottom:14px;"><div></div><button type="button" class="btn btn-secondary" id="formBackToProfileBtn">Voltar ao Perfil</button></div>' : '')+
         '<div class="form-grid">'+
           '<div class="form-group full"><label>Nome</label><input type="text" id="f_nome" value="'+esc(p.nome)+'" placeholder="Nome completo"></div>'+
           '<div class="form-group"><label>E-mail</label><input type="email" id="f_email" value="'+esc(p.email)+'" placeholder="email@exemplo.com"></div>'+
@@ -5367,6 +5368,14 @@
     if(closeBtn) closeBtn.addEventListener('click', function(){ closeModal(); });
     var cancelBtn = document.getElementById('formCancelBtn');
     if(cancelBtn) cancelBtn.addEventListener('click', function(){ closeModal(); });
+    var backToProfileBtn = document.getElementById('formBackToProfileBtn');
+    if(backToProfileBtn){
+      backToProfileBtn.addEventListener('click', function(){
+        if(confirm('Voltar ao perfil sem salvar? As alterações feitas aqui serão perdidas.')){
+          openProfileModal(state.activeId);
+        }
+      });
+    }
 
     if(state.modal === 'profile'){
       document.getElementById('profileCloseBtn2').addEventListener('click', function(){ closeModal(); });
