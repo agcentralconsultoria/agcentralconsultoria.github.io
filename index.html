@@ -760,15 +760,20 @@
     table:not(.peso-history-table) td:first-child:not(:last-child) .link-btn{
       font-weight:700;font-size:14.5px;text-align:left;
     }
+    table:not(.peso-history-table) td[data-label]:not(:first-child)::before{
+      content:attr(data-label) ': ';
+      color:var(--text-muted);font-weight:600;font-size:11.5px;
+    }
 
     /* ---- alvos de toque maiores ---- */
     .btn-icon{padding:8px 12px;font-size:13px;}
     .btn{padding:11px 16px;}
     .section-header-row{flex-wrap:wrap;}
 
-    /* ---- formularios: 16px evita o zoom automatico do iPhone ---- */
-    .form-group input,.form-group select,.form-group textarea,
-    .volume-grupo-grid input[type=number]{font-size:16px;}
+    /* ---- formularios: abaixo de 16px o iPhone da zoom sozinho ao tocar no campo.
+       O !important e proposital: precisa vencer todas as regras especificas de cada
+       campo, e como esta dentro do @media, nao afeta o computador. ---- */
+    input,select,textarea{font-size:16px !important;}
 
     /* ---- janelas (modais) ocupando a tela ---- */
     .modal-overlay{padding:10px;align-items:flex-start;}
@@ -5931,6 +5936,30 @@
   });
   document.addEventListener('click', jornadaCalendarGlobalClick);
   document.addEventListener('focusout', jornadaCalendarGlobalFocusOut);
+
+  /* No celular as tabelas viram cartoes e o cabecalho some, entao copiamos o nome
+     da coluna pra cada celula (data-label). O CSS so mostra isso em telas pequenas. */
+  function applyMobileTableLabels(){
+    document.querySelectorAll('table:not(.peso-history-table)').forEach(function(t){
+      var ths = t.querySelectorAll('thead th');
+      if(!ths.length) return;
+      var labels = Array.prototype.map.call(ths, function(th){ return th.textContent.trim(); });
+      t.querySelectorAll('tbody tr').forEach(function(tr){
+        var tds = tr.children;
+        if(tds.length < 2) return;
+        for(var i=0;i<tds.length;i++){
+          if(labels[i]) tds[i].setAttribute('data-label', labels[i]);
+        }
+      });
+    });
+  }
+  var mobileLabelTimer = null;
+  var mobileLabelObserver = new MutationObserver(function(){
+    clearTimeout(mobileLabelTimer);
+    mobileLabelTimer = setTimeout(applyMobileTableLabels, 40);
+  });
+  mobileLabelObserver.observe(document.getElementById('app'), { childList:true, subtree:true });
+  mobileLabelObserver.observe(document.getElementById('modal-root'), { childList:true, subtree:true });
 
   /* ================= INIT ================= */
   function init(){
