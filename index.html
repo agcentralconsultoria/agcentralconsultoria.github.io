@@ -3863,7 +3863,7 @@
     if(!list.length) return '<tr><td colspan="2"><div class="empty-state">Nenhum paciente com serviço de '+(kind==='treino'?'Treino':'Dieta')+'.</div></td></tr>';
     return list.map(function(item){
       var diasLabel = formatDiasOuSemanas(item.dias, unit);
-      var cls = kind === 'treino' ? fichaTreinoTempoClass(item.dias) : (item.dias === null || item.dias >= 30 ? 'badge-danger' : item.dias >= 15 ? 'badge-warning' : 'badge-gray');
+      var cls = kind === 'treino' ? fichaTreinoTempoClass(item.dias) : (item.dias === null || item.dias >= 30 ? 'badge-success' : item.dias >= 15 ? 'badge-warning' : 'badge-gray');
       return '<tr><td><button class="link-btn" data-open-profile="'+item.p.id+'">'+esc(item.p.nome)+'</button></td><td><span class="badge '+cls+'">'+esc(diasLabel)+'</span></td></tr>';
     }).join('');
   }
