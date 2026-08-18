@@ -354,6 +354,8 @@
   .jornada-cal-cell.today{outline:1.5px solid var(--primary);outline-offset:-1.5px;}
   .jornada-cal-cell.selected{background:var(--primary);color:var(--white);font-weight:700;}
   .jornada-cal-cell:not(.empty):hover{outline:1.5px solid var(--primary);outline-offset:-1.5px;}
+  .jornada-cal-cell.readonly-cal-cell{cursor:default;}
+  .jornada-cal-cell.readonly-cal-cell:hover{outline:none;}
   .jornada-cal-dot{position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--success);}
   .jornada-cal-cell.selected .jornada-cal-dot{background:var(--white);}
   .jornada-task-obs{
@@ -2154,7 +2156,6 @@
       '<div class="jornada-kanban-card-expand">'+
         '<textarea class="jornada-task-name obscheckin-autosize" data-kanban-task-nome="'+key+'">'+esc(t.nome)+'</textarea>'+
         jornadaDateFieldHtml('kanban-'+p.id+'-'+t.id, p.id, t.dataAlvo)+
-        jornadaDateBadge(t.dataAlvo, key)+
         '<textarea class="jornada-task-obs obscheckin-autosize" data-kanban-task-obs="'+key+'" placeholder="Observação / mensagem a enviar (opcional)">'+esc(t.observacao)+'</textarea>'+
       '</div>' : '';
     return ''+
@@ -3179,7 +3180,7 @@
     dashboardQuickAccessHtml();
   }
   function bindInfoIcons(container){
-    var btns = container.querySelectorAll('.info-icon-btn');
+    var btns = container.querySelectorAll('[data-info-toggle]');
     for(var i=0;i<btns.length;i++){
       btns[i].addEventListener('click', function(){
         var popover = document.getElementById(this.getAttribute('data-info-toggle'));
@@ -3298,6 +3299,7 @@
           '</div>'+
           (t.concluido ? '<span class="badge badge-success">Concluído</span>' : '<span class="badge badge-gray">Não concluído</span>')+
           '<button type="button" class="btn-icon" data-kanban-restore="'+p.id+':'+t.id+'">Restaurar</button>'+
+          '<button type="button" class="btn-icon btn-danger-outline" data-kanban-delete="'+p.id+':'+t.id+'">Excluir</button>'+
         '</div>';
     }).join('');
   }
@@ -3323,6 +3325,16 @@
         refreshJornadaArquivo();
         refreshAllJornadaViews();
         showToast('Tarefa restaurada.', 'success');
+      });
+    });
+    root.querySelectorAll('[data-kanban-delete]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var parts = this.getAttribute('data-kanban-delete').split(':');
+        if(!confirm('Excluir esta tarefa permanentemente? Essa ação não pode ser desfeita.')) return;
+        removePatientTask(parseInt(parts[0],10), parseInt(parts[1],10));
+        refreshJornadaArquivo();
+        refreshAllJornadaViews();
+        showToast('Tarefa excluída.', 'success');
       });
     });
   }
@@ -4322,6 +4334,37 @@
     }
     return rows;
   }
+  function weekMiniCalendarHtml(monthKey){
+    var parsed = parseMonthKey(monthKey);
+    var year = parsed.year, month = parsed.month;
+    var daysInMonth = new Date(year, month+1, 0).getDate();
+    var fridays = [];
+    for(var day=1; day<=daysInMonth; day++){
+      if(new Date(year, month, day).getDay() === 5) fridays.push(day);
+    }
+    var startWeekday = new Date(year, month, 1).getDay();
+    var weekdayHeaders = ['D','S','T','Q','Q','S','S'].map(function(w){ return '<span class="jornada-cal-wd">'+w+'</span>'; }).join('');
+    var cells = '';
+    for(var i=0;i<startWeekday;i++){ cells += '<span class="jornada-cal-cell empty"></span>'; }
+    for(day=1; day<=daysInMonth; day++){
+      var weekIdx = -1;
+      for(var f=0; f<fridays.length; f++){ if(day <= fridays[f]){ weekIdx = f; break; } }
+      var isFriday = fridays.indexOf(day) !== -1;
+      var style = weekIdx !== -1 ? 'background:'+chartColorFor(weekIdx)+'33;' : '';
+      if(isFriday) style += 'font-weight:700;box-shadow:inset 0 0 0 1.5px '+chartColorFor(weekIdx)+';';
+      cells += '<span class="jornada-cal-cell readonly-cal-cell" style="'+style+'border-radius:5px;">'+day+'</span>';
+    }
+    var legend = fridays.map(function(f,i){
+      return '<div style="display:flex;align-items:center;gap:6px;font-size:12px;margin-top:4px;">'+
+        '<span style="width:11px;height:11px;border-radius:3px;background:'+chartColorFor(i)+';display:inline-block;flex-shrink:0;"></span>'+
+        'Sem '+(i+1)+' — check-in dia '+f+' ('+monthLabel(monthKey)+')'+
+      '</div>';
+    }).join('');
+    return '<div style="max-width:260px;">'+
+      '<div class="jornada-cal-grid" style="margin-bottom:4px;">'+weekdayHeaders+cells+'</div>'+
+      legend+
+    '</div>';
+  }
   function overviewTableHtml(monthKey){
     var wk = weeksInMonth(monthKey);
     var headerCells = '';
@@ -4370,8 +4413,10 @@
     '<div class="section-header-row" style="margin-top:32px;">'+
       '<h2 class="section-title">Visão Geral — Engajamento e Check-in ('+monthLabel(state.competencia)+')</h2>'+
       '<button class="info-icon-btn" type="button" data-info-toggle="info-visao-geral">i</button>'+
+      '<button class="btn-icon" type="button" data-info-toggle="info-week-calendar" title="Ver quais dias correspondem a cada semana">📅 Ver semanas</button>'+
     '</div>'+
     '<div class="info-popover" id="info-visao-geral">Semana a semana, todos os pacientes. Status Consulta é automático pela data (verde ≥16 dias, amarelo ≤15 dias, vermelho se já passou) — ao lado da Meta da Próxima Consulta pra cruzar as duas informações. Números coloridos = engajamento (verde 9-10, amarelo 7-8, vermelho 0-6, padrão NPS); ✓/✗ = check-in; "—" = ainda não avaliado.</div>'+
+    '<div class="info-popover" id="info-week-calendar">'+weekMiniCalendarHtml(state.competencia)+'</div>'+
     '<div class="card table-scroll">'+overviewTableHtml(state.competencia)+'</div>'+
     '<div class="section-header-row" style="margin-top:32px;">'+
       '<h2 class="section-title">Material Pós-Consulta Pendente</h2>'+
