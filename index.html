@@ -496,10 +496,19 @@
   }
   .peso-toggle-btn:hover{color:var(--primary);}
   .peso-history-tr td{background:#FAFAFA;padding:14px 16px !important;}
-  .peso-history-box{max-width:420px;}
   .peso-history-table{width:100%;font-size:13px;}
   .peso-history-table th,.peso-history-table td{padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);}
   .peso-var-up,.peso-var-down{color:var(--text);font-weight:600;}
+  .peso-history-layout{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;}
+  .peso-history-left{flex:0 1 420px;min-width:300px;}
+  .peso-history-right{flex:1 1 380px;min-width:300px;}
+  .peso-chart-wrap{width:100%;}
+  .peso-chart-svg{width:100%;height:auto;display:block;margin-top:4px;overflow:visible;}
+  .peso-chart-empty{font-size:12px;color:var(--text-muted);padding:12px 0;}
+  .peso-chart-pt{cursor:pointer;}
+  .peso-chart-tip{opacity:0;pointer-events:none;transition:opacity .12s;}
+  .peso-chart-pt:hover .peso-chart-tip{opacity:1;}
+  @media (max-width:860px){ .peso-history-layout{flex-direction:column;} .peso-history-left,.peso-history-right{width:100%;flex-basis:auto;} }
 
   .badge{
     display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700;
@@ -857,6 +866,7 @@
     volumeCompareExpanded: false,
     dietaCompareExpanded: false,
     dietaCompareShowGkg: false,
+    grupoMuscularCollapsed: true,
     jornadaCalendarOpen: null,
     modal: null,
     activeId: null,
@@ -973,8 +983,12 @@
   }
   function metaBoxText(data){
     if(data.metaTipo === 'peso'){
-      if(data.metaPesoMin === '' && data.metaPesoMax === '') return 'Meta de peso ativa, mas sem valores preenchidos ainda.';
-      return 'Meta de Peso: '+esc(String(data.metaPesoMin))+' a '+esc(String(data.metaPesoMax))+' kg (desde '+formatDate(data.metaPesoInicio)+')';
+      var mn = data.metaPesoMin, mx = data.metaPesoMax;
+      var hasMn = mn !== '' && mn !== null && mn !== undefined;
+      var hasMx = mx !== '' && mx !== null && mx !== undefined;
+      if(!hasMn && !hasMx) return 'Meta de peso ativa, mas sem valores preenchidos ainda.';
+      var txt = (hasMn && hasMx) ? (esc(String(mn))+' a '+esc(String(mx))+' kg') : (esc(String(hasMn?mn:mx))+' kg');
+      return 'Meta de Peso: '+txt+' (desde '+formatDate(data.metaPesoInicio)+')';
     }
     return esc(data.metaMes || 'Nenhuma meta definida.');
   }
@@ -1013,6 +1027,77 @@
     entries.sort(function(a,b){ return a.date < b.date ? 1 : (a.date > b.date ? -1 : 0); });
     return entries;
   }
+  function pesoChartHtml(list){
+    // list vem do mais novo pro mais antigo; o gráfico precisa da ordem cronológica
+    var pts = list.slice().reverse();
+    if(pts.length < 2){
+      return '<div class="peso-chart-empty">Registre pelo menos 2 pesos pra ver o gráfico de evolução.</div>';
+    }
+    var W = 520, H = 210, padL = 44, padR = 14, padT = 14, padB = 30;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    var vals = pts.map(function(e){ return e.value; });
+    var vMin = Math.min.apply(null, vals), vMax = Math.max.apply(null, vals);
+    var range = vMax - vMin;
+    if(range === 0){ vMin -= 0.5; vMax += 0.5; } else { vMin -= range*0.12; vMax += range*0.12; }
+    var span = vMax - vMin;
+    function xAt(i){ return padL + (pts.length===1 ? plotW/2 : (i/(pts.length-1))*plotW); }
+    function yAt(v){ return padT + (1 - (v - vMin)/span) * plotH; }
+    // linhas de grade + rótulos do eixo Y
+    var TICKS = 4, grid = '';
+    for(var t=0;t<=TICKS;t++){
+      var gv = vMin + (span*t/TICKS);
+      var gy = yAt(gv);
+      grid += '<line x1="'+padL+'" y1="'+gy.toFixed(1)+'" x2="'+(W-padR)+'" y2="'+gy.toFixed(1)+'" stroke="var(--border)" stroke-width="1"></line>'+
+        '<text x="'+(padL-7)+'" y="'+(gy+3.5).toFixed(1)+'" text-anchor="end" font-size="9.5" fill="var(--text-muted)">'+gv.toFixed(1)+'</text>';
+    }
+    // curva suave (Catmull-Rom convertida em bezier cúbica)
+    var d = 'M '+xAt(0).toFixed(1)+' '+yAt(pts[0].value).toFixed(1);
+    for(var i=0;i<pts.length-1;i++){
+      var p0 = pts[i-1] || pts[i], p1 = pts[i], p2 = pts[i+1], p3 = pts[i+2] || pts[i+1];
+      var x0 = xAt(i-1 < 0 ? i : i-1), x1 = xAt(i), x2 = xAt(i+1), x3 = xAt(i+2 > pts.length-1 ? i+1 : i+2);
+      var c1x = x1 + (x2 - x0)/6, c1y = yAt(p1.value) + (yAt(p2.value) - yAt(p0.value))/6;
+      var c2x = x2 - (x3 - x1)/6, c2y = yAt(p2.value) - (yAt(p3.value) - yAt(p1.value))/6;
+      d += ' C '+c1x.toFixed(1)+' '+c1y.toFixed(1)+' '+c2x.toFixed(1)+' '+c2y.toFixed(1)+' '+x2.toFixed(1)+' '+yAt(p2.value).toFixed(1);
+    }
+    var line = '<path d="'+d+'" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round"></path>';
+    // rótulos do eixo X (no máximo ~6, pra não sobrepor)
+    var step = Math.ceil(pts.length/6), xLabels = '';
+    pts.forEach(function(e, i){
+      if(i % step !== 0 && i !== pts.length-1) return;
+      xLabels += '<text x="'+xAt(i).toFixed(1)+'" y="'+(H-10)+'" text-anchor="middle" font-size="9" fill="var(--text-muted)">'+formatDate(e.date)+'</text>';
+    });
+    // pontos + tooltip em CSS puro (aparece no hover, sem depender de bind de evento)
+    var TW = 138, TH = 46;
+    var dots = pts.map(function(e, i){
+      var cx = xAt(i), cy = yAt(e.value);
+      var prev = pts[i-1];
+      var variacao = prev ? (e.value - prev.value) : null;
+      var pctTxt = '';
+      if(variacao !== null && prev.value){ pctTxt = ' ('+(variacao>0?'+':'')+(variacao/prev.value*100).toFixed(1)+'%)'; }
+      var varTxt = variacao === null ? 'primeiro registro'
+        : (variacao > 0 ? '↑ +'+variacao.toFixed(1)+' kg' : variacao < 0 ? '↓ '+variacao.toFixed(1)+' kg' : '0 kg') + pctTxt;
+      var varColor = variacao === null ? 'var(--text-muted)' : 'rgba(255,255,255,0.85)';
+      // vira o tooltip pro lado esquerdo quando o ponto está na metade direita
+      var tipX = cx + 12 + TW > W - padR ? cx - 12 - TW : cx + 12;
+      var tipY = Math.min(Math.max(cy - TH/2, padT), H - padB - TH);
+      return '<g class="peso-chart-pt">'+
+        '<circle cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="4" fill="var(--primary)" stroke="var(--white)" stroke-width="2"></circle>'+
+        '<circle cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="12" fill="transparent"></circle>'+
+        '<g class="peso-chart-tip" transform="translate('+tipX.toFixed(1)+','+tipY.toFixed(1)+')">'+
+          '<rect width="'+TW+'" height="'+TH+'" rx="6" fill="#1F2937"></rect>'+
+          '<text x="9" y="17" font-size="9.5" fill="rgba(255,255,255,0.7)">'+formatDate(e.date)+'</text>'+
+          '<text x="'+(TW-9)+'" y="18" text-anchor="end" font-size="12.5" font-weight="700" fill="#FFFFFF">'+e.value.toFixed(1)+' kg</text>'+
+          '<text x="9" y="34" font-size="10" fill="'+varColor+'">'+varTxt+'</text>'+
+        '</g>'+
+      '</g>';
+    }).join('');
+    return '<div class="peso-chart-wrap">'+
+      '<div class="mini-label" style="text-align:left;">Evolução do peso (passe o mouse pra ver peso e variação)</div>'+
+      '<svg class="peso-chart-svg" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet">'+
+        grid + line + xLabels + dots +
+      '</svg>'+
+    '</div>';
+  }
   function updatePesoEntry(patientId, monthKey, weekIndex, value, dateStr){
     var p = getPatient(patientId);
     if(!p) return;
@@ -1050,7 +1135,8 @@
     var data = p.meses && p.meses[state.competencia];
     if(!data || data.metaTipo !== 'peso') return null;
     var min = parseFloat(data.metaPesoMin), max = parseFloat(data.metaPesoMax);
-    if(isNaN(min) || isNaN(max) || !data.metaPesoInicio || !p.consulta) return null;
+    var hasMin = !isNaN(min), hasMax = !isNaN(max);
+    if((!hasMin && !hasMax) || !data.metaPesoInicio || !p.consulta) return null;
     var history = pesoHistoryList(p);
     if(!history.length) return null;
     var latest = history[0];
@@ -1063,7 +1149,7 @@
     if(totalDays === null || totalDays <= 0) return null;
     var elapsedDays = daysBetween(data.metaPesoInicio, todayISODate());
     var clampedElapsed = Math.min(Math.max(elapsedDays, 0), totalDays);
-    var targetDelta = (min + max) / 2;
+    var targetDelta = (hasMin && hasMax) ? (min + max) / 2 : (hasMin ? min : max);
     var actualDelta = latest.value - baseline.value;
     var expectedDelta = (clampedElapsed / totalDays) * targetDelta;
     var dir = targetDelta >= 0 ? 1 : -1;
@@ -1071,7 +1157,14 @@
     if(actualDelta * dir < 0) status = 'fora';
     else if(actualDelta * dir >= expectedDelta * dir * 0.9) status = 'noritmo';
     else status = 'atrasado';
-    return { status: status, min: min, max: max, actualDelta: actualDelta, expectedDelta: expectedDelta };
+    return {
+      status: status,
+      min: hasMin ? min : null,
+      max: hasMax ? max : null,
+      targetDelta: targetDelta,
+      actualDelta: actualDelta,
+      expectedDelta: expectedDelta
+    };
   }
   function pesoHistoryHtml(p){
     var list = pesoHistoryList(p);
@@ -1080,9 +1173,10 @@
     if(pace){
       var paceLabels = { noritmo: ['No ritmo','badge-success'], atrasado: ['Atrasado','badge-warning'], fora: ['Fora da meta','badge-danger'] };
       var lbl = paceLabels[pace.status];
+      var metaTxt = (pace.min !== null && pace.max !== null) ? (pace.min+' a '+pace.max+' kg') : (pace.targetDelta+' kg');
       paceHtml = '<div style="margin-bottom:10px;">'+
         '<span class="badge '+lbl[1]+'">'+lbl[0]+'</span> '+
-        '<span class="cell-muted">Meta: '+pace.min+' a '+pace.max+' kg — até agora: '+(pace.actualDelta>0?'+':'')+pace.actualDelta.toFixed(1)+' kg (esperado: '+(pace.expectedDelta>0?'+':'')+pace.expectedDelta.toFixed(1)+' kg)</span>'+
+        '<span class="cell-muted">Meta: '+metaTxt+' — até agora: '+(pace.actualDelta>0?'+':'')+pace.actualDelta.toFixed(1)+' kg (esperado: '+(pace.expectedDelta>0?'+':'')+pace.expectedDelta.toFixed(1)+' kg)</span>'+
       '</div>';
     }
     var addKey = 'add|'+p.id;
@@ -1117,7 +1211,15 @@
       return '<tr><td class="cell-muted">'+formatDate(entry.date)+'</td><td><b>'+entry.value.toFixed(1)+' kg</b></td><td class="'+varCls+'">'+varText+'</td>'+
         '<td><button type="button" class="btn-icon" data-peso-edit-open="'+key+'" title="Editar data/peso">✏️</button></td></tr>';
     }).join('');
-    return '<div class="peso-history-box">'+paceHtml+'<table class="peso-history-table"><thead><tr><th>Data</th><th>Peso</th><th>Variação</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>'+addHtml+'</div>';
+    return '<div class="peso-history-box">'+paceHtml+
+      '<div class="peso-history-layout">'+
+        '<div class="peso-history-left">'+
+          '<table class="peso-history-table"><thead><tr><th>Data</th><th>Peso</th><th>Variação</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>'+
+          addHtml+
+        '</div>'+
+        '<div class="peso-history-right">'+pesoChartHtml(list)+'</div>'+
+      '</div>'+
+    '</div>';
   }
   function weekIndexForDate(monthKey, dateStr){
     var wk = weeksInMonth(monthKey);
@@ -3513,7 +3615,7 @@
     if(!p.fichasDieta) p.fichasDieta = [];
     var maxId = p.fichasDieta.reduce(function(m,f){ return Math.max(m, f.id); }, -1);
     var id = maxId + 1;
-    p.fichasDieta.push({ id: id, dataPassado: todayISODate(), dataVencimento: '', expectativa: '', calorias: '', proteinas: '', carboidratos: '', gorduras: '' });
+    p.fichasDieta.push({ id: id, dataPassado: todayISODate(), expectativa: '', calorias: '', proteinas: '', carboidratos: '', gorduras: '' });
     if(!state.fichaDietaOpen[patientId]) state.fichaDietaOpen[patientId] = {};
     state.fichaDietaOpen[patientId][id] = true;
     savePatients();
@@ -3683,8 +3785,8 @@
     var items = list.map(function(f, idx){
       var isCurrent = idx === 0;
       var isOpen = !!openMap[f.id];
-      var statusBadge = f.dataVencimento ? prazoBadge(f.dataVencimento) : '<span class="badge badge-gray">Sem vencimento</span>';
-      var summaryText = 'Passado ' + formatDate(f.dataPassado) + (f.dataVencimento ? (' · vence ' + formatDate(f.dataVencimento)) : '');
+      var statusBadge = kind === 'dieta' ? '' : (f.dataVencimento ? prazoBadge(f.dataVencimento) : '<span class="badge badge-gray">Sem vencimento</span>');
+      var summaryText = 'Passado ' + formatDate(f.dataPassado) + (kind !== 'dieta' && f.dataVencimento ? (' · vence ' + formatDate(f.dataVencimento)) : '');
       var header = ''+
         '<button type="button" class="ficha-treino-header" data-'+attrPrefix+'-toggle="'+f.id+'">'+
           '<span class="ficha-treino-summary">'+esc(summaryText)+'</span>'+
@@ -3717,7 +3819,7 @@
         '<div class="ficha-treino-body">'+
           '<div class="jornada-select-row">'+
             '<div><div class="mini-label">Data que '+(kind==='dieta'?'a dieta foi passada':'o treino foi passado')+'</div><input type="date" data-'+attrPrefix+'-field="dataPassado" data-'+attrPrefix+'-id="'+f.id+'" value="'+esc(f.dataPassado||'')+'"></div>'+
-            '<div><div class="mini-label">Vencimento d'+(kind==='dieta'?'a dieta':'o treino')+'</div><input type="date" data-'+attrPrefix+'-field="dataVencimento" data-'+attrPrefix+'-id="'+f.id+'" value="'+esc(f.dataVencimento||'')+'"></div>'+
+            (kind==='dieta' ? '' : '<div><div class="mini-label">Vencimento do treino</div><input type="date" data-'+attrPrefix+'-field="dataVencimento" data-'+attrPrefix+'-id="'+f.id+'" value="'+esc(f.dataVencimento||'')+'"></div>')+
           '</div>'+
           '<div class="mini-label" style="text-align:left;margin-top:8px;">'+(kind==='dieta'?'Observações sobre a dieta (orientações, restrições, refeição livre...)':'O que esperar desse treino (observações de repetições, cargas...)')+'</div>'+
           '<textarea data-'+attrPrefix+'-field="expectativa" data-'+attrPrefix+'-id="'+f.id+'" placeholder="'+(kind==='dieta'?'Ex: dieta flexível, foco em proteína no pós-treino...':'Ex: manter técnica, progressão de carga gradual...')+'">'+esc(f.expectativa||'')+'</textarea>'+
@@ -3741,10 +3843,15 @@
     }).join('');
     return ''+
       '<div class="grupo-muscular-manager">'+
-        '<div class="mini-label" style="text-align:left;">Grupos musculares (usados no volume de treino — vale pra todos os pacientes)</div>'+
-        '<div class="compare-chips">'+chips+
-          '<input type="text" id="grupoMuscularAddInput" placeholder="Novo grupo...">'+
-          '<button type="button" class="btn-icon" id="grupoMuscularAddBtn">+ Adicionar</button>'+
+        '<div style="display:flex;align-items:center;gap:8px;">'+
+          '<div class="mini-label" style="text-align:left;">Grupos musculares (usados no volume de treino — vale pra todos os pacientes)</div>'+
+          '<button type="button" class="btn-icon" id="grupoMuscularToggleBtn" style="margin-left:auto;flex-shrink:0;">'+(state.grupoMuscularCollapsed?'Mostrar':'Recolher')+'</button>'+
+        '</div>'+
+        '<div id="grupoMuscularWrap" style="'+(state.grupoMuscularCollapsed?'display:none;':'')+'">'+
+          '<div class="compare-chips">'+chips+
+            '<input type="text" id="grupoMuscularAddInput" placeholder="Novo grupo...">'+
+            '<button type="button" class="btn-icon" id="grupoMuscularAddBtn">+ Adicionar</button>'+
+          '</div>'+
         '</div>'+
       '</div>';
   }
@@ -3796,6 +3903,7 @@
     state.dietaCompareSelected[p.id] = fichasDietaComMacro(p).slice(0,2).map(function(f){ return f.id; });
     state.volumeCompareExpanded = false;
     state.dietaCompareExpanded = false;
+    state.grupoMuscularCollapsed = true;
     var expandRoot = document.getElementById('chart-expand-root');
     if(expandRoot) expandRoot.innerHTML = '';
   }
@@ -4050,6 +4158,15 @@
         }
       });
     });
+    var grupoToggleBtn = root.querySelector('#grupoMuscularToggleBtn');
+    if(grupoToggleBtn){
+      grupoToggleBtn.addEventListener('click', function(){
+        state.grupoMuscularCollapsed = !state.grupoMuscularCollapsed;
+        var wrap = document.getElementById('grupoMuscularWrap');
+        if(wrap) wrap.style.display = state.grupoMuscularCollapsed ? 'none' : '';
+        this.textContent = state.grupoMuscularCollapsed ? 'Mostrar' : 'Recolher';
+      });
+    }
     var grupoAddBtn = root.querySelector('#grupoMuscularAddBtn');
     if(grupoAddBtn){
       grupoAddBtn.addEventListener('click', function(){
@@ -4985,7 +5102,7 @@
             '<div><div class="mini-label">Meta Máxima (kg)</div><input type="number" step="0.1" id="f_meta_peso_max" value="'+esc(String(weekly.metaPesoMax))+'" placeholder="Ex: -1"></div>'+
             '<div><div class="mini-label">Meta Definida Em</div><input type="date" id="f_meta_peso_inicio" value="'+esc(weekly.metaPesoInicio || todayISODate())+'"></div>'+
           '</div>'+
-          '<div class="mini-label" style="text-align:left;margin-top:4px;">Use negativo pra emagrecimento (ex: -2 a -1) e positivo pra ganho de peso/bulking. A janela da meta vai desta data até a Data da Consulta.</div>'+
+          '<div class="mini-label" style="text-align:left;margin-top:4px;">Use negativo pra emagrecimento (ex: -2 a -1) e positivo pra ganho de peso/bulking. Se a meta for um número só (ex: perder 2 kg), preencha só um dos dois campos — o cálculo funciona igual. A janela da meta vai desta data até a Data da Consulta.</div>'+
         '</div>'+
       '</div>'+
       '<div class="form-group full"><label>Engajamento Semanal (0-10 — deixe em branco se ainda não avaliou)</label><div class="field-row5" style="grid-template-columns:repeat('+wk+',1fr);">'+engInputs+'</div></div>'+
@@ -5378,7 +5495,7 @@
         fichaDietaFormAddBtn.addEventListener('click', function(){
           var maxId = state.formDraftFichasDieta.reduce(function(m,f){ return Math.max(m, f.id); }, -1);
           var id = maxId + 1;
-          state.formDraftFichasDieta.push({ id: id, dataPassado: todayISODate(), dataVencimento: '', expectativa: '', calorias: '', proteinas: '', carboidratos: '', gorduras: '' });
+          state.formDraftFichasDieta.push({ id: id, dataPassado: todayISODate(), expectativa: '', calorias: '', proteinas: '', carboidratos: '', gorduras: '' });
           state.formDraftFichaDietaOpen[id] = true;
           refreshFichaDietaDraftList();
         });
