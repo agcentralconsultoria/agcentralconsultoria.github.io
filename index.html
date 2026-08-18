@@ -109,6 +109,11 @@
     display:none;
   }
   .login-error.show{display:block;}
+  .security-secret-key{
+    font-family:monospace;font-size:15px;font-weight:700;letter-spacing:1px;
+    background:var(--bg);border:1px solid var(--border);border-radius:8px;
+    padding:10px 12px;margin:6px 0 14px;word-break:break-all;user-select:all;
+  }
   .btn{
     display:inline-flex;align-items:center;justify-content:center;gap:6px;
     border:none;border-radius:8px;
@@ -731,8 +736,34 @@
 <div id="chart-expand-root"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import {
+    getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut,
+    sendEmailVerification, multiFactor, TotpMultiFactorGenerator, getMultiFactorResolver
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  var authApp = initializeApp({
+    apiKey: "AIzaSyCFCfuzcJ2SfF_eV9imX7VDlzPH_ZChFDc",
+    authDomain: "agcentralcrm.firebaseapp.com",
+    projectId: "agcentralcrm",
+    storageBucket: "agcentralcrm.firebasestorage.app",
+    messagingSenderId: "320508821570",
+    appId: "1:320508821570:web:eb460521cb8a27fe83eddb"
+  }, "authApp");
+  var mfaAuth = getAuth(authApp);
+  window.__mfa = {
+    auth: mfaAuth,
+    onAuthStateChanged: onAuthStateChanged,
+    signInWithEmailAndPassword: signInWithEmailAndPassword,
+    signOut: signOut,
+    sendEmailVerification: sendEmailVerification,
+    multiFactor: multiFactor,
+    TotpMultiFactorGenerator: TotpMultiFactorGenerator,
+    getMultiFactorResolver: getMultiFactorResolver
+  };
+  window.dispatchEvent(new Event('mfa-ready'));
+</script>
 <script>
 (function(){
   "use strict";
@@ -746,8 +777,14 @@
     appId: "1:320508821570:web:eb460521cb8a27fe83eddb"
   };
   firebase.initializeApp(firebaseConfig);
-  var auth = firebase.auth();
   var db = firebase.firestore();
+  var mfa = null; // populado quando o SDK modular de auth (window.__mfa) terminar de carregar
+  var pendingTotpSecret = null;
+  var pendingMfaResolver = null;
+  function whenMfaReady(cb){
+    if(window.__mfa){ cb(window.__mfa); return; }
+    window.addEventListener('mfa-ready', function(){ cb(window.__mfa); }, { once:true });
+  }
 
   var STORAGE_KEY = 'crm-ag-pacientes';
   var JORNADA_TEMPLATES_KEY = 'crm-ag-jornada-templates';
@@ -832,6 +869,10 @@
   var state = {
     loggedIn: false,
     booting: true,
+    loginMfaStep: false,
+    securityEmailSent: false,
+    mfaEnrollStep: 'idle',
+    securityError: null,
     patients: [],
     tab: 'dashboard',
     search: '',
@@ -2911,24 +2952,33 @@
 
   /* ================= LOGIN ================= */
   function loginTemplate(){
+    var mfaStep = state.loginMfaStep;
+    var formInner = mfaStep ? (''+
+      '<div class="form-group">'+
+        '<label for="loginTotpCode">Código do Google Authenticator</label>'+
+        '<input type="text" id="loginTotpCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000" required>'+
+      '</div>'+
+      '<button type="submit" class="btn btn-primary btn-block">Confirmar</button>'+
+      '<button type="button" class="btn btn-secondary btn-block" id="loginMfaBackBtn" style="margin-top:8px;">Voltar</button>'
+    ) : (''+
+      '<div class="form-group">'+
+        '<label for="loginEmail">E-mail</label>'+
+        '<input type="email" id="loginEmail" autocomplete="username" placeholder="seuemail@exemplo.com" required>'+
+      '</div>'+
+      '<div class="form-group">'+
+        '<label for="loginPassword">Senha</label>'+
+        '<input type="password" id="loginPassword" autocomplete="current-password" placeholder="••••••••" required>'+
+      '</div>'+
+      '<button type="submit" class="btn btn-primary btn-block">Entrar</button>'
+    );
     return ''+
     '<div class="login-wrap">'+
       '<div class="login-card">'+
         '<img class="login-logo" src="'+LOGO_DATA_URI+'" alt="Logo Angelo Garcia">'+
         '<h1>Angelo Garcia CRM</h1>'+
-        '<p class="sub">Acesse sua conta para continuar</p>'+
+        '<p class="sub">'+(mfaStep?'Digite o código de 6 dígitos do app autenticador':'Acesse sua conta para continuar')+'</p>'+
         '<div id="loginError" class="login-error"></div>'+
-        '<form id="loginForm">'+
-          '<div class="form-group">'+
-            '<label for="loginEmail">E-mail</label>'+
-            '<input type="email" id="loginEmail" autocomplete="username" placeholder="seuemail@exemplo.com" required>'+
-          '</div>'+
-          '<div class="form-group">'+
-            '<label for="loginPassword">Senha</label>'+
-            '<input type="password" id="loginPassword" autocomplete="current-password" placeholder="••••••••" required>'+
-          '</div>'+
-          '<button type="submit" class="btn btn-primary btn-block">Entrar</button>'+
-        '</form>'+
+        '<form id="loginForm">'+formInner+'</form>'+
         '<p class="login-hint">Acesso restrito à equipe Angelo Garcia.</p>'+
       '</div>'+
     '</div>';
@@ -2937,23 +2987,59 @@
     var form = document.getElementById('loginForm');
     form.addEventListener('submit', function(e){
       e.preventDefault();
-      var email = document.getElementById('loginEmail').value.trim();
-      var pass = document.getElementById('loginPassword').value;
       var errBox = document.getElementById('loginError');
       var submitBtn = form.querySelector('button[type="submit"]');
-      submitBtn.disabled = true;
       errBox.classList.remove('show');
-      auth.signInWithEmailAndPassword(email, pass).then(function(){
+      if(!mfa){
+        errBox.textContent = 'Ainda carregando, espera um instante e tenta de novo.';
+        errBox.classList.add('show');
+        return;
+      }
+      submitBtn.disabled = true;
+      if(state.loginMfaStep){
+        var code = document.getElementById('loginTotpCode').value.trim();
+        var assertion = mfa.TotpMultiFactorGenerator.assertionForSignIn(pendingMfaResolver.hints[0].uid, code);
+        pendingMfaResolver.resolveSignIn(assertion).then(function(){
+          state.loginMfaStep = false;
+          pendingMfaResolver = null;
+          state.loggedIn = true;
+          state.booting = true;
+          render();
+          loadAllDataAndRender();
+        }).catch(function(){
+          submitBtn.disabled = false;
+          errBox.textContent = 'Código inválido ou expirado. Confira o código atual no app.';
+          errBox.classList.add('show');
+        });
+        return;
+      }
+      var email = document.getElementById('loginEmail').value.trim();
+      var pass = document.getElementById('loginPassword').value;
+      mfa.signInWithEmailAndPassword(mfa.auth, email, pass).then(function(){
         state.loggedIn = true;
         state.booting = true;
         render();
         loadAllDataAndRender();
-      }).catch(function(){
+      }).catch(function(error){
         submitBtn.disabled = false;
+        if(error && error.code === 'auth/multi-factor-auth-required'){
+          pendingMfaResolver = mfa.getMultiFactorResolver(mfa.auth, error);
+          state.loginMfaStep = true;
+          render();
+          return;
+        }
         errBox.textContent = 'E-mail ou senha inválidos.';
         errBox.classList.add('show');
       });
     });
+    var backBtn = document.getElementById('loginMfaBackBtn');
+    if(backBtn){
+      backBtn.addEventListener('click', function(){
+        state.loginMfaStep = false;
+        pendingMfaResolver = null;
+        render();
+      });
+    }
   }
 
   /* ================= APP SHELL ================= */
@@ -2971,6 +3057,7 @@
       '</nav>'+
       '<div class="header-right">'+
         '<span class="header-user">angelogarciaconsultoria@gmail.com</span>'+
+        '<button class="logout-btn" id="securityBtn" title="Autenticação de dois fatores">🔒 Segurança</button>'+
         '<button class="logout-btn" id="logoutBtn">Sair</button>'+
       '</div>'+
     '</header>'+
@@ -2979,12 +3066,22 @@
 
   function attachAppEvents(){
     document.getElementById('logoutBtn').addEventListener('click', function(){
-      auth.signOut().then(function(){
+      mfa.signOut(mfa.auth).then(function(){
         state.loggedIn = false;
         state.patients = [];
         render();
       });
     });
+    var securityBtn = document.getElementById('securityBtn');
+    if(securityBtn){
+      securityBtn.addEventListener('click', function(){
+        state.modal = 'security';
+        state.securityEmailSent = false;
+        state.mfaEnrollStep = 'idle';
+        state.securityError = null;
+        renderModal();
+      });
+    }
     var tabs = document.querySelectorAll('.nav-tab');
     for(var i=0;i<tabs.length;i++){
       tabs[i].addEventListener('click', function(){
@@ -5322,6 +5419,55 @@
       '</div>'+
     '</div>';
   }
+  function securityModalHtml(){
+    var user = mfa && mfa.auth ? mfa.auth.currentUser : null;
+    var emailVerified = user ? user.emailVerified : false;
+    var enrolledFactors = (user && mfa) ? mfa.multiFactor(user).enrolledFactors : [];
+    var hasTotp = enrolledFactors.length > 0;
+    var errHtml = state.securityError ? '<div class="login-error show">'+esc(state.securityError)+'</div>' : '';
+    var body;
+    if(!emailVerified){
+      body = ''+
+        '<p>Antes de ativar a autenticação de dois fatores, é preciso confirmar seu e-mail.</p>'+
+        (state.securityEmailSent
+          ? '<p class="cell-muted">E-mail enviado! Abra sua caixa de entrada, clique no link de confirmação e depois clique no botão abaixo.</p>'+
+            '<button type="button" class="btn btn-secondary" id="securityCheckVerifiedBtn">Já confirmei, atualizar</button>'
+          : '<button type="button" class="btn btn-primary" id="securitySendVerifyBtn">Enviar e-mail de verificação</button>')+
+        errHtml;
+    } else if(hasTotp){
+      body = ''+
+        '<p><span class="badge badge-success">Ativada</span></p>'+
+        '<p>A autenticação de dois fatores está ativa nesta conta, usando o Google Authenticator.</p>'+
+        '<button type="button" class="btn-icon btn-danger-outline" id="securityRemoveMfaBtn">Desativar autenticação de dois fatores</button>'+
+        errHtml;
+    } else if(state.mfaEnrollStep === 'confirm' && pendingTotpSecret){
+      body = ''+
+        '<p>1. Abra o Google Authenticator no celular e toque em <b>+</b> → <b>Inserir uma chave de configuração</b>.</p>'+
+        '<p>2. Nome da conta: <b>Angelo Garcia CRM</b>. Tipo: <b>Baseado em tempo</b>.</p>'+
+        '<p>3. Chave (copie e cole no app):</p>'+
+        '<div class="security-secret-key">'+esc(pendingTotpSecret.secretKey)+'</div>'+
+        '<p>4. Digite abaixo o código de 6 dígitos que apareceu no app:</p>'+
+        '<div class="jornada-select-row" style="align-items:flex-end;">'+
+          '<div><input type="text" inputmode="numeric" maxlength="6" id="securityTotpCode" placeholder="000000"></div>'+
+          '<button type="button" class="btn btn-primary" id="securityConfirmTotpBtn">Confirmar</button>'+
+          '<button type="button" class="btn btn-secondary" id="securityCancelTotpBtn">Cancelar</button>'+
+        '</div>'+
+        errHtml;
+    } else {
+      body = ''+
+        '<p>Adicione uma camada extra de segurança: depois da senha, o login vai pedir também um código do Google Authenticator.</p>'+
+        '<button type="button" class="btn btn-primary" id="securityStartTotpBtn">Ativar Google Authenticator</button>'+
+        errHtml;
+    }
+    return ''+
+    '<div class="modal">'+
+      '<div class="modal-header">'+
+        '<h2>Segurança da Conta</h2>'+
+        '<button class="modal-close" id="modalCloseBtn">&times;</button>'+
+      '</div>'+
+      '<div class="modal-body">'+body+'</div>'+
+    '</div>';
+  }
 
   /* ---- generic modal render/bind ---- */
   function renderModal(){
@@ -5355,6 +5501,8 @@
       var pw = getPatient(state.activeId);
       if(!pw){ closeModal(); return; }
       html = weekEditModalHtml(pw, state.weekEditMonthKey, state.weekEditIndex);
+    } else if(state.modal === 'security'){
+      html = securityModalHtml();
     }
     root.innerHTML = '<div class="modal-overlay" id="modalOverlay">'+html+'</div>';
 
@@ -5578,6 +5726,92 @@
         showToast('Semana atualizada.', 'success');
       });
     }
+    if(state.modal === 'security'){
+      var sendVerifyBtn = document.getElementById('securitySendVerifyBtn');
+      if(sendVerifyBtn){
+        sendVerifyBtn.addEventListener('click', function(){
+          state.securityError = null;
+          mfa.sendEmailVerification(mfa.auth.currentUser).then(function(){
+            state.securityEmailSent = true;
+            renderModal();
+          }).catch(function(err){
+            state.securityError = 'Não foi possível enviar o e-mail: ' + err.message;
+            renderModal();
+          });
+        });
+      }
+      var checkVerifiedBtn = document.getElementById('securityCheckVerifiedBtn');
+      if(checkVerifiedBtn){
+        checkVerifiedBtn.addEventListener('click', function(){
+          mfa.auth.currentUser.reload().then(function(){
+            renderModal();
+          });
+        });
+      }
+      var startTotpBtn = document.getElementById('securityStartTotpBtn');
+      if(startTotpBtn){
+        startTotpBtn.addEventListener('click', function(){
+          startTotpBtn.disabled = true;
+          state.securityError = null;
+          mfa.multiFactor(mfa.auth.currentUser).getSession().then(function(session){
+            return mfa.TotpMultiFactorGenerator.generateSecret(session);
+          }).then(function(secret){
+            pendingTotpSecret = secret;
+            state.mfaEnrollStep = 'confirm';
+            renderModal();
+          }).catch(function(err){
+            state.securityError = 'Não foi possível iniciar: ' + err.message;
+            renderModal();
+          });
+        });
+      }
+      var confirmTotpBtn = document.getElementById('securityConfirmTotpBtn');
+      if(confirmTotpBtn){
+        confirmTotpBtn.addEventListener('click', function(){
+          var code = (document.getElementById('securityTotpCode').value || '').trim();
+          if(!/^\d{6}$/.test(code)){
+            state.securityError = 'Digite os 6 dígitos do código.';
+            renderModal();
+            return;
+          }
+          state.securityError = null;
+          var assertion = mfa.TotpMultiFactorGenerator.assertionForEnrollment(pendingTotpSecret, code);
+          mfa.multiFactor(mfa.auth.currentUser).enroll(assertion, 'Google Authenticator').then(function(){
+            pendingTotpSecret = null;
+            state.mfaEnrollStep = 'idle';
+            renderModal();
+            showToast('Autenticação de dois fatores ativada.', 'success');
+          }).catch(function(){
+            state.securityError = 'Código inválido, confira o número atual no app e tente de novo.';
+            renderModal();
+          });
+        });
+      }
+      var cancelTotpBtn = document.getElementById('securityCancelTotpBtn');
+      if(cancelTotpBtn){
+        cancelTotpBtn.addEventListener('click', function(){
+          pendingTotpSecret = null;
+          state.mfaEnrollStep = 'idle';
+          state.securityError = null;
+          renderModal();
+        });
+      }
+      var removeMfaBtn = document.getElementById('securityRemoveMfaBtn');
+      if(removeMfaBtn){
+        removeMfaBtn.addEventListener('click', function(){
+          if(!confirm('Desativar a autenticação de dois fatores? Você vai poder entrar só com e-mail e senha.')) return;
+          var factors = mfa.multiFactor(mfa.auth.currentUser).enrolledFactors;
+          if(!factors.length) return;
+          mfa.multiFactor(mfa.auth.currentUser).unenroll(factors[0]).then(function(){
+            renderModal();
+            showToast('Autenticação de dois fatores desativada.', 'success');
+          }).catch(function(err){
+            state.securityError = 'Não foi possível desativar: ' + err.message;
+            renderModal();
+          });
+        });
+      }
+    }
   }
 
   document.addEventListener('click', function(e){
@@ -5594,15 +5828,18 @@
     state.competencia = getCurrentMonthKey();
     state.booting = true;
     render();
-    auth.onAuthStateChanged(function(user){
-      if(user){
-        state.loggedIn = true;
-        loadAllDataAndRender();
-      } else {
-        state.loggedIn = false;
-        state.booting = false;
-        render();
-      }
+    whenMfaReady(function(sdk){
+      mfa = sdk;
+      mfa.onAuthStateChanged(mfa.auth, function(user){
+        if(user){
+          state.loggedIn = true;
+          loadAllDataAndRender();
+        } else {
+          state.loggedIn = false;
+          state.booting = false;
+          render();
+        }
+      });
     });
   }
   init();
