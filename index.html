@@ -392,10 +392,11 @@
   }
   .jornada-kanban-archive-btn:hover{background:var(--primary-light);color:var(--primary);}
   .jornada-kanban-card-expand{margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px;}
-  .jornada-kanban-card-expand input{
-    padding:5px 7px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;color:var(--text);background:var(--white);
+  .jornada-kanban-card-expand input,.jornada-kanban-card-expand textarea{
+    padding:5px 7px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;color:var(--text);background:var(--white);width:100%;
   }
-  .jornada-kanban-card-expand input:focus{outline:none;border-color:var(--primary);}
+  .jornada-kanban-card-expand input:focus,.jornada-kanban-card-expand textarea:focus{outline:none;border-color:var(--primary);}
+  .jornada-kanban-card-expand textarea.obscheckin-autosize{resize:vertical;overflow:hidden;}
   .jornada-arquivo-row{
     display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;
     border:1px solid var(--border);margin-bottom:6px;background:var(--white);
@@ -2151,10 +2152,10 @@
     var expanded = !!state.jornadaKanbanExpanded[key];
     var expandHtml = expanded ? ''+
       '<div class="jornada-kanban-card-expand">'+
-        '<input type="text" class="jornada-task-name" data-kanban-task-nome="'+key+'" value="'+esc(t.nome)+'">'+
+        '<textarea class="jornada-task-name obscheckin-autosize" data-kanban-task-nome="'+key+'">'+esc(t.nome)+'</textarea>'+
         jornadaDateFieldHtml('kanban-'+p.id+'-'+t.id, p.id, t.dataAlvo)+
         jornadaDateBadge(t.dataAlvo, key)+
-        '<input type="text" class="jornada-task-obs" data-kanban-task-obs="'+key+'" value="'+esc(t.observacao)+'" placeholder="Observação / mensagem a enviar (opcional)">'+
+        '<textarea class="jornada-task-obs obscheckin-autosize" data-kanban-task-obs="'+key+'" placeholder="Observação / mensagem a enviar (opcional)">'+esc(t.observacao)+'</textarea>'+
       '</div>' : '';
     return ''+
       '<div class="jornada-kanban-card status-'+status+'" data-kanban-drag-key="'+key+'">'+
@@ -2281,6 +2282,7 @@
       });
       el.addEventListener('click', function(e){ e.stopPropagation(); });
     });
+    bindObsCheckinAutosize();
     root.querySelectorAll('[data-kanban-col-toggle]').forEach(function(btn){
       btn.addEventListener('click', function(){
         var id = parseInt(this.getAttribute('data-kanban-col-toggle'),10);
