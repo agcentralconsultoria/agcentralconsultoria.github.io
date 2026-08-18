@@ -1191,19 +1191,18 @@
     var history = pesoHistoryList(p);
     if(!history.length) return null;
     var latest = history[0];
+    // peso de partida = o mais recente registrado ATE a data da meta (olhando pra tras no historico)
     var baseline = null;
-    for(var i=history.length-1;i>=0;i--){
-      if(history[i].date >= data.metaPesoInicio){ baseline = history[i]; break; }
+    for(var i=0;i<history.length;i++){
+      if(history[i].date <= data.metaPesoInicio){ baseline = history[i]; break; }
     }
-    var effectiveStart = data.metaPesoInicio;
     if(!baseline){
-      // ninguem pesou a partir da data da meta - usa o ultimo peso conhecido antes dela
-      baseline = history[0];
-      effectiveStart = baseline.date;
+      // nenhum peso registrado ate a data da meta - usa o primeiro peso que existir (o mais proximo dela)
+      baseline = history[history.length-1];
     }
-    var totalDays = daysBetween(effectiveStart, p.consulta);
+    var totalDays = daysBetween(data.metaPesoInicio, p.consulta);
     if(totalDays === null || totalDays <= 0) return null;
-    var elapsedDays = daysBetween(effectiveStart, todayISODate());
+    var elapsedDays = daysBetween(data.metaPesoInicio, todayISODate());
     var clampedElapsed = Math.min(Math.max(elapsedDays, 0), totalDays);
     var targetDelta = (hasMin && hasMax) ? (min + max) / 2 : (hasMin ? min : max);
     var actualDelta = latest.value - baseline.value;
