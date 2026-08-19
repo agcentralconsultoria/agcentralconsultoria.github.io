@@ -764,6 +764,35 @@
       content:attr(data-label) ': ';
       color:var(--text-muted);font-weight:600;font-size:11.5px;
     }
+    /* Semana 1 a 4 lado a lado, com o rotulo em cima, em vez de uma embaixo da outra */
+    table:not(.peso-history-table) td[data-label^="Sem "]{
+      width:23%;padding-right:2px;vertical-align:top;
+    }
+    table:not(.peso-history-table) td[data-label^="Sem "]::before{display:block;}
+
+    /* A tabela de peso fica DENTRO da tabela da Visao Geral, entao as regras de cartao
+       acima (que usam seletor de descendente) alcancam ela por heranca. O !important
+       aqui e o que devolve o formato de tabela; sem ele o seletor de fora vence. */
+    .peso-history-table{display:table !important;width:100%;}
+    .peso-history-table thead{display:table-header-group !important;}
+    .peso-history-table tbody{display:table-row-group !important;}
+    .peso-history-table tr{
+      display:table-row !important;background:none !important;border:none !important;
+      border-radius:0 !important;padding:0 !important;margin:0 !important;
+    }
+    .peso-history-table td,.peso-history-table th{
+      display:table-cell !important;padding:6px 6px !important;font-size:13px !important;
+      font-weight:400 !important;border-bottom:1px solid var(--border) !important;width:auto !important;
+    }
+    .peso-history-table td::before{content:none !important;}
+
+    /* Editor de Modelos de Jornada: os campos somavam 412px de largura minima
+       numa tela de 375px, entao ficavam cortados. Agora empilham. */
+    .jornada-template-task{flex-wrap:wrap;gap:6px;}
+    .jornada-template-nome{flex:1 1 100%;min-width:0;}
+    .jornada-template-fase{flex:1 1 60%;min-width:0;}
+    .jornada-template-dia{flex:1 1 30%;}
+    .jornada-template-task input,.jornada-template-task select{width:100%;}
 
     /* ---- alvos de toque maiores ---- */
     .btn-icon{padding:8px 12px;font-size:13px;}
@@ -1146,7 +1175,11 @@
     if(pts.length < 2){
       return '<div class="peso-chart-empty">Registre pelo menos 2 pesos pra ver o gráfico de evolução.</div>';
     }
-    var W = 520, H = 210, padL = 44, padR = 14, padT = 14, padB = 30;
+    // no celular a caixa e estreita: com a proporcao do desktop (520x210) o grafico
+    // renderiza com uns 120px de altura e fica pequeno demais. Proporcao mais alta la.
+    var emCelular = window.innerWidth <= 600;
+    var W = emCelular ? 360 : 520, H = emCelular ? 290 : 210;
+    var padL = 44, padR = 14, padT = 14, padB = 30;
     var plotW = W - padL - padR, plotH = H - padT - padB;
     var vals = pts.map(function(e){ return e.value; });
     var vMin = Math.min.apply(null, vals), vMax = Math.max.apply(null, vals);
@@ -5941,14 +5974,23 @@
      da coluna pra cada celula (data-label). O CSS so mostra isso em telas pequenas. */
   function applyMobileTableLabels(){
     document.querySelectorAll('table:not(.peso-history-table)').forEach(function(t){
-      var ths = t.querySelectorAll('thead th');
+      var ths = Array.prototype.filter.call(t.querySelectorAll('thead th'), function(th){
+        return th.closest('table') === t; // ignora cabecalho de tabela aninhada
+      });
       if(!ths.length) return;
-      var labels = Array.prototype.map.call(ths, function(th){ return th.textContent.trim(); });
+      var labels = ths.map(function(th){
+        // o th carrega o menu de filtro inteiro dentro dele; so queremos o nome da coluna
+        var c = th.cloneNode(true);
+        c.querySelectorAll('.filter-menu').forEach(function(e){ e.remove(); });
+        return c.textContent.replace(/[▲▼▴▾⇅]/g,'').replace(/\s+/g,' ').trim();
+      });
       t.querySelectorAll('tbody tr').forEach(function(tr){
+        if(tr.closest('table') !== t) return; // linha de tabela aninhada (ex: historico de peso)
         var tds = tr.children;
         if(tds.length < 2) return;
         for(var i=0;i<tds.length;i++){
           if(labels[i]) tds[i].setAttribute('data-label', labels[i]);
+          else tds[i].removeAttribute('data-label');
         }
       });
     });
