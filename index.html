@@ -1155,6 +1155,16 @@
     }
     return fridays[weekIndex] || null;
   }
+  function fmtPeso(v){
+    // mostra o peso com a precisao que a pessoa digitou, sem arredondar pra 1 casa
+    // decimal a forca (96.02 tem que continuar 96.02, nao virar 96.0)
+    if(v === null || v === undefined || isNaN(v)) return '—';
+    var r = Math.round(v*100)/100; // corta ruido de ponto flutuante (ex: 96.0200000000001)
+    if(r % 1 === 0) return String(r);
+    var umaCasa = Math.round(r*10)/10;
+    if(umaCasa === r) return r.toFixed(1);
+    return r.toFixed(2);
+  }
   function pesoHistoryList(p){
     var entries = [];
     if(p.meses){
@@ -1226,7 +1236,7 @@
       var pctTxt = '';
       if(variacao !== null && prev.value){ pctTxt = ' ('+(variacao>0?'+':'')+(variacao/prev.value*100).toFixed(1)+'%)'; }
       var varTxt = variacao === null ? 'primeiro registro'
-        : (variacao > 0 ? '↑ +'+variacao.toFixed(1)+' kg' : variacao < 0 ? '↓ '+variacao.toFixed(1)+' kg' : '0 kg') + pctTxt;
+        : (variacao > 0 ? '↑ +'+fmtPeso(variacao)+' kg' : variacao < 0 ? '↓ '+fmtPeso(variacao)+' kg' : '0 kg') + pctTxt;
       var varColor = variacao === null ? 'var(--text-muted)' : 'rgba(255,255,255,0.85)';
       // vira o tooltip pro lado esquerdo quando o ponto está na metade direita
       var tipX = cx + 12 + TW > W - padR ? cx - 12 - TW : cx + 12;
@@ -1237,7 +1247,7 @@
         '<g class="peso-chart-tip" transform="translate('+tipX.toFixed(1)+','+tipY.toFixed(1)+')">'+
           '<rect width="'+TW+'" height="'+TH+'" rx="6" fill="#1F2937"></rect>'+
           '<text x="9" y="17" font-size="9.5" fill="rgba(255,255,255,0.7)">'+formatDate(e.date)+'</text>'+
-          '<text x="'+(TW-9)+'" y="18" text-anchor="end" font-size="12.5" font-weight="700" fill="#FFFFFF">'+e.value.toFixed(1)+' kg</text>'+
+          '<text x="'+(TW-9)+'" y="18" text-anchor="end" font-size="12.5" font-weight="700" fill="#FFFFFF">'+fmtPeso(e.value)+' kg</text>'+
           '<text x="9" y="34" font-size="10" fill="'+varColor+'">'+varTxt+'</text>'+
         '</g>'+
       '</g>';
@@ -1336,7 +1346,7 @@
       var metaTxt = (pace.min !== null && pace.max !== null) ? (pace.min+' a '+pace.max+' kg') : (pace.targetDelta+' kg');
       paceHtml = '<div style="margin-bottom:10px;">'+
         '<span class="badge '+lbl[1]+'">'+lbl[0]+'</span> '+
-        '<span class="cell-muted">Meta: '+metaTxt+' — até agora: '+(pace.actualDelta>0?'+':'')+pace.actualDelta.toFixed(1)+' kg (esperado: '+(pace.expectedDelta>0?'+':'')+pace.expectedDelta.toFixed(1)+' kg)</span>'+
+        '<span class="cell-muted">Meta: '+metaTxt+' — até agora: '+(pace.actualDelta>0?'+':'')+fmtPeso(pace.actualDelta)+' kg (esperado: '+(pace.expectedDelta>0?'+':'')+fmtPeso(pace.expectedDelta)+' kg)</span>'+
       '</div>';
     }
     var addKey = 'add|'+p.id;
@@ -1344,7 +1354,7 @@
     var addHtml = isAdding ? (''+
       '<div class="jornada-select-row" style="align-items:flex-end;margin-top:10px;">'+
         '<div><div class="mini-label">Data</div><input type="date" id="pesoAddDate" value="'+todayISODate()+'"></div>'+
-        '<div><div class="mini-label">Peso (kg)</div><input type="number" step="0.1" id="pesoAddValue" placeholder="kg"></div>'+
+        '<div><div class="mini-label">Peso (kg)</div><input type="number" step="0.01" id="pesoAddValue" placeholder="kg"></div>'+
         '<button type="button" class="btn-icon" data-peso-add-save="'+p.id+'">Salvar</button>'+
         '<button type="button" class="btn-icon" data-peso-edit-cancel="1">Cancelar</button>'+
       '</div>'
@@ -1358,7 +1368,7 @@
         return '<tr class="peso-history-edit-row"><td colspan="4">'+
           '<div class="jornada-select-row" style="align-items:flex-end;">'+
             '<div><div class="mini-label">Data</div><input type="date" id="pesoEditDate" value="'+esc(entry.date)+'"></div>'+
-            '<div><div class="mini-label">Peso (kg)</div><input type="number" step="0.1" id="pesoEditValue" value="'+entry.value+'"></div>'+
+            '<div><div class="mini-label">Peso (kg)</div><input type="number" step="0.01" id="pesoEditValue" value="'+entry.value+'"></div>'+
             '<button type="button" class="btn-icon" data-peso-edit-save="'+key+'">Salvar</button>'+
             '<button type="button" class="btn-icon" data-peso-edit-cancel="1">Cancelar</button>'+
           '</div>'+
@@ -1366,9 +1376,9 @@
       }
       var prev = list[idx+1];
       var variacao = prev ? (entry.value - prev.value) : null;
-      var varText = variacao === null ? '—' : (variacao > 0 ? '↑ +'+variacao.toFixed(1)+' kg' : variacao < 0 ? '↓ '+variacao.toFixed(1)+' kg' : '0 kg');
+      var varText = variacao === null ? '—' : (variacao > 0 ? '↑ +'+fmtPeso(variacao)+' kg' : variacao < 0 ? '↓ '+fmtPeso(variacao)+' kg' : '0 kg');
       var varCls = variacao === null ? 'cell-muted' : variacao > 0 ? 'peso-var-up' : variacao < 0 ? 'peso-var-down' : 'cell-muted';
-      return '<tr><td class="cell-muted">'+formatDate(entry.date)+'</td><td><b>'+entry.value.toFixed(1)+' kg</b></td><td class="'+varCls+'">'+varText+'</td>'+
+      return '<tr><td class="cell-muted">'+formatDate(entry.date)+'</td><td><b>'+fmtPeso(entry.value)+' kg</b></td><td class="'+varCls+'">'+varText+'</td>'+
         '<td><button type="button" class="btn-icon" data-peso-edit-open="'+key+'" title="Editar data/peso">✏️</button></td></tr>';
     }).join('');
     return '<div class="peso-history-box">'+paceHtml+
