@@ -2340,7 +2340,12 @@
     var columns = Object.keys(byPatient).map(function(id){ return byPatient[id]; });
     columns.forEach(function(col){
       col.minDiff = Math.min.apply(null, col.tasks.map(function(t){ return t.diff; }));
-      col.tasks.sort(function(a,b){ return (a.task.ordem||0) - (b.task.ordem||0); });
+      // data manda na ordem: o que vence antes fica em cima, sempre. A ordem manual
+      // (arrastar) so decide entre tarefas que caem no MESMO dia.
+      col.tasks.sort(function(a,b){
+        if(a.diff !== b.diff) return a.diff - b.diff;
+        return (a.task.ordem||0) - (b.task.ordem||0);
+      });
     });
     columns.sort(function(a,b){
       var pa = PRIORITY_RANK[a.patient.prioridade], pb = PRIORITY_RANK[b.patient.prioridade];
