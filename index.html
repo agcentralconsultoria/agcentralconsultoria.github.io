@@ -2547,6 +2547,8 @@
       var p = col.patient;
       var collapsed = !!state.jornadaKanbanCollapsed[p.id];
       var cards = col.tasks.map(function(item){ return jornadaKanbanCardHtml(p, item); }).join('');
+      // task nova entra na mesma fase da tarefa mais urgente ja mostrada nessa coluna
+      var faseNova = col.tasks[0].task.fase;
       return ''+
         '<div class="jornada-kanban-col">'+
           '<div class="jornada-kanban-col-header">'+
@@ -2556,7 +2558,10 @@
               '<button type="button" class="btn-icon" data-kanban-col-toggle="'+p.id+'" title="'+(collapsed?'Mostrar':'Minimizar')+'">'+(collapsed?'▸':'▾')+'</button>'+
             '</div>'+
           '</div>'+
-          (collapsed ? '' : '<div class="jornada-kanban-cards">'+cards+'</div>')+
+          (collapsed ? '' : ''+
+            '<div class="jornada-kanban-cards">'+cards+'</div>'+
+            '<button type="button" class="btn-icon" data-kanban-task-add="'+p.id+'|'+faseNova+'" style="width:100%;margin-top:6px;">+ Adicionar</button>'
+          )+
         '</div>';
     }).join('')+'</div>';
   }
@@ -2641,6 +2646,13 @@
         var id = parseInt(this.getAttribute('data-kanban-col-toggle'),10);
         state.jornadaKanbanCollapsed[id] = !state.jornadaKanbanCollapsed[id];
         refreshJornadaKanban();
+      });
+    });
+    root.querySelectorAll('[data-kanban-task-add]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var parts = this.getAttribute('data-kanban-task-add').split('|');
+        addPatientTask(parseInt(parts[0],10), parseInt(parts[1],10));
+        refreshAllJornadaViews();
       });
     });
     root.querySelectorAll('.jornada-kanban-cards').forEach(function(colEl){
@@ -4171,7 +4183,12 @@
           var macroInputs = MACRO_CATEGORIES.map(function(cat){
             var val = (f[cat.key] !== undefined && f[cat.key] !== null) ? f[cat.key] : '';
             return '<div><div class="mini-label">'+esc(cat.label)+'</div><input type="number" min="0" step="1" data-'+attrPrefix+'-macro="'+cat.key+'" data-'+attrPrefix+'-id="'+f.id+'" value="'+esc(String(val))+'" placeholder="0"></div>';
-          }).join('');
+          }).join('') + (function(){
+            // Fibras fica fora do MACRO_CATEGORIES de proposito, pra nao entrar no
+            // grafico de distribuicao nem no g/kg -- so o campo de gramas mesmo.
+            var val = (f.fibras !== undefined && f.fibras !== null) ? f.fibras : '';
+            return '<div><div class="mini-label">Fibras (g)</div><input type="number" min="0" step="1" data-'+attrPrefix+'-macro="fibras" data-'+attrPrefix+'-id="'+f.id+'" value="'+esc(String(val))+'" placeholder="0"></div>';
+          })();
           extraFieldsHtml = '<div class="mini-label" style="text-align:left;margin-top:10px;">Calorias e macronutrientes</div>'+
             '<div class="macro-columns">'+
               '<div class="macro-col"><div class="mini-label" style="text-align:left;">Nutrientes do Cardápio</div><div class="volume-grupo-grid" style="grid-template-columns:1fr;">'+macroInputs+'</div></div>'+
