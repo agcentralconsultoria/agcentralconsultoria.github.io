@@ -3964,6 +3964,70 @@
       return '<tr><td><button class="link-btn" data-open-profile="'+p.id+'">'+esc(p.nome)+'</button></td><td>'+priorityBadge(p.prioridade)+'</td></tr>';
     }).join('');
   }
+  /* ---- Resumo de Entrega: o que ainda falta preencher em cada paciente ---- */
+  function semanasJaOcorridas(monthKey){
+    // uma semana so "aconteceu" quando a sexta-feira dela ja passou
+    var wk = weeksInMonth(monthKey);
+    var hoje = todayISODate();
+    var n = 0;
+    for(var i=0;i<wk;i++){
+      var d = nthFridayDate(monthKey, i);
+      if(d && d <= hoje) n++;
+    }
+    return n;
+  }
+  function pendenciasPaciente(p, monthKey){
+    var faltas = [];
+    if(!p.telefone) faltas.push('Telefone');
+    if(!p.email) faltas.push('E-mail');
+    if(!p.nascimento) faltas.push('Nascimento');
+    if(!p.vencimento) faltas.push('Vigência');
+    if(!p.consulta) faltas.push('Consulta');
+
+    var data = getMonthData(p, monthKey);
+    var nSem = semanasJaOcorridas(monthKey);
+    var engVazias = 0, chkVazias = 0;
+    for(var i=0;i<nSem;i++){
+      if(data.engajamento[i] === null || data.engajamento[i] === undefined) engVazias++;
+      if(data.checkin[i] === null || data.checkin[i] === undefined) chkVazias++;
+    }
+    if(engVazias) faltas.push('Engajamento ('+engVazias+' sem.)');
+    if(chkVazias) faltas.push('Check-in ('+chkVazias+' sem.)');
+
+    if(temServicoTreino(p)){
+      if(!fichasTreinoOrdenadas(p).length) faltas.push('Ficha de treino');
+      else if(!fichasTreinoComVolume(p).length) faltas.push('Volume por grupo');
+    }
+    if(temServicoDieta(p)){
+      if(!fichasDietaOrdenadas(p).length) faltas.push('Ficha de dieta');
+      else if(!fichasDietaComMacro(p).length) faltas.push('Macros da dieta');
+    }
+    if(!(p.jornada && Array.isArray(p.jornada.tarefas) && p.jornada.tarefas.length)) faltas.push('Jornada');
+    return faltas;
+  }
+  function resumoEntregaRows(){
+    var monthKey = state.competencia;
+    var list = state.patients.filter(function(p){
+      return renovacaoStatus(p) !== 'Vencido';
+    }).map(function(p){
+      return { p: p, faltas: pendenciasPaciente(p, monthKey) };
+    }).filter(function(x){ return x.faltas.length > 0; });
+    list.sort(function(a,b){
+      if(a.faltas.length !== b.faltas.length) return b.faltas.length - a.faltas.length;
+      return a.p.nome.localeCompare(b.p.nome, 'pt-BR');
+    });
+    if(!list.length) return '<tr><td colspan="2"><div class="empty-state">Todos os pacientes estão completos. 🎉</div></td></tr>';
+    return list.map(function(x){
+      var n = x.faltas.length;
+      var cls = n >= 6 ? 'badge-danger' : n >= 3 ? 'badge-warning' : 'badge-gray';
+      return '<tr>'+
+        '<td><button class="link-btn" data-open-profile="'+x.p.id+'">'+esc(x.p.nome)+'</button></td>'+
+        '<td><span class="badge '+cls+'">'+n+(n===1?' item':' itens')+'</span>'+
+          '<div class="cell-muted" style="margin-top:4px;font-size:12px;line-height:1.5;">'+esc(x.faltas.join(' · '))+'</div>'+
+        '</td>'+
+      '</tr>';
+    }).join('');
+  }
   function semConsultaMarcadaRows(){
     var list = pacientesSemConsultaMarcada(state.dashQuickConsultaSort);
     if(!list.length) return '<tr><td colspan="2"><div class="empty-state">Nenhum paciente sem consulta marcada. 🎉</div></td></tr>';
@@ -4044,10 +4108,19 @@
           '<table><thead><tr><th>Nome</th><th>Status Consulta</th></tr></thead><tbody>'+semConsultaMarcadaRows()+'</tbody></table>'+
         '</div>'+
       '</div>'+
-      '<div class="card quick-access-full" style="padding:16px;">'+
+      '<div class="card" style="padding:16px;">'+
         '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Vigência</h3>'+dashToggleBtnHtml('qaVigencia')+'</div>'+
         dashWrapOpenHtml('qaVigencia')+
           '<table><thead><tr><th>Nome</th><th>Prioridade</th></tr></thead><tbody>'+semVigenciaRows()+'</tbody></table>'+
+        '</div>'+
+      '</div>'+
+      '<div class="card" style="padding:16px;">'+
+        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Resumo de Entrega de Paciente</h3>'+
+          '<button class="info-icon-btn" type="button" data-info-toggle="info-resumo-entrega">i</button>'+
+          dashToggleBtnHtml('qaResumoEntrega')+'</div>'+
+        '<div class="info-popover" id="info-resumo-entrega">O que ainda falta preencher em cada paciente, pra você fechar o cadastro. Só aparece quem tem pendência, do que falta mais pro que falta menos. Engajamento e check-in contam só as semanas que já passaram, e itens de treino ou dieta só aparecem pra quem contrata aquele serviço.</div>'+
+        dashWrapOpenHtml('qaResumoEntrega')+
+          '<table><thead><tr><th>Nome</th><th>Falta preencher</th></tr></thead><tbody>'+resumoEntregaRows()+'</tbody></table>'+
         '</div>'+
       '</div>'+
     '</div>';
