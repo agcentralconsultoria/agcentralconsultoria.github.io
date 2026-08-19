@@ -764,11 +764,15 @@
       content:attr(data-label) ': ';
       color:var(--text-muted);font-weight:600;font-size:11.5px;
     }
-    /* Semana 1 a 4 lado a lado, com o rotulo em cima, em vez de uma embaixo da outra */
+    /* Semanas lado a lado, com o rotulo em cima. 19% porque o mes pode ter 5 sextas
+       (5 semanas): com 23% dava 115% e as celulas se embaralhavam em duas linhas. */
     table:not(.peso-history-table) td[data-label^="Sem "]{
-      width:23%;padding-right:2px;vertical-align:top;
+      width:19%;padding-right:2px;vertical-align:top;
     }
     table:not(.peso-history-table) td[data-label^="Sem "]::before{display:block;}
+    /* estes dois ocupam a linha inteira pra que as semanas sempre comecem numa linha nova */
+    table:not(.peso-history-table) td[data-label="Meta da Próxima Consulta"],
+    table:not(.peso-history-table) td[data-label="Observações"]{display:block;width:100%;}
 
     /* A tabela de peso fica DENTRO da tabela da Visao Geral, entao as regras de cartao
        acima (que usam seletor de descendente) alcancam ela por heranca. O !important
@@ -978,6 +982,7 @@
     dashQuickTreinoUnit: 'semanas',
     dashQuickDietaUnit: 'dias',
     dashQuickConsultaSort: 'desc',
+    dashCollapsed: {},
     dashboardTrendDrill: null,
     pesoHistoryOpen: {},
     pesoEditingKey: null,
@@ -3558,18 +3563,24 @@
     '<div class="section-header-row">'+
       '<h2 class="section-title">Últimos Pacientes</h2>'+
       '<button class="info-icon-btn" type="button" data-info-toggle="info-ultimos">i</button>'+
+      dashToggleBtnHtml('ultimos')+
     '</div>'+
     '<div class="info-popover" id="info-ultimos">Entraram no acompanhamento nos últimos 30 dias, ou estão em Modo Bebezinho (ficam aqui enquanto estiverem nessa prioridade, sem limite de tempo).</div>'+
-    '<div class="card" style="margin-bottom:32px;">'+
-      '<table><thead><tr><th>Nome</th><th>Plano</th><th>Prioridade</th><th>Status</th><th>Vencimento</th></tr></thead>'+
-      '<tbody>'+rows+'</tbody></table>'+
+    dashWrapOpenHtml('ultimos')+
+      '<div class="card" style="margin-bottom:32px;">'+
+        '<table><thead><tr><th>Nome</th><th>Plano</th><th>Prioridade</th><th>Status</th><th>Vencimento</th></tr></thead>'+
+        '<tbody>'+rows+'</tbody></table>'+
+      '</div>'+
     '</div>'+
     '<div class="section-header-row">'+
       '<h2 class="section-title">Comparação Mensal</h2>'+
       '<button class="info-icon-btn" type="button" data-info-toggle="info-comparacao">i</button>'+
+      dashToggleBtnHtml('comparacao')+
     '</div>'+
     '<div class="info-popover" id="info-comparacao">Últimos 6 meses lado a lado — engajamento médio, % de check-in enviado, pacientes em risco e novos cadastros. O mês atual fica destacado.</div>'+
-    '<div class="card" style="padding:16px;margin-bottom:32px;">'+comparacaoMensalHtml()+'</div>'+
+    dashWrapOpenHtml('comparacao')+
+      '<div class="card" style="padding:16px;margin-bottom:32px;">'+comparacaoMensalHtml()+'</div>'+
+    '</div>'+
     dashboardQuickAccessHtml();
   }
   function bindInfoIcons(container){
@@ -3623,6 +3634,16 @@
           state.dashQuickConsultaSort = state.dashQuickConsultaSort === 'asc' ? 'desc' : 'asc';
         }
         render();
+      });
+    }
+    var dashToggleBtns = document.querySelectorAll('[data-dash-toggle]');
+    for(var dt=0;dt<dashToggleBtns.length;dt++){
+      dashToggleBtns[dt].addEventListener('click', function(){
+        var key = this.getAttribute('data-dash-toggle');
+        state.dashCollapsed[key] = !state.dashCollapsed[key];
+        var wrap = document.querySelector('[data-dash-wrap="'+key+'"]');
+        if(wrap) wrap.style.display = state.dashCollapsed[key] ? 'none' : '';
+        this.textContent = state.dashCollapsed[key] ? 'Mostrar' : 'Recolher';
       });
     }
     var quickUnitBtns = document.querySelectorAll('[data-quick-unit]');
@@ -3973,6 +3994,14 @@
     var label = currentUnit === 'semanas' ? 'Ver em dias' : 'Ver em semanas';
     return '<button class="btn-icon" type="button" data-quick-unit="'+key+'">'+label+'</button>';
   }
+  /* Recolher/Mostrar generico do Dashboard: um botao e um wrapper ligados por uma chave. */
+  function dashToggleBtnHtml(key){
+    return '<button class="btn-icon" type="button" data-dash-toggle="'+key+'" style="margin-left:auto;">'+
+      (state.dashCollapsed[key] ? 'Mostrar' : 'Recolher')+'</button>';
+  }
+  function dashWrapOpenHtml(key){
+    return '<div data-dash-wrap="'+key+'"'+(state.dashCollapsed[key] ? ' style="display:none;"' : '')+'>';
+  }
   function dashboardQuickAccessHtml(){
     return ''+
     '<div class="section-header-row">'+
@@ -3982,24 +4011,34 @@
     '<div class="info-popover" id="info-acesso-rapido">Pontos de atenção que passam batido no dia a dia: vigência não preenchida, treino/dieta sem atualizar, vencimentos chegando e consultas sem data marcada.</div>'+
     '<div class="quick-access-grid">'+
       '<div class="card" style="padding:16px;">'+
-        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Atualização Recente — Treino</h3><div style="display:flex;gap:6px;">'+quickUnitBtnHtml('treino', state.dashQuickTreinoUnit)+quickSortBtnHtml('treino', state.dashQuickTreinoSort)+'</div></div>'+
-        '<table><thead><tr><th>Nome</th><th>Última atualização</th></tr></thead><tbody>'+semAtualizacaoRows('treino')+'</tbody></table>'+
+        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Atualização Recente — Treino</h3><div style="display:flex;gap:6px;">'+quickUnitBtnHtml('treino', state.dashQuickTreinoUnit)+quickSortBtnHtml('treino', state.dashQuickTreinoSort)+'</div>'+dashToggleBtnHtml('qaTreino')+'</div>'+
+        dashWrapOpenHtml('qaTreino')+
+          '<table><thead><tr><th>Nome</th><th>Última atualização</th></tr></thead><tbody>'+semAtualizacaoRows('treino')+'</tbody></table>'+
+        '</div>'+
       '</div>'+
       '<div class="card" style="padding:16px;">'+
-        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Vencimentos</h3>'+quickSortBtnHtml('vencimentos', state.dashQuickVencSort)+'</div>'+
-        '<table><thead><tr><th>Nome</th><th>Vencimento</th></tr></thead><tbody>'+vencimentosQuickRows()+'</tbody></table>'+
+        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Vencimentos</h3>'+quickSortBtnHtml('vencimentos', state.dashQuickVencSort)+dashToggleBtnHtml('qaVenc')+'</div>'+
+        dashWrapOpenHtml('qaVenc')+
+          '<table><thead><tr><th>Nome</th><th>Vencimento</th></tr></thead><tbody>'+vencimentosQuickRows()+'</tbody></table>'+
+        '</div>'+
       '</div>'+
       '<div class="card" style="padding:16px;">'+
-        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Atualização Recente — Dieta</h3><div style="display:flex;gap:6px;">'+quickUnitBtnHtml('dieta', state.dashQuickDietaUnit)+quickSortBtnHtml('dieta', state.dashQuickDietaSort)+'</div></div>'+
-        '<table><thead><tr><th>Nome</th><th>Última atualização</th></tr></thead><tbody>'+semAtualizacaoRows('dieta')+'</tbody></table>'+
+        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Atualização Recente — Dieta</h3><div style="display:flex;gap:6px;">'+quickUnitBtnHtml('dieta', state.dashQuickDietaUnit)+quickSortBtnHtml('dieta', state.dashQuickDietaSort)+'</div>'+dashToggleBtnHtml('qaDieta')+'</div>'+
+        dashWrapOpenHtml('qaDieta')+
+          '<table><thead><tr><th>Nome</th><th>Última atualização</th></tr></thead><tbody>'+semAtualizacaoRows('dieta')+'</tbody></table>'+
+        '</div>'+
       '</div>'+
       '<div class="card" style="padding:16px;">'+
-        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Consulta Marcada</h3>'+quickSortBtnHtml('consulta', state.dashQuickConsultaSort)+'</div>'+
-        '<table><thead><tr><th>Nome</th><th>Status Consulta</th></tr></thead><tbody>'+semConsultaMarcadaRows()+'</tbody></table>'+
+        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Consulta Marcada</h3>'+quickSortBtnHtml('consulta', state.dashQuickConsultaSort)+dashToggleBtnHtml('qaConsulta')+'</div>'+
+        dashWrapOpenHtml('qaConsulta')+
+          '<table><thead><tr><th>Nome</th><th>Status Consulta</th></tr></thead><tbody>'+semConsultaMarcadaRows()+'</tbody></table>'+
+        '</div>'+
       '</div>'+
       '<div class="card quick-access-full" style="padding:16px;">'+
-        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Vigência</h3></div>'+
-        '<table><thead><tr><th>Nome</th><th>Prioridade</th></tr></thead><tbody>'+semVigenciaRows()+'</tbody></table>'+
+        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Vigência</h3>'+dashToggleBtnHtml('qaVigencia')+'</div>'+
+        dashWrapOpenHtml('qaVigencia')+
+          '<table><thead><tr><th>Nome</th><th>Prioridade</th></tr></thead><tbody>'+semVigenciaRows()+'</tbody></table>'+
+        '</div>'+
       '</div>'+
     '</div>';
   }
