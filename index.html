@@ -1022,6 +1022,7 @@
     visaoGeralCollapsed: true,
     materialPendenteCollapsed: true,
     jornadaAfazeresCollapsedPatients: {},
+    jornadaArquivoCollapsedPatients: {},
     jornadaKanbanSortBy: 'prioridade',
     jornadaKanbanSortDir: 'asc',
     jornadaKanbanSearch: '',
@@ -1929,12 +1930,17 @@
     var openBtn = e.target.closest('[data-jornada-cal-open]');
     if(openBtn){
       var key = openBtn.getAttribute('data-jornada-cal-open');
-      if(state.jornadaCalendarOpen && state.jornadaCalendarOpen.key === key){
+      var wasOpenSameKey = state.jornadaCalendarOpen && state.jornadaCalendarOpen.key === key;
+      if(wasOpenSameKey){
         state.jornadaCalendarOpen = null;
       } else {
         state.jornadaCalendarOpen = { key: key, viewMonthKey: null };
       }
       jornadaCalendarRefreshForKey(key);
+      if(!wasOpenSameKey){
+        var pop = document.querySelector('.jornada-cal-popover');
+        if(pop) pop.scrollIntoView({behavior:'smooth', block:'nearest'});
+      }
       return;
     }
     var navBtn = e.target.closest('[data-jornada-cal-nav]');
@@ -2618,8 +2624,13 @@
     root.querySelectorAll('[data-kanban-card-toggle]').forEach(function(el){
       el.addEventListener('click', function(){
         var key = this.getAttribute('data-kanban-card-toggle');
-        state.jornadaKanbanExpanded[key] = !state.jornadaKanbanExpanded[key];
+        var willExpand = !state.jornadaKanbanExpanded[key];
+        state.jornadaKanbanExpanded[key] = willExpand;
         refreshJornadaKanban();
+        if(willExpand){
+          var cardEl = document.querySelector('.jornada-kanban-card[data-kanban-drag-key="'+key+'"]');
+          if(cardEl) cardEl.scrollIntoView({behavior:'smooth', block:'nearest'});
+        }
       });
     });
     root.querySelectorAll('[data-kanban-task-nome]').forEach(function(el){
@@ -2649,8 +2660,11 @@
     root.querySelectorAll('[data-kanban-task-add]').forEach(function(btn){
       btn.addEventListener('click', function(){
         var parts = this.getAttribute('data-kanban-task-add').split('|');
-        addPatientTask(parseInt(parts[0],10), parseInt(parts[1],10));
+        var pid = parseInt(parts[0],10);
+        var newId = addPatientTask(pid, parseInt(parts[1],10));
         refreshAllJornadaViews();
+        var cardEl = document.querySelector('.jornada-kanban-card[data-kanban-drag-key="'+pid+':'+newId+'"]');
+        if(cardEl) cardEl.scrollIntoView({behavior:'smooth', block:'nearest'});
       });
     });
     root.querySelectorAll('.jornada-kanban-cards').forEach(function(colEl){
@@ -3719,35 +3733,49 @@
     task.arquivado = arquivado;
     savePatients();
   }
-  function jornadaArquivoList(){
+  function jornadaArquivoGroups(){
     var term = state.jornadaArquivoSearch.trim().toLowerCase();
-    var list = [];
+    var byPatient = {};
     state.patients.forEach(function(p){
       if(!p.jornada) return;
       p.jornada.tarefas.forEach(function(t){
         if(!t.arquivado) return;
         if(term && p.nome.toLowerCase().indexOf(term) === -1 && t.nome.toLowerCase().indexOf(term) === -1) return;
-        list.push({ patient: p, task: t });
+        if(!byPatient[p.id]) byPatient[p.id] = { patient: p, tasks: [] };
+        byPatient[p.id].tasks.push(t);
       });
     });
-    return list;
+    var groups = Object.keys(byPatient).map(function(id){ return byPatient[id]; });
+    groups.sort(function(a,b){ return a.patient.nome.localeCompare(b.patient.nome, 'pt-BR'); });
+    return groups;
   }
   function jornadaArquivoRowsHtml(){
-    var list = jornadaArquivoList();
-    if(!list.length){
+    var groups = jornadaArquivoGroups();
+    if(!groups.length){
       return '<div class="empty-state">Nenhuma tarefa arquivada.</div>';
     }
-    return list.map(function(item){
-      var p = item.patient, t = item.task;
+    return groups.map(function(g){
+      var p = g.patient;
+      var collapsed = state.jornadaArquivoCollapsedPatients[p.id] !== false;
+      var rows = g.tasks.map(function(t){
+        return ''+
+          '<div class="jornada-arquivo-row">'+
+            '<div class="jornada-arquivo-row-body">'+esc(t.nome)+'</div>'+
+            (t.concluido ? '<span class="badge badge-success">Concluído</span>' : '<span class="badge badge-gray">Não concluído</span>')+
+            '<button type="button" class="btn-icon" data-kanban-restore="'+p.id+':'+t.id+'">Restaurar</button>'+
+            '<button type="button" class="btn-icon btn-danger-outline" data-kanban-delete="'+p.id+':'+t.id+'">Excluir</button>'+
+          '</div>';
+      }).join('');
       return ''+
-        '<div class="jornada-arquivo-row">'+
-          '<div class="jornada-arquivo-row-body">'+
-            '<button class="link-btn" data-open-profile="'+p.id+'">'+esc(p.nome)+'</button>'+
-            '<span class="cell-muted"> — '+esc(t.nome)+'</span>'+
+        '<div class="jornada-afazer-group">'+
+          '<div class="jornada-afazer-group-header">'+
+            '<button class="link-btn" data-open-profile="'+p.id+'">'+esc(p.nome)+' '+renovacaoStatusEmoji(p)+'</button>'+
+            '<div style="display:flex;align-items:center;gap:6px;">'+
+              '<span class="badge badge-gray">'+g.tasks.length+'</span>'+
+              '<button type="button" class="btn-icon" data-arquivo-patient-toggle="'+p.id+'" title="'+(collapsed?'Mostrar':'Minimizar')+'">'+(collapsed?'▸':'▾')+'</button>'+
+            '</div>'+
           '</div>'+
-          (t.concluido ? '<span class="badge badge-success">Concluído</span>' : '<span class="badge badge-gray">Não concluído</span>')+
-          '<button type="button" class="btn-icon" data-kanban-restore="'+p.id+':'+t.id+'">Restaurar</button>'+
-          '<button type="button" class="btn-icon btn-danger-outline" data-kanban-delete="'+p.id+':'+t.id+'">Excluir</button>'+
+          (collapsed ? '' : '<div class="jornada-afazer-group-body">'+rows+'</div>')+
         '</div>';
     }).join('');
   }
@@ -3785,6 +3813,13 @@
         showToast('Tarefa excluída.', 'success');
       });
     });
+    root.querySelectorAll('[data-arquivo-patient-toggle]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var id = parseInt(this.getAttribute('data-arquivo-patient-toggle'),10);
+        state.jornadaArquivoCollapsedPatients[id] = state.jornadaArquivoCollapsedPatients[id] === false ? true : false;
+        refreshJornadaArquivo();
+      });
+    });
   }
   function updatePatientTask(patientId, taskId, field, value){
     var p = getPatient(patientId);
@@ -3818,8 +3853,10 @@
     if(!p || !p.jornada) return;
     var maxId = p.jornada.tarefas.reduce(function(m,t){ return Math.max(m, t.id); }, -1);
     var maxOrdem = p.jornada.tarefas.reduce(function(m,t){ return Math.max(m, t.ordem||0); }, -1);
-    p.jornada.tarefas.push({ id: maxId+1, nome: 'Nova tarefa', fase: fase, dataAlvo: todayISODate(), concluido: false, dataConclusao: null, observacao: '', arquivado: false, ordem: maxOrdem+1 });
+    var newId = maxId+1;
+    p.jornada.tarefas.push({ id: newId, nome: 'Nova tarefa', fase: fase, dataAlvo: todayISODate(), concluido: false, dataConclusao: null, observacao: '', arquivado: false, ordem: maxOrdem+1 });
     savePatients();
+    return newId;
   }
   function removePatientTask(patientId, taskId){
     var p = getPatient(patientId);
