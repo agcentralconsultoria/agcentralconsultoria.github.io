@@ -1015,6 +1015,7 @@
     jornadaKanbanSectionCollapsed: false,
     jornadaKanbanCollapsed: {},
     jornadaKanbanExpanded: {},
+    jornadaKanbanSortOverride: {},
     jornadaArquivoSearch: '',
     jornadaArquivoCollapsed: true,
     jornadaAfazeresCollapsed: true,
@@ -1960,6 +1961,7 @@
       var pickKey = pickParts[0], dateStr = pickParts[1];
       var keyParts = pickKey.split('-');
       var pid = parseInt(keyParts[1],10), tid = parseInt(keyParts[2],10);
+      if(pickKey.indexOf('kanban-') === 0) freezeKanbanTaskSort(pid, tid);
       updatePatientTask(pid, tid, 'dataAlvo', dateStr);
       state.jornadaCalendarOpen = null;
       jornadaCalendarRefreshForKey(pickKey);
@@ -1977,6 +1979,7 @@
     var key = input.getAttribute('data-jornada-cal-manual');
     var keyParts = key.split('-');
     var pid = parseInt(keyParts[1],10), tid = parseInt(keyParts[2],10);
+    if(key.indexOf('kanban-') === 0) freezeKanbanTaskSort(pid, tid);
     updatePatientTask(pid, tid, 'dataAlvo', input.value);
     jornadaCalendarRefreshForKey(key);
   }
@@ -2331,6 +2334,14 @@
     if(diff <= 7) return 'semana';
     return 'futuro';
   }
+  function freezeKanbanTaskSort(pid, tid){
+    var ovKey = pid+':'+tid;
+    if(state.jornadaKanbanSortOverride[ovKey] !== undefined) return;
+    var p = getPatient(pid);
+    var task = p && p.jornada ? p.jornada.tarefas.filter(function(t){ return t.id === tid; })[0] : null;
+    var oldDiff = task ? diasParaVencer(task.dataAlvo) : null;
+    state.jornadaKanbanSortOverride[ovKey] = oldDiff === null ? Infinity : oldDiff;
+  }
   function jornadaKanbanColumns(){
     var byPatient = {};
     state.patients.forEach(function(p){
@@ -2338,18 +2349,22 @@
       p.jornada.tarefas.forEach(function(t){
         if(t.arquivado) return;
         var diff = diasParaVencer(t.dataAlvo);
-        if(diff > 7) return;
+        if(diff !== null && diff > 7) return;
         if(!byPatient[p.id]) byPatient[p.id] = { patient: p, tasks: [] };
-        byPatient[p.id].tasks.push({ task: t, diff: diff });
+        var ov = state.jornadaKanbanSortOverride[p.id+':'+t.id];
+        var sortDiff = ov !== undefined ? ov : (diff === null ? Infinity : diff);
+        byPatient[p.id].tasks.push({ task: t, diff: diff, sortDiff: sortDiff });
       });
     });
     var columns = Object.keys(byPatient).map(function(id){ return byPatient[id]; });
     columns.forEach(function(col){
-      col.minDiff = Math.min.apply(null, col.tasks.map(function(t){ return t.diff; }));
+      var trueDiffs = col.tasks.map(function(t){ return t.diff; }).filter(function(d){ return d !== null; });
+      col.minDiff = trueDiffs.length ? Math.min.apply(null, trueDiffs) : Infinity;
       // data manda na ordem: o que vence antes fica em cima, sempre. A ordem manual
-      // (arrastar) so decide entre tarefas que caem no MESMO dia.
+      // (arrastar) so decide entre tarefas que caem no MESMO dia. Uma tarefa recem-editada
+      // fica congelada no lugar (sortDiff) ate a pessoa fechar o cartao de novo.
       col.tasks.sort(function(a,b){
-        if(a.diff !== b.diff) return a.diff - b.diff;
+        if(a.sortDiff !== b.sortDiff) return a.sortDiff - b.sortDiff;
         return (a.task.ordem||0) - (b.task.ordem||0);
       });
     });
@@ -2380,6 +2395,7 @@
     jornadaKanbanColumns().forEach(function(col){
       col.tasks.forEach(function(item){
         if(item.task.concluido){ counts.concluido++; return; }
+        if(item.diff === null) return;
         if(item.diff < 0) counts.atrasado++;
         else if(item.diff === 0) counts.hoje++;
         else counts.semana++;
@@ -2414,7 +2430,7 @@
     var byPatient = {};
     jornadaKanbanColumns().forEach(function(col){
       col.tasks.forEach(function(item){
-        if(item.diff > 0) return;
+        if(item.diff === null || item.diff > 0) return;
         if(!byPatient[col.patient.id]) byPatient[col.patient.id] = { patient: col.patient, items: [] };
         byPatient[col.patient.id].items.push(item);
       });
@@ -2504,8 +2520,8 @@
   function jornadaKanbanCardHtml(p, item){
     var t = item.task, diff = item.diff;
     var key = p.id+':'+t.id;
-    var status = t.concluido ? 'concluido' : diff < 0 ? 'atrasado' : diff === 0 ? 'hoje' : 'semana';
-    var diffText = t.concluido ? 'Concluído' : diff < 0 ? 'Atrasado (' + Math.abs(diff) + 'd)' : diff === 0 ? 'Hoje' : 'Em ' + diff + ' dias';
+    var status = t.concluido ? 'concluido' : diff === null ? 'semdata' : diff < 0 ? 'atrasado' : diff === 0 ? 'hoje' : 'semana';
+    var diffText = t.concluido ? 'Concluído' : diff === null ? 'Sem data' : diff < 0 ? 'Atrasado (' + Math.abs(diff) + 'd)' : diff === 0 ? 'Hoje' : 'Em ' + diff + ' dias';
     var badgeCls = status === 'concluido' ? 'badge-success' : status === 'atrasado' ? 'badge-danger' : status === 'hoje' ? 'badge-warning' : status === 'semana' ? 'badge-success' : 'badge-gray';
     var expanded = !!state.jornadaKanbanExpanded[key];
     var expandHtml = expanded ? ''+
@@ -2626,6 +2642,7 @@
         var key = this.getAttribute('data-kanban-card-toggle');
         var willExpand = !state.jornadaKanbanExpanded[key];
         state.jornadaKanbanExpanded[key] = willExpand;
+        if(!willExpand) delete state.jornadaKanbanSortOverride[key];
         refreshJornadaKanban();
         if(willExpand){
           var cardEl = document.querySelector('.jornada-kanban-card[data-kanban-drag-key="'+key+'"]');
@@ -3854,7 +3871,7 @@
     var maxId = p.jornada.tarefas.reduce(function(m,t){ return Math.max(m, t.id); }, -1);
     var maxOrdem = p.jornada.tarefas.reduce(function(m,t){ return Math.max(m, t.ordem||0); }, -1);
     var newId = maxId+1;
-    p.jornada.tarefas.push({ id: newId, nome: 'Nova tarefa', fase: fase, dataAlvo: todayISODate(), concluido: false, dataConclusao: null, observacao: '', arquivado: false, ordem: maxOrdem+1 });
+    p.jornada.tarefas.push({ id: newId, nome: 'Nova tarefa', fase: fase, dataAlvo: null, concluido: false, dataConclusao: null, observacao: '', arquivado: false, ordem: maxOrdem+1 });
     savePatients();
     return newId;
   }
