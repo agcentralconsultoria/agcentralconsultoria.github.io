@@ -661,6 +661,8 @@
   .th-sort{cursor:pointer;user-select:none;white-space:nowrap;}
   .th-sort:hover{color:var(--secondary);}
   .sort-arrow{margin-left:4px;color:var(--primary);}
+  .th-sort-overview{cursor:pointer;user-select:none;white-space:nowrap;}
+  .th-sort-overview:hover{color:var(--secondary);}
 
   .th-filter{position:relative;white-space:nowrap;}
   .th-filter-label{cursor:pointer;user-select:none;}
@@ -970,6 +972,7 @@
     planoFilter: 'todos',
     prioridadeFilter: 'todos',
     overviewNomeFilter: '',
+    overviewSortDir: 'asc',
     overviewConsultaFilter: 'todos',
     overviewMediaFilter: 'todos',
     sortBy: 'nome',
@@ -1729,15 +1732,6 @@
       '<span class="th-filter-label" data-filter-toggle="'+key+'">'+esc(label)+'<span class="filter-arrow">▾</span></span>'+
       '<div class="filter-menu" data-filter-menu="'+key+'">'+filterMenuOptionsHtml(key, allLabel, options, current)+'</div>'+
     '</div>';
-  }
-  function nomeFilterThHtml(key, label, value){
-    var active = value.trim() !== '';
-    return '<th class="th-filter'+(active?' active':'')+'">'+
-      '<span class="th-filter-label" data-filter-toggle="'+key+'">'+esc(label)+'<span class="filter-arrow">▾</span></span>'+
-      '<div class="filter-menu" data-filter-menu="'+key+'">'+
-        '<input type="text" class="filter-menu-input" id="'+key+'Input" placeholder="Buscar por nome..." value="'+esc(value)+'">'+
-      '</div>'+
-    '</th>';
   }
   function applyFilterSelection(key, value){
     state[key] = value;
@@ -4879,14 +4873,8 @@
     if(state.overviewMediaFilter !== 'todos'){
       withRisk = withRisk.filter(function(x){ return mediaBand(x.r.avg) === state.overviewMediaFilter; });
     }
-    withRisk.sort(function(a,b){
-      var av = a.r.avg, bv = b.r.avg;
-      if(av === null && bv === null) return a.p.nome.localeCompare(b.p.nome, 'pt-BR');
-      if(av === null) return 1;
-      if(bv === null) return -1;
-      if(av !== bv) return av - bv;
-      return a.p.nome.localeCompare(b.p.nome, 'pt-BR');
-    });
+    var dir = state.overviewSortDir === 'desc' ? -1 : 1;
+    withRisk.sort(function(a,b){ return a.p.nome.localeCompare(b.p.nome, 'pt-BR') * dir; });
     return withRisk;
   }
   function overviewTableRowsHtml(monthKey){
@@ -4959,8 +4947,10 @@
     var wk = weeksInMonth(monthKey);
     var headerCells = '';
     for(var i=0;i<wk;i++){ headerCells += '<th style="text-align:center;">Sem '+(i+1)+'</th>'; }
-    return '<table><thead><tr>'+
-      nomeFilterThHtml('overviewNomeFilter', 'Nome', state.overviewNomeFilter)+
+    var arrow = state.overviewSortDir === 'desc' ? '▼' : '▲';
+    var searchHtml = '<input type="text" id="overviewNomeFilterInput" class="search-input" style="width:100%;margin-bottom:10px;" placeholder="Buscar por nome..." value="'+esc(state.overviewNomeFilter)+'">';
+    return searchHtml + '<table><thead><tr>'+
+      '<th class="th-sort-overview" id="overviewNomeSortTh">Nome <span class="sort-arrow">'+arrow+'</span></th>'+
       filterThHtml('overviewConsultaFilter', 'Status Consulta', 'Todos', [
         {value:'emdia', label:'Em dia'}, {value:'proximo', label:'Próximo'}, {value:'atrasado', label:'Atrasado'}
       ])+
@@ -5077,7 +5067,16 @@
     if(overviewNomeInput){
       overviewNomeInput.addEventListener('input', function(e){
         state.overviewNomeFilter = e.target.value;
-        e.target.closest('.th-filter').classList.toggle('active', e.target.value.trim() !== '');
+        refreshOverviewTable();
+      });
+    }
+    var overviewNomeSortTh = document.getElementById('overviewNomeSortTh');
+    if(overviewNomeSortTh){
+      overviewNomeSortTh.addEventListener('click', function(){
+        state.overviewSortDir = state.overviewSortDir === 'asc' ? 'desc' : 'asc';
+        // refreshOverviewTable so re-renderiza o corpo da tabela; a seta do
+        // cabecalho precisa ser atualizada aqui direto
+        this.querySelector('.sort-arrow').textContent = state.overviewSortDir === 'desc' ? '▼' : '▲';
         refreshOverviewTable();
       });
     }
@@ -5148,7 +5147,6 @@
       }
       var toggle = e.target.closest('[data-filter-toggle]');
       if(toggle){
-        var key = toggle.getAttribute('data-filter-toggle');
         var menu = toggle.closest('.th-filter').querySelector('.filter-menu');
         var willOpen = !menu.classList.contains('open');
         document.querySelectorAll('.filter-menu.open').forEach(function(m){ m.classList.remove('open'); });
@@ -5156,9 +5154,6 @@
         document.querySelectorAll('.card').forEach(function(c){
           c.classList.toggle('menu-open', !!c.querySelector('.filter-menu.open'));
         });
-        if(willOpen && key === 'overviewNomeFilter' && overviewNomeInput){
-          overviewNomeInput.focus();
-        }
         return;
       }
       var option = e.target.closest('.filter-menu-option');
