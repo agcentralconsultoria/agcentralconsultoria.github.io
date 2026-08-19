@@ -250,7 +250,7 @@
   .volume-compare-bar-val{font-size:9px;font-weight:700;margin-bottom:1px;color:var(--text);white-space:nowrap;}
   .volume-compare-bar-gkg{font-size:8px;color:var(--text-muted);margin-bottom:1px;white-space:nowrap;}
   .volume-compare-bar{width:100%;border-radius:2px 2px 0 0;min-height:1px;}
-  .volume-compare-label{font-size:9.5px;color:var(--text-muted);margin-top:3px;text-align:center;max-width:60px;line-height:1.2;}
+  .volume-compare-label{font-size:9.5px;color:var(--text-muted);margin-top:3px;text-align:center;max-width:60px;line-height:1.2;height:23px;overflow:hidden;}
   .compare-expand-btn{
     background:none;border:1px solid var(--border);border-radius:6px;width:24px;height:24px;
     display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-muted);
@@ -997,7 +997,6 @@
     grupoMuscularList: null,
     volumeCompareSelected: {},
     dietaCompareSelected: {},
-    volumeCompareSortDir: 'default',
     volumeCompareExpanded: false,
     dietaCompareExpanded: false,
     dietaCompareShowGkg: false,
@@ -4302,15 +4301,13 @@
     if(!available.length) return { chips: cp.html, chart: '<div class="empty-state" style="padding:12px;">Nenhuma ficha com volume por grupo muscular registrado ainda.</div>' };
     var chrono = cp.chrono;
     if(!chrono.length) return { chips: cp.html, chart: '<div class="empty-state" style="padding:12px;">Selecione uma data pra ver o gráfico (ou 2+ pra comparar).</div>' };
-    var sortDir = state.volumeCompareSortDir;
     var groups = state.grupoMuscularList.filter(function(g){
       return chrono.some(function(f){ return (f.volumePorGrupo[g]||0) > 0; });
     });
-    if(sortDir !== 'default'){
-      var totals = {};
-      groups.forEach(function(g){ totals[g] = chrono.reduce(function(sum,f){ return sum + (f.volumePorGrupo[g]||0); }, 0); });
-      groups = groups.slice().sort(function(a,b){ return sortDir==='asc' ? totals[a]-totals[b] : totals[b]-totals[a]; });
-    }
+    // sempre ordenado por volume total, do maior pro menor -- fixo, sem opcao de trocar
+    var totals = {};
+    groups.forEach(function(g){ totals[g] = chrono.reduce(function(sum,f){ return sum + (f.volumePorGrupo[g]||0); }, 0); });
+    groups = groups.slice().sort(function(a,b){ return totals[b]-totals[a]; });
     var bars = compareBarsHtml(groups, chrono, function(f, g){ return f.volumePorGrupo[g] || 0; });
     var summary = '';
     if(chrono.length >= 2){
@@ -4333,25 +4330,22 @@
     return { chips: cp.html, chart: compareLegendHtml(chrono) + '<div class="volume-compare-chart">'+bars+'</div>' + summary };
   }
   function volumeCompareChartHtml(p){
-    var sortDir = state.volumeCompareSortDir;
-    var sortLabel = sortDir==='asc' ? 'Volume ▲' : sortDir==='desc' ? 'Volume ▼' : 'Ordenar por volume';
-    var sortBtn = '<button type="button" class="btn-icon" id="volumeCompareSortBtn">'+sortLabel+'</button>';
+    var sortLabel = '<span class="cell-muted" style="font-size:12.5px;">Volume ▼</span>';
     var expandBtn = '<button type="button" class="compare-expand-btn" id="volumeCompareExpandBtn" title="Expandir só esse gráfico pra tela cheia">⛶</button>';
     var r = volumeCompareBodyHtml(p);
-    var header = '<div class="mini-label" style="text-align:left;margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;"><span>Volume por grupamento muscular — comparação</span><span style="display:flex;gap:6px;align-items:center;">'+sortBtn+expandBtn+'</span></div>';
+    var header = '<div class="mini-label" style="text-align:left;margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;"><span>Volume por grupamento muscular — comparação</span><span style="display:flex;gap:6px;align-items:center;">'+sortLabel+expandBtn+'</span></div>';
     return header + r.chips + r.chart;
   }
   function renderVolumeCompareOverlay(){
     var p = getPatient(state.activeId);
     var root = document.getElementById('chart-expand-root');
     if(!p || !root) return;
-    var sortDir = state.volumeCompareSortDir;
-    var sortLabel = sortDir==='asc' ? 'Volume ▲' : sortDir==='desc' ? 'Volume ▼' : 'Ordenar por volume';
+    var sortLabel = '<span class="cell-muted" style="font-size:12.5px;">Volume ▼</span>';
     var r = volumeCompareBodyHtml(p);
     root.innerHTML = '<div class="compare-expanded-overlay">'+
       '<div class="compare-expanded-header"><h3>Volume por grupamento muscular — '+esc(p.nome)+'</h3>'+
         '<div style="display:flex;gap:8px;align-items:center;">'+
-          '<button type="button" class="btn-icon" id="volumeCompareOverlaySortBtn">'+sortLabel+'</button>'+
+          sortLabel+
           '<button type="button" class="compare-expand-btn" id="volumeCompareOverlayCloseBtn" title="Recolher">✕</button>'+
         '</div>'+
       '</div>'+
@@ -4362,13 +4356,6 @@
   function bindVolumeCompareOverlayEvents(){
     var root = document.getElementById('chart-expand-root');
     if(!root) return;
-    var sortBtn = root.querySelector('#volumeCompareOverlaySortBtn');
-    if(sortBtn){
-      sortBtn.addEventListener('click', function(){
-        state.volumeCompareSortDir = state.volumeCompareSortDir === 'default' ? 'desc' : state.volumeCompareSortDir === 'desc' ? 'asc' : 'default';
-        renderVolumeCompareOverlay();
-      });
-    }
     var closeBtn = root.querySelector('#volumeCompareOverlayCloseBtn');
     if(closeBtn){
       closeBtn.addEventListener('click', function(){ closeCompareOverlay(); });
@@ -4565,13 +4552,6 @@
           state.grupoMuscularList.push(val);
           saveGrupoMuscularList();
         }
-        refreshFichaTreinoList();
-      });
-    }
-    var volumeSortBtn = root.querySelector('#volumeCompareSortBtn');
-    if(volumeSortBtn){
-      volumeSortBtn.addEventListener('click', function(){
-        state.volumeCompareSortDir = state.volumeCompareSortDir === 'default' ? 'desc' : state.volumeCompareSortDir === 'desc' ? 'asc' : 'default';
         refreshFichaTreinoList();
       });
     }
