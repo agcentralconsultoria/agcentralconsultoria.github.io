@@ -822,6 +822,11 @@
     .jornada-kanban{max-width:100%;gap:10px;}
     .jornada-kanban-col{flex:0 0 84vw;}
 
+    /* Arquivo/Afazeres: numa tela estreita o nome da tarefa quebra em varias linhas;
+       sem isso o badge e os botoes ficavam centralizados por cima do texto quebrado. */
+    .jornada-arquivo-row,.jornada-afazer-row{flex-wrap:wrap;}
+    .jornada-arquivo-row-body,.jornada-afazer-body{flex:1 1 100%;}
+
     .container{padding:14px 12px 40px;}
   }
 </style>
@@ -5007,7 +5012,13 @@
     var headerCells = '';
     for(var i=0;i<wk;i++){ headerCells += '<th style="text-align:center;">Sem '+(i+1)+'</th>'; }
     var arrow = state.overviewSortDir === 'desc' ? '▼' : '▲';
-    var searchHtml = '<input type="text" id="overviewNomeFilterInput" class="search-input" style="width:100%;margin-bottom:10px;" placeholder="Buscar por nome..." value="'+esc(state.overviewNomeFilter)+'">';
+    // O cabecalho da tabela some no celular (vira cartao empilhado), entao o clique em
+    // "Nome" pra ordenar fica sem jeito de acionar. Este botao repete a mesma acao e
+    // fica sempre visivel, do lado da busca.
+    var searchHtml = '<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">'+
+      '<input type="text" id="overviewNomeFilterInput" class="search-input" style="flex:1;min-width:180px;" placeholder="Buscar por nome..." value="'+esc(state.overviewNomeFilter)+'">'+
+      '<button type="button" class="btn-icon" id="overviewNomeSortBtn">Nome <span class="sort-arrow">'+arrow+'</span></button>'+
+    '</div>';
     return searchHtml + '<table><thead><tr>'+
       '<th class="th-sort-overview" id="overviewNomeSortTh">Nome <span class="sort-arrow">'+arrow+'</span></th>'+
       filterThHtml('overviewConsultaFilter', 'Status Consulta', 'Todos', [
@@ -5129,16 +5140,21 @@
         refreshOverviewTable();
       });
     }
-    var overviewNomeSortTh = document.getElementById('overviewNomeSortTh');
-    if(overviewNomeSortTh){
-      overviewNomeSortTh.addEventListener('click', function(){
-        state.overviewSortDir = state.overviewSortDir === 'asc' ? 'desc' : 'asc';
-        // refreshOverviewTable so re-renderiza o corpo da tabela; a seta do
-        // cabecalho precisa ser atualizada aqui direto
-        this.querySelector('.sort-arrow').textContent = state.overviewSortDir === 'desc' ? '▼' : '▲';
-        refreshOverviewTable();
+    function toggleOverviewSort(){
+      state.overviewSortDir = state.overviewSortDir === 'asc' ? 'desc' : 'asc';
+      // refreshOverviewTable so re-renderiza o corpo da tabela; as setas do
+      // cabecalho e do botao (visivel no celular, onde o cabecalho some) sao
+      // atualizadas aqui direto
+      var newArrow = state.overviewSortDir === 'desc' ? '▼' : '▲';
+      document.querySelectorAll('#overviewNomeSortTh .sort-arrow, #overviewNomeSortBtn .sort-arrow').forEach(function(el){
+        el.textContent = newArrow;
       });
+      refreshOverviewTable();
     }
+    var overviewNomeSortTh = document.getElementById('overviewNomeSortTh');
+    if(overviewNomeSortTh) overviewNomeSortTh.addEventListener('click', toggleOverviewSort);
+    var overviewNomeSortBtn = document.getElementById('overviewNomeSortBtn');
+    if(overviewNomeSortBtn) overviewNomeSortBtn.addEventListener('click', toggleOverviewSort);
     content.addEventListener('click', function(e){
       var weekEditBtn = e.target.closest('[data-week-edit]');
       if(weekEditBtn){
