@@ -298,7 +298,16 @@
   .jornada-select-row{display:flex;gap:12px;flex-wrap:wrap;}
   .jornada-select-row > div{flex:1;min-width:150px;}
   .jornada-select-row select, .jornada-select-row input{width:100%;}
-  .mini-label{font-size:11px;color:var(--text-muted);margin-bottom:4px;font-weight:600;}
+  /* Barra "Buscar por nome" + botao de ordenar do Kanban. O botao tem o texto em 2 linhas
+     ("Ordenar" em cima) pra ocupar menos largura e caber do lado da busca, inclusive no
+     celular. O min-width fica aqui (e nao inline) pra a regra de celula poder reduzi-lo —
+     estilo inline venceria a media query e a busca empurrava o botao pra cima dela. */
+  .jornada-select-row > .jornada-kanban-search-wrap{flex:2 1 0%;min-width:200px;}
+  .jornada-select-row > .jornada-kanban-sort-wrap{flex:0 0 auto;min-width:0;}
+  /* .search-input tem min-width:240px; sem zerar aqui o campo transborda do proprio
+     container em tela estreita e passa por cima do botao de ordenar. */
+  .jornada-kanban-search-wrap .search-input{min-width:0;}
+  .jornada-kanban-sort-btn{line-height:1.25;text-align:center;white-space:nowrap;}
   .jornada-template-task{
     display:flex;gap:8px;align-items:center;padding:8px 10px;
     border:1px solid var(--border);border-radius:8px;margin-bottom:6px;background:var(--white);
@@ -829,11 +838,9 @@
     .jornada-kanban{max-width:100%;gap:10px;}
     .jornada-kanban-col{flex:0 0 84vw;}
 
-    /* Barra "Buscar por nome" + "Ordenar por Nome" do Kanban: numa tela estreita os dois
-       quase cabem lado a lado e ficam espremidos/colados. Empilha, cada um com a largura
-       toda, pra sempre ter espaco entre eles. */
-    .jornada-kanban-toolbar{flex-direction:column;align-items:stretch;}
-    .jornada-kanban-toolbar > div{width:100%;min-width:0;}
+    /* Barra do Kanban no celular: a busca pode encolher abaixo dos 200px pra o botao de
+       ordenar caber do lado dela com folga, em vez de os dois se espremerem/sobreporem. */
+    .jornada-select-row > .jornada-kanban-search-wrap{min-width:120px;}
 
     /* Arquivo/Afazeres: numa tela estreita o nome da tarefa quebra em varias linhas;
        sem isso o badge e os botoes ficavam centralizados por cima do texto quebrado. */
@@ -2598,13 +2605,19 @@
         expandHtml+
       '</div>';
   }
+  /* Rotulo do botao de ordenar do Kanban, sempre em 2 linhas ("Ordenar" em cima) pra
+     ocupar menos largura e nao mudar de altura quando alterna o estado. */
+  function jornadaKanbanSortLabel(){
+    var segunda = state.jornadaKanbanSortBy === 'nome' ?
+      ('Nome ' + (state.jornadaKanbanSortDir === 'asc' ? '▲' : '▼')) : 'por Nome';
+    return 'Ordenar<br>' + segunda;
+  }
   function jornadaKanbanToolbarHtml(){
-    var sortLabel = state.jornadaKanbanSortBy === 'nome' ?
-      ('Nome ' + (state.jornadaKanbanSortDir === 'asc' ? '▲' : '▼')) : 'Ordenar por Nome';
+    var sortLabel = jornadaKanbanSortLabel();
     return ''+
       '<div class="jornada-select-row jornada-kanban-toolbar" style="margin-bottom:14px;align-items:flex-end;">'+
-        '<div style="flex:2;min-width:200px;"><div class="mini-label">Buscar por nome</div><input type="text" id="jornadaKanbanSearchInput" class="search-input" style="width:100%;" placeholder="Buscar por nome..." value="'+esc(state.jornadaKanbanSearch)+'"></div>'+
-        '<div><button type="button" class="btn-icon" id="jornadaKanbanNomeSortBtn" style="width:100%;">'+sortLabel+'</button></div>'+
+        '<div class="jornada-kanban-search-wrap"><div class="mini-label">Buscar por nome</div><input type="text" id="jornadaKanbanSearchInput" class="search-input" style="width:100%;" placeholder="Buscar por nome..." value="'+esc(state.jornadaKanbanSearch)+'"></div>'+
+        '<div class="jornada-kanban-sort-wrap"><button type="button" class="btn-icon jornada-kanban-sort-btn" id="jornadaKanbanNomeSortBtn">'+sortLabel+'</button></div>'+
         filterChipHtml('jornadaKanbanPrioridadeFilter', 'Prioridade', 'Todas as Prioridades', ['Modo Bebezinho','Urgente','Moderada','Sem urgência'])+
         filterChipHtml('jornadaKanbanStatusFilter', 'Status', 'Todos os Status', ['Ativo','Atenção','Sem vencimento'])+
       '</div>';
@@ -2665,10 +2678,8 @@
     var toolbar = document.getElementById('jornadaKanbanToolbarRoot');
     if(toolbar){
       var sortBtn = document.getElementById('jornadaKanbanNomeSortBtn');
-      if(sortBtn){
-        sortBtn.textContent = state.jornadaKanbanSortBy === 'nome' ?
-          ('Nome ' + (state.jornadaKanbanSortDir === 'asc' ? '▲' : '▼')) : 'Ordenar por Nome';
-      }
+      // innerHTML (nao textContent) porque o rotulo tem <br> pra quebrar em 2 linhas
+      if(sortBtn) sortBtn.innerHTML = jornadaKanbanSortLabel();
     }
   }
   function bindJornadaKanbanEvents(){
