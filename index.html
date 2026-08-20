@@ -298,6 +298,7 @@
   .jornada-select-row{display:flex;gap:12px;flex-wrap:wrap;}
   .jornada-select-row > div{flex:1;min-width:150px;}
   .jornada-select-row select, .jornada-select-row input{width:100%;}
+  .mini-label{font-size:11px;color:var(--text-muted);margin-bottom:4px;font-weight:600;}
   .jornada-template-task{
     display:flex;gap:8px;align-items:center;padding:8px 10px;
     border:1px solid var(--border);border-radius:8px;margin-bottom:6px;background:var(--white);
@@ -827,6 +828,12 @@
     /* ---- Kanban: uma coluna por vez, deslizando ---- */
     .jornada-kanban{max-width:100%;gap:10px;}
     .jornada-kanban-col{flex:0 0 84vw;}
+
+    /* Barra "Buscar por nome" + "Ordenar por Nome" do Kanban: numa tela estreita os dois
+       quase cabem lado a lado e ficam espremidos/colados. Empilha, cada um com a largura
+       toda, pra sempre ter espaco entre eles. */
+    .jornada-kanban-toolbar{flex-direction:column;align-items:stretch;}
+    .jornada-kanban-toolbar > div{width:100%;min-width:0;}
 
     /* Arquivo/Afazeres: numa tela estreita o nome da tarefa quebra em varias linhas;
        sem isso o badge e os botoes ficavam centralizados por cima do texto quebrado. */
@@ -2595,9 +2602,9 @@
     var sortLabel = state.jornadaKanbanSortBy === 'nome' ?
       ('Nome ' + (state.jornadaKanbanSortDir === 'asc' ? '▲' : '▼')) : 'Ordenar por Nome';
     return ''+
-      '<div class="jornada-select-row" style="margin-bottom:14px;align-items:flex-end;">'+
+      '<div class="jornada-select-row jornada-kanban-toolbar" style="margin-bottom:14px;align-items:flex-end;">'+
         '<div style="flex:2;min-width:200px;"><div class="mini-label">Buscar por nome</div><input type="text" id="jornadaKanbanSearchInput" class="search-input" style="width:100%;" placeholder="Buscar por nome..." value="'+esc(state.jornadaKanbanSearch)+'"></div>'+
-        '<div><button type="button" class="btn-icon" id="jornadaKanbanNomeSortBtn">'+sortLabel+'</button></div>'+
+        '<div><button type="button" class="btn-icon" id="jornadaKanbanNomeSortBtn" style="width:100%;">'+sortLabel+'</button></div>'+
         filterChipHtml('jornadaKanbanPrioridadeFilter', 'Prioridade', 'Todas as Prioridades', ['Modo Bebezinho','Urgente','Moderada','Sem urgência'])+
         filterChipHtml('jornadaKanbanStatusFilter', 'Status', 'Todos os Status', ['Ativo','Atenção','Sem vencimento'])+
       '</div>';
