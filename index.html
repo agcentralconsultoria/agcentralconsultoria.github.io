@@ -366,7 +366,9 @@
     cursor:pointer;font-family:inherit;
   }
   .jornada-cal-cell.empty{cursor:default;}
-  .jornada-cal-cell.weekend{background:var(--danger-bg);}
+  .jornada-cal-cell.weekend{background:var(--warning-bg);color:var(--warning);}
+  /* a partir do vencimento do plano: vermelho, e vence o amarelo do fim de semana */
+  .jornada-cal-cell.pos-vencimento{background:var(--danger-bg);color:var(--danger);font-weight:700;}
   .jornada-cal-cell.today{outline:1.5px solid var(--primary);outline-offset:-1.5px;}
   .jornada-cal-cell.selected{background:var(--primary);color:var(--white);font-weight:700;}
   .jornada-cal-cell:not(.empty):hover{outline:1.5px solid var(--primary);outline-offset:-1.5px;}
@@ -1837,6 +1839,7 @@
     var year = parsed.year, month = parsed.month;
     var p = getPatient(patientId);
     var taskDates = jornadaTaskDatesForPatient(p);
+    var vencimento = p && p.vencimento ? p.vencimento : null;
     var startWeekday = new Date(year, month, 1).getDay();
     var daysInMonth = new Date(year, month+1, 0).getDate();
     var todayIso = todayISODate();
@@ -1849,8 +1852,12 @@
       var hasTask = !!taskDates[dateStr];
       var isSelected = dateStr === currentValue;
       var isToday = dateStr === todayIso;
-      var cls = 'jornada-cal-cell'+(isWeekend?' weekend':'')+(isSelected?' selected':'')+(isToday?' today':'');
-      var title = hasTask ? ' title="'+esc(taskDates[dateStr].join(', '))+'"' : '';
+      var posVenc = !!vencimento && dateStr >= vencimento;
+      var cls = 'jornada-cal-cell'+(isWeekend?' weekend':'')+(posVenc?' pos-vencimento':'')+(isSelected?' selected':'')+(isToday?' today':'');
+      var titleParts = [];
+      if(hasTask) titleParts.push(taskDates[dateStr].join(', '));
+      if(posVenc) titleParts.push(dateStr === vencimento ? 'Vencimento do plano' : 'Depois do vencimento do plano');
+      var title = titleParts.length ? ' title="'+esc(titleParts.join(' — '))+'"' : '';
       cells += '<button type="button" class="'+cls+'" data-jornada-cal-pick="'+key+'|'+dateStr+'"'+title+'>'+day+(hasTask?'<span class="jornada-cal-dot"></span>':'')+'</button>';
     }
     var weekdayHeaders = ['D','S','T','Q','Q','S','S'].map(function(w){ return '<span class="jornada-cal-wd">'+w+'</span>'; }).join('');
