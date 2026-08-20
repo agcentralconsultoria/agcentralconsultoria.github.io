@@ -847,7 +847,7 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import {
     getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut,
-    sendEmailVerification, multiFactor, TotpMultiFactorGenerator, getMultiFactorResolver
+    sendEmailVerification, sendPasswordResetEmail, multiFactor, TotpMultiFactorGenerator, getMultiFactorResolver
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
   import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
   var appConfig = {
@@ -871,6 +871,7 @@
     signInWithEmailAndPassword: signInWithEmailAndPassword,
     signOut: signOut,
     sendEmailVerification: sendEmailVerification,
+    sendPasswordResetEmail: sendPasswordResetEmail,
     multiFactor: multiFactor,
     TotpMultiFactorGenerator: TotpMultiFactorGenerator,
     getMultiFactorResolver: getMultiFactorResolver
@@ -976,6 +977,8 @@
     securityEmailSent: false,
     mfaEnrollStep: 'idle',
     securityError: null,
+    settingsTab: 'seguranca',
+    passwordResetSent: false,
     patients: [],
     tab: 'dashboard',
     search: '',
@@ -3261,7 +3264,7 @@
       '</nav>'+
       '<div class="header-right">'+
         '<span class="header-user">angelogarciaconsultoria@gmail.com</span>'+
-        '<button class="logout-btn" id="securityBtn" title="Autenticação de dois fatores">🔒 Segurança</button>'+
+        '<button class="logout-btn" id="settingsBtn" title="Configurações">⚙️ Configurações</button>'+
         '<button class="logout-btn" id="logoutBtn">Sair</button>'+
       '</div>'+
     '</header>'+
@@ -3276,13 +3279,15 @@
         render();
       });
     });
-    var securityBtn = document.getElementById('securityBtn');
-    if(securityBtn){
-      securityBtn.addEventListener('click', function(){
-        state.modal = 'security';
+    var settingsBtn = document.getElementById('settingsBtn');
+    if(settingsBtn){
+      settingsBtn.addEventListener('click', function(){
+        state.modal = 'settings';
+        state.settingsTab = 'seguranca';
         state.securityEmailSent = false;
         state.mfaEnrollStep = 'idle';
         state.securityError = null;
+        state.passwordResetSent = false;
         renderModal();
       });
     }
@@ -5828,7 +5833,12 @@
       '</div>'+
     '</div>';
   }
-  function securityModalHtml(){
+  /* Só esta conta pode trocar a própria senha. Travado de propósito (o pedido foi
+     explícito): mesmo que outra conta algum dia faça login neste CRM, o botão de
+     trocar senha fica bloqueado pra ela — o link de redefinição só é disparado se
+     o e-mail logado for exatamente este. */
+  var SENHA_EMAIL_PERMITIDO = 'angelogarciaconsultoria@gmail.com';
+  function securityTabBodyHtml(){
     var user = mfa && mfa.auth ? mfa.auth.currentUser : null;
     var emailVerified = user ? user.emailVerified : false;
     var enrolledFactors = (user && mfa) ? mfa.multiFactor(user).enrolledFactors : [];
@@ -5868,13 +5878,41 @@
         '<button type="button" class="btn btn-primary" id="securityStartTotpBtn">Ativar Google Authenticator</button>'+
         errHtml;
     }
+    return body;
+  }
+  function passwordTabBodyHtml(){
+    var user = mfa && mfa.auth ? mfa.auth.currentUser : null;
+    var email = user ? user.email : null;
+    var errHtml = state.securityError ? '<div class="login-error show">'+esc(state.securityError)+'</div>' : '';
+    if(email !== SENHA_EMAIL_PERMITIDO){
+      return '<p>Por segurança, a troca de senha só é permitida para <b>'+esc(SENHA_EMAIL_PERMITIDO)+'</b>. Esta conta ('+esc(email||'—')+') não tem essa permissão.</p>';
+    }
+    if(state.passwordResetSent){
+      return ''+
+        '<p>Link enviado! Abra a caixa de entrada de <b>'+esc(email)+'</b> e siga o link do e-mail pra criar uma nova senha.</p>'+
+        '<button type="button" class="btn btn-secondary" id="passwordResetBtn">Enviar de novo</button>'+
+        errHtml;
+    }
+    return ''+
+      '<p>Por segurança, a troca de senha é feita por um link enviado direto pro seu e-mail — nenhuma senha é digitada aqui no CRM.</p>'+
+      '<p class="cell-muted">O link vai para <b>'+esc(email)+'</b>.</p>'+
+      '<button type="button" class="btn btn-primary" id="passwordResetBtn">Enviar link de troca de senha</button>'+
+      errHtml;
+  }
+  function settingsModalHtml(){
+    var tabsHtml = ''+
+      '<div class="meta-type-toggle">'+
+        '<button type="button" class="meta-type-btn'+(state.settingsTab==='seguranca'?' active':'')+'" data-settings-tab="seguranca">🔒 Segurança</button>'+
+        '<button type="button" class="meta-type-btn'+(state.settingsTab==='senha'?' active':'')+'" data-settings-tab="senha">🔑 Senha</button>'+
+      '</div>';
+    var body = state.settingsTab === 'senha' ? passwordTabBodyHtml() : securityTabBodyHtml();
     return ''+
     '<div class="modal">'+
       '<div class="modal-header">'+
-        '<h2>Segurança da Conta</h2>'+
+        '<h2>Configurações</h2>'+
         '<button class="modal-close" id="modalCloseBtn">&times;</button>'+
       '</div>'+
-      '<div class="modal-body">'+body+'</div>'+
+      '<div class="modal-body">'+tabsHtml+body+'</div>'+
     '</div>';
   }
 
@@ -5910,8 +5948,8 @@
       var pw = getPatient(state.activeId);
       if(!pw){ closeModal(); return; }
       html = weekEditModalHtml(pw, state.weekEditMonthKey, state.weekEditIndex);
-    } else if(state.modal === 'security'){
-      html = securityModalHtml();
+    } else if(state.modal === 'settings'){
+      html = settingsModalHtml();
     }
     root.innerHTML = '<div class="modal-overlay" id="modalOverlay">'+html+'</div>';
 
@@ -6137,7 +6175,33 @@
         showToast('Semana atualizada.', 'success');
       });
     }
-    if(state.modal === 'security'){
+    if(state.modal === 'settings'){
+      document.querySelectorAll('[data-settings-tab]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          state.settingsTab = this.getAttribute('data-settings-tab');
+          state.securityError = null;
+          renderModal();
+        });
+      });
+      var passwordResetBtn = document.getElementById('passwordResetBtn');
+      if(passwordResetBtn){
+        passwordResetBtn.addEventListener('click', function(){
+          state.securityError = null;
+          var email = mfa.auth.currentUser ? mfa.auth.currentUser.email : null;
+          if(email !== SENHA_EMAIL_PERMITIDO){
+            state.securityError = 'E-mail não autorizado a trocar a senha.';
+            renderModal();
+            return;
+          }
+          mfa.sendPasswordResetEmail(mfa.auth, email).then(function(){
+            state.passwordResetSent = true;
+            renderModal();
+          }).catch(function(err){
+            state.securityError = 'Não foi possível enviar: ' + err.message;
+            renderModal();
+          });
+        });
+      }
       var sendVerifyBtn = document.getElementById('securitySendVerifyBtn');
       if(sendVerifyBtn){
         sendVerifyBtn.addEventListener('click', function(){
