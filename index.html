@@ -1780,6 +1780,12 @@
   function isWeekActive(p, monthKey, weekIdx){
     return activeWeekIndexes(p, monthKey).indexOf(weekIdx) !== -1;
   }
+  /* Rotulo das caixas de quem e so Treino (quinzenal): a 1a caixa cobre as semanas 1-2,
+     a 2a cobre 3-4 (ou 3-4-5, em mes com 5 sextas). weekIdx e o indice real (0 ou 2). */
+  function quinzenalBoxLabel(weekIdx, wk){
+    if(weekIdx === 0) return 'Sem 1/2';
+    return 'Sem 3/4' + (wk >= 5 ? '/5' : '');
+  }
   function engagementRisk(p, monthKey){
     var data = getMonthData(p, monthKey);
     var ativos = activeWeekIndexes(p, monthKey);
@@ -4988,12 +4994,25 @@
     var rows = list.map(function(x){
       var p = x.p, r = x.r;
       var data = getMonthData(p, monthKey);
-      var weekTds = data.engajamento.map(function(v,i){
-        if(!isWeekActive(p, monthKey, i)){
-          return '<td style="padding:8px;"><div class="week-cell week-cell-inativa" title="Só Treino: check-in a cada 14 dias, essa semana não se aplica">·</div></td>';
-        }
-        return '<td style="padding:8px;"><button type="button" class="week-cell-btn" data-week-edit="'+p.id+'|'+i+'" title="Editar engajamento/check-in dessa semana">'+weekCellHtml(v, data.checkin[i])+'</button></td>';
-      }).join('');
+      var weekTds;
+      if(isTreinoQuinzenal(p)){
+        // so Treino: em vez de uma celula por semana (com "." nas que nao se aplicam),
+        // mescla em 2 celulas so — uma cobrindo semanas 1-2, outra 3-4 (ou 3-4-5).
+        weekTds = activeWeekIndexes(p, monthKey).map(function(i){
+          var span = i === 0 ? Math.min(2, wk) : (wk - 2);
+          var label = quinzenalBoxLabel(i, wk);
+          return '<td colspan="'+span+'" style="padding:8px;text-align:center;">'+
+            '<button type="button" class="week-cell-btn" data-week-edit="'+p.id+'|'+i+'" title="Editar engajamento/check-in — '+label+'">'+
+              '<div style="font-size:9.5px;color:var(--text-muted);font-weight:700;margin-bottom:3px;">'+label+'</div>'+
+              weekCellHtml(data.engajamento[i], data.checkin[i])+
+            '</button>'+
+          '</td>';
+        }).join('');
+      } else {
+        weekTds = data.engajamento.map(function(v,i){
+          return '<td style="padding:8px;"><button type="button" class="week-cell-btn" data-week-edit="'+p.id+'|'+i+'" title="Editar engajamento/check-in dessa semana">'+weekCellHtml(v, data.checkin[i])+'</button></td>';
+        }).join('');
+      }
       var avgText = r.avg === null ? '—' : r.avg.toFixed(1);
       var avgCls = avgBadgeClass(r.avg);
       var obsHtml = data.observacoes ? '<div class="obs-cell">'+esc(data.observacoes)+'</div>' : '<span class="cell-muted">—</span>';
@@ -5397,22 +5416,22 @@
     var data = getMonthData(p, monthKey);
     var wk = data.engajamento.length;
     var quinzenal = isTreinoQuinzenal(p);
-    var engHtml = data.engajamento.map(function(v,i){
-      if(!isWeekActive(p, monthKey, i)){
-        return '<div class="eng-item eng-inativa"><div class="wk">Sem '+(i+1)+'</div><div class="num">·</div></div>';
-      }
+    var activeIdx = activeWeekIndexes(p, monthKey);
+    var engChkWk = quinzenal ? activeIdx.length : wk;
+    var engHtml = activeIdx.map(function(i){
+      var v = data.engajamento[i];
       var cls = engColorClass(v);
-      return '<div class="eng-item '+cls+'"><div class="wk">Sem '+(i+1)+'</div><div class="num">'+(v===null?'—':v)+'</div></div>';
+      var label = quinzenal ? quinzenalBoxLabel(i, wk) : ('Sem '+(i+1));
+      return '<div class="eng-item '+cls+'"><div class="wk">'+label+'</div><div class="num">'+(v===null?'—':v)+'</div></div>';
     }).join('');
-    var chkHtml = data.checkin.map(function(v,i){
-      if(!isWeekActive(p, monthKey, i)){
-        return '<div class="checkin-item checkin-inativa"><div class="wk">Sem '+(i+1)+'</div><div class="mark">·</div></div>';
-      }
+    var chkHtml = activeIdx.map(function(i){
+      var v = data.checkin[i];
       var cls = v === true ? 'checkin-yes' : v === false ? 'checkin-no' : 'checkin-empty';
       var mark = v === true ? '✓' : v === false ? '✗' : '—';
-      return '<div class="checkin-item '+cls+'"><div class="wk">Sem '+(i+1)+'</div><div class="mark">'+mark+'</div></div>';
+      var label = quinzenal ? quinzenalBoxLabel(i, wk) : ('Sem '+(i+1));
+      return '<div class="checkin-item '+cls+'"><div class="wk">'+label+'</div><div class="mark">'+mark+'</div></div>';
     }).join('');
-    var quinzenalNota = quinzenal ? '<div class="cell-muted" style="font-size:12px;margin-bottom:6px;">Serviço só Treino: check-in a cada 14 dias (Sem 1 e Sem 3). As demais ficam desativadas.</div>' : '';
+    var quinzenalNota = quinzenal ? '<div class="cell-muted" style="font-size:12px;margin-bottom:6px;">Serviço só Treino: check-in a cada 14 dias — por isso só aparecem 2 caixas, cobrindo Sem 1/2 e Sem 3/4.</div>' : '';
     var obsCheckinHtml = (data.obsCheckin || []).map(function(v,i){
       if(!v) return '';
       return '<div class="obscheckin-item"><b>Sem '+(i+1)+':</b> '+esc(v)+'</div>';
@@ -5450,11 +5469,11 @@
         '<div class="profile-section">'+
           '<h3>Engajamento Semanal</h3>'+
           quinzenalNota+
-          '<div class="engagement-grid" style="grid-template-columns:repeat('+wk+',1fr);">'+engHtml+'</div>'+
+          '<div class="engagement-grid" style="grid-template-columns:repeat('+engChkWk+',1fr);">'+engHtml+'</div>'+
         '</div>'+
         '<div class="profile-section">'+
           '<h3>Check-ins Semanais</h3>'+
-          '<div class="checkin-grid" style="grid-template-columns:repeat('+wk+',1fr);">'+chkHtml+'</div>'+
+          '<div class="checkin-grid" style="grid-template-columns:repeat('+engChkWk+',1fr);">'+chkHtml+'</div>'+
         '</div>'+
         '<div class="profile-section">'+
           '<h3>Observações do Check-in</h3>'+
@@ -6316,9 +6335,16 @@
         if(tr.closest('table') !== t) return; // linha de tabela aninhada (ex: historico de peso)
         var tds = tr.children;
         if(tds.length < 2) return;
+        // celulas com colspan (ex: semanas mescladas de quem e so Treino) avancam o
+        // ponteiro do cabecalho mais de 1 posicao, senao as colunas seguintes (Media,
+        // Observacoes) pegariam o rotulo errado. A propria celula mesclada ja mostra
+        // seu rotulo por dentro, entao nao precisa repetir com data-label.
+        var labelIdx = 0;
         for(var i=0;i<tds.length;i++){
-          if(labels[i]) tds[i].setAttribute('data-label', labels[i]);
+          var span = tds[i].colSpan || 1;
+          if(span === 1 && labels[labelIdx]) tds[i].setAttribute('data-label', labels[labelIdx]);
           else tds[i].removeAttribute('data-label');
+          labelIdx += span;
         }
       });
     });
