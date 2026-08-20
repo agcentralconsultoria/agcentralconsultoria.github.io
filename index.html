@@ -5364,14 +5364,24 @@
     bindInfoIcons(content);
   }
 
+  /* Backup completo: pacientes + modelos de Jornada + lista de grupamentos musculares.
+     Formato novo e um objeto com essas 3 chaves. O import continua aceitando o formato
+     antigo (so um array de pacientes) pra nao quebrar backups feitos antes dessa mudanca. */
   function exportData(){
-    var dataStr = JSON.stringify(state.patients, null, 2);
+    var payload = {
+      backupVersion: 2,
+      exportedAt: new Date().toISOString(),
+      patients: state.patients,
+      jornadaTemplates: state.jornadaTemplates,
+      grupoMuscularList: state.grupoMuscularList
+    };
+    var dataStr = JSON.stringify(payload, null, 2);
     var blob = new Blob([dataStr], { type: 'application/json' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     var stamp = new Date().toISOString().slice(0,10);
     a.href = url;
-    a.download = 'angelo-garcia-pacientes-' + stamp + '.json';
+    a.download = 'angelo-garcia-crm-backup-' + stamp + '.json';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -5385,15 +5395,30 @@
       var parsed;
       try{
         parsed = JSON.parse(e.target.result);
-        if(!Array.isArray(parsed)) throw new Error('formato inválido');
       }catch(err){
         alert('Arquivo inválido. Selecione um backup JSON exportado pelo CRM.');
         return;
       }
-      var ok = confirm('Importar ' + parsed.length + ' paciente(s)? Isso vai substituir todos os dados atuais.');
+      // formato antigo: so um array de pacientes, sem modelos/grupos
+      var isLegacy = Array.isArray(parsed);
+      var patients = isLegacy ? parsed : parsed.patients;
+      if(!Array.isArray(patients)){
+        alert('Arquivo inválido. Selecione um backup JSON exportado pelo CRM.');
+        return;
+      }
+      var extras = isLegacy ? '' : ' + modelos de Jornada + grupamentos musculares';
+      var ok = confirm('Importar ' + patients.length + ' paciente(s)' + extras + '? Isso vai substituir todos os dados atuais.');
       if(!ok) return;
-      state.patients = parsed;
+      state.patients = patients;
       savePatients();
+      if(!isLegacy && parsed.jornadaTemplates){
+        state.jornadaTemplates = parsed.jornadaTemplates;
+        saveJornadaTemplates();
+      }
+      if(!isLegacy && Array.isArray(parsed.grupoMuscularList) && parsed.grupoMuscularList.length){
+        state.grupoMuscularList = parsed.grupoMuscularList;
+        saveGrupoMuscularList();
+      }
       render();
       showToast('Dados importados com sucesso.', 'success');
     };
