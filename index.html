@@ -1291,6 +1291,23 @@
       '</svg>'+
     '</div>';
   }
+  /* Acha um slot livre pra um NOVO registro de peso naquele mes (sem reaproveitar o
+     slot de outro registro ja existente). Peso pode ser pesado em qualquer dia, nao so
+     sexta — entao nao da pra usar "semana" pra escolher o slot: dias antes da 1a sexta
+     do mes (ex: 1 a 6/ago quando a 1a sexta e dia 7) colidiam com o slot da propria 1a
+     sexta, e um registro sobrescrevia o outro em silencio. */
+  function nextFreePesoSlot(p, monthKey){
+    if(!p.meses) p.meses = {};
+    if(!p.meses[monthKey]) p.meses[monthKey] = {};
+    var m = p.meses[monthKey];
+    var wk = weeksInMonth(monthKey);
+    if(!Array.isArray(m.peso)) m.peso = [];
+    if(!Array.isArray(m.pesoData)) m.pesoData = [];
+    while(m.peso.length < wk) m.peso.push(null);
+    while(m.pesoData.length < wk) m.pesoData.push(null);
+    var free = m.pesoData.indexOf(null);
+    return free !== -1 ? free : m.peso.length;
+  }
   function updatePesoEntry(patientId, monthKey, weekIndex, value, dateStr){
     var p = getPatient(patientId);
     if(!p) return;
@@ -1422,15 +1439,6 @@
         '<div class="peso-history-right">'+pesoChartHtml(list)+'</div>'+
       '</div>'+
     '</div>';
-  }
-  function weekIndexForDate(monthKey, dateStr){
-    var wk = weeksInMonth(monthKey);
-    var idx = 0;
-    for(var i=0;i<wk;i++){
-      var friday = nthFridayDate(monthKey, i);
-      if(friday && friday <= dateStr) idx = i;
-    }
-    return idx;
   }
   function getMonthData(p, key){
     var wk = weeksInMonth(key);
@@ -5267,7 +5275,7 @@
           return;
         }
         var addMonthKey = addDate.slice(0,7);
-        var addWeekIndex = weekIndexForDate(addMonthKey, addDate);
+        var addWeekIndex = nextFreePesoSlot(getPatient(addPid), addMonthKey);
         updatePesoEntry(addPid, addMonthKey, addWeekIndex, addValue, addDate);
         state.pesoEditingKey = null;
         refreshOverviewTable();
