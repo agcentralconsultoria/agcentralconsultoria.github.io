@@ -241,11 +241,34 @@
     padding:4px 6px;border:1px solid var(--border);border-radius:7px;font-size:11.5px;
     font-family:inherit;background:var(--white);color:var(--text);max-width:200px;
   }
+  /* ---- Ficha de dieta: tipo linear x ciclo de carboidrato ---- */
+  .dieta-variacao-box{
+    border:1px solid var(--border);border-radius:9px;padding:12px;margin-top:10px;background:#FAFAFA;
+  }
+  .dieta-variacao-nome{
+    width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:7px;
+    font-size:13.5px;font-weight:600;font-family:inherit;color:var(--text);background:var(--white);
+  }
+  .dieta-variacao-nome:focus{outline:none;border-color:var(--primary);}
+  .dias-semana-row{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px;}
+  .dia-semana-btn{
+    padding:6px 11px;border:1px solid var(--border);border-radius:7px;background:var(--white);
+    font-size:12.5px;font-weight:600;color:var(--text-muted);cursor:pointer;font-family:inherit;
+  }
+  .dia-semana-btn:hover{border-color:var(--primary);color:var(--primary);}
+  .dia-semana-btn.active{background:var(--primary);border-color:var(--primary);color:#fff;}
+  .dieta-ciclo-aviso{font-size:12px;margin-top:8px;line-height:1.5;}
+  .dieta-ciclo-aviso.ok{color:var(--success);}
+  .dieta-ciclo-aviso.alerta{color:var(--danger);}
   .compare-legend{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 2px;}
   .compare-legend-item{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--text-muted);}
   .volume-compare-chart{display:flex;align-items:flex-end;gap:22px;overflow-x:auto;padding:8px 4px 0;}
   .volume-compare-group{display:flex;flex-direction:column;align-items:center;flex-shrink:0;}
-  .volume-compare-bars{display:flex;align-items:flex-end;gap:14px;height:90px;}
+  .volume-compare-bars{display:flex;align-items:flex-end;height:90px;}
+  /* As barras de uma mesma ficha ficam juntas (gap menor); o espaco maior entre fichas
+     vem do gap da .volume-compare-bars, definido no JS conforme o caso. O gap de 14px
+     aqui e o minimo que impede os numeros em cima das barras de se encostarem. */
+  .volume-compare-subgroup{display:flex;align-items:flex-end;gap:14px;height:100%;}
   .volume-compare-bar-col{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;width:16px;height:100%;}
   .volume-compare-bar-val{font-size:9px;font-weight:700;margin-bottom:1px;color:var(--text);white-space:nowrap;}
   .volume-compare-bar-gkg{font-size:8px;color:var(--text-muted);margin-bottom:1px;white-space:nowrap;}
@@ -916,6 +939,74 @@
     { key:'carboidratos', label:'Carboidratos (g)' },
     { key:'gorduras', label:'Gorduras (g)' }
   ];
+  var MACRO_KEYS_ALL = ['calorias','proteinas','carboidratos','gorduras','fibras'];
+  var DIAS_SEMANA = [
+    { key:'seg', label:'Seg' }, { key:'ter', label:'Ter' }, { key:'qua', label:'Qua' },
+    { key:'qui', label:'Qui' }, { key:'sex', label:'Sex' }, { key:'sab', label:'Sáb' },
+    { key:'dom', label:'Dom' }
+  ];
+  /* ---- Ficha de dieta: linear (1 dieta pra semana toda) x ciclo de carboidrato
+     (2 dietas alternando por dia da semana, ex: carbo alto seg/qua/sex e carbo baixo
+     no resto). Ficha sem "tipo" e linear — e o formato antigo, continua valendo. ---- */
+  function isDietaCiclo(f){
+    return !!f && f.tipo === 'ciclo' && Array.isArray(f.variacoes) && f.variacoes.length === 2;
+  }
+  function novaVariacaoDieta(nome){
+    return { nome: nome, dias: [], calorias:'', proteinas:'', carboidratos:'', gorduras:'', fibras:'' };
+  }
+  /* Ao virar ciclo, a variacao 1 herda os macros que ja estavam na ficha linear. */
+  function ensureDietaVariacoes(f){
+    if(Array.isArray(f.variacoes) && f.variacoes.length === 2) return f.variacoes;
+    var v1 = novaVariacaoDieta('Carbo alto');
+    MACRO_KEYS_ALL.forEach(function(k){ if(f[k] !== undefined && f[k] !== null) v1[k] = f[k]; });
+    f.variacoes = [v1, novaVariacaoDieta('Carbo baixo')];
+    return f.variacoes;
+  }
+  function diasDaVariacao(v){
+    return Array.isArray(v && v.dias) ? v.dias : [];
+  }
+  /* Cada ficha vira 1 serie no grafico (linear) ou 2 series (ciclo, uma por variacao).
+     O rotulo do ciclo carrega o nome e a quantidade de dias: "20/08 · Carbo alto (3d)". */
+  function dietaSeriesDaFicha(f){
+    if(isDietaCiclo(f)){
+      return f.variacoes.map(function(v, i){
+        var nDias = diasDaVariacao(v).length;
+        return {
+          ficha: f, variacao: v, variacaoIndex: i,
+          label: formatDate(f.dataPassado) + ' · ' + (v.nome || ('Variação '+(i+1))) + (nDias ? ' ('+nDias+'d)' : ''),
+          get: function(key){ return parseFloat(v[key]) || 0; }
+        };
+      });
+    }
+    return [{
+      ficha: f, variacao: null, variacaoIndex: 0,
+      label: formatDate(f.dataPassado),
+      get: function(key){ return parseFloat(f[key]) || 0; }
+    }];
+  }
+  /* Total de kcal da semana: linear e o valor do dia x7; ciclo soma cada variacao
+     multiplicada pelos dias dela. Retorna null se nao der pra calcular. */
+  function dietaKcalSemana(f){
+    if(isDietaCiclo(f)){
+      var total = 0, temDias = false;
+      f.variacoes.forEach(function(v){
+        var n = diasDaVariacao(v).length;
+        if(n) temDias = true;
+        total += (parseFloat(v.calorias) || 0) * n;
+      });
+      return temDias ? total : null;
+    }
+    var kcal = parseFloat(f.calorias) || 0;
+    return kcal ? kcal * 7 : null;
+  }
+  function fichaDietaTemMacro(f){
+    if(isDietaCiclo(f)){
+      return f.variacoes.some(function(v){
+        return MACRO_CATEGORIES.some(function(cat){ return (parseFloat(v[cat.key])||0) > 0; });
+      });
+    }
+    return MACRO_CATEGORIES.some(function(cat){ return (parseFloat(f[cat.key])||0) > 0; });
+  }
   function latestPesoAtual(p){
     if(!p) return null;
     var hist = pesoHistoryList(p);
@@ -4292,6 +4383,80 @@
       '</tr>';
     }).join('');
   }
+  /* Campos de macro de UMA dieta — serve tanto pra ficha linear (source = a propria
+     ficha, vIdx = null) quanto pra cada variacao do ciclo (source = a variacao). */
+  function macroInputsHtml(source, attrPrefix, fichaId, vIdx){
+    var vAttr = vIdx === null ? '' : ' data-'+attrPrefix+'-var="'+vIdx+'"';
+    return MACRO_CATEGORIES.map(function(cat){
+      var val = (source[cat.key] !== undefined && source[cat.key] !== null) ? source[cat.key] : '';
+      return '<div><div class="mini-label">'+esc(cat.label)+'</div><input type="number" min="0" step="1" data-'+attrPrefix+'-macro="'+cat.key+'" data-'+attrPrefix+'-id="'+fichaId+'"'+vAttr+' value="'+esc(String(val))+'" placeholder="0"></div>';
+    }).join('') + (function(){
+      // Fibras fica fora do MACRO_CATEGORIES de proposito, pra nao entrar no
+      // grafico de distribuicao nem no g/kg -- so o campo de gramas mesmo.
+      var val = (source.fibras !== undefined && source.fibras !== null) ? source.fibras : '';
+      return '<div><div class="mini-label">Fibras (g)</div><input type="number" min="0" step="1" data-'+attrPrefix+'-macro="fibras" data-'+attrPrefix+'-id="'+fichaId+'"'+vAttr+' value="'+esc(String(val))+'" placeholder="0"></div>';
+    })();
+  }
+  function macroColumnsHtml(source, attrPrefix, fichaId, vIdx, pesoAtual){
+    return '<div class="macro-columns">'+
+      '<div class="macro-col"><div class="mini-label" style="text-align:left;">Nutrientes do Cardápio</div>'+
+        '<div class="volume-grupo-grid" style="grid-template-columns:1fr;">'+macroInputsHtml(source, attrPrefix, fichaId, vIdx)+'</div></div>'+
+      '<div class="macro-col">'+macroGkgHtml(source, pesoAtual)+'<div style="margin-top:14px;">'+macroDistributionHtml(source)+'</div></div>'+
+    '</div>';
+  }
+  function diasSemanaPickerHtml(v, attrPrefix, fichaId, vIdx){
+    var dias = diasDaVariacao(v);
+    var botoes = DIAS_SEMANA.map(function(d){
+      var on = dias.indexOf(d.key) !== -1;
+      return '<button type="button" class="dia-semana-btn'+(on?' active':'')+'" data-'+attrPrefix+'-dia="'+d.key+'" data-'+attrPrefix+'-id="'+fichaId+'" data-'+attrPrefix+'-var="'+vIdx+'">'+d.label+'</button>';
+    }).join('');
+    return '<div class="mini-label" style="text-align:left;margin-top:10px;">Dias da semana desta variação</div>'+
+      '<div class="dias-semana-row">'+botoes+'</div>';
+  }
+  /* Confere se as 2 variacoes cobrem os 7 dias sem repetir nenhum. */
+  function cicloDiasAvisoHtml(f){
+    var d0 = diasDaVariacao(f.variacoes[0]), d1 = diasDaVariacao(f.variacoes[1]);
+    var repetidos = d0.filter(function(k){ return d1.indexOf(k) !== -1; });
+    var total = d0.length + d1.length;
+    if(repetidos.length){
+      var nomes = repetidos.map(function(k){
+        return (DIAS_SEMANA.filter(function(d){ return d.key === k; })[0] || {}).label;
+      }).join(', ');
+      return '<div class="dieta-ciclo-aviso alerta">⚠ '+esc(nomes)+' está nas duas variações. Cada dia deve ficar em só uma.</div>';
+    }
+    if(total === 7) return '<div class="dieta-ciclo-aviso ok">✓ Os 7 dias da semana estão cobertos ('+d0.length+' + '+d1.length+').</div>';
+    if(total === 0) return '<div class="dieta-ciclo-aviso">Marque os dias de cada variação pra calcular o total da semana.</div>';
+    var faltam = 7 - total;
+    return '<div class="dieta-ciclo-aviso alerta">⚠ '+total+' de 7 dias marcados'+(faltam>0?(' — faltam '+faltam):(' — '+Math.abs(faltam)+' a mais'))+'.</div>';
+  }
+  function dietaMacroFieldsHtml(f, attrPrefix, pesoAtual){
+    var ciclo = isDietaCiclo(f);
+    var toggle = '<div class="mini-label" style="text-align:left;margin-top:12px;">Formato da dieta</div>'+
+      '<div class="meta-type-toggle">'+
+        '<button type="button" class="meta-type-btn'+(!ciclo?' active':'')+'" data-'+attrPrefix+'-tipo="linear" data-'+attrPrefix+'-id="'+f.id+'">Dieta linear</button>'+
+        '<button type="button" class="meta-type-btn'+(ciclo?' active':'')+'" data-'+attrPrefix+'-tipo="ciclo" data-'+attrPrefix+'-id="'+f.id+'">Ciclo de carboidrato</button>'+
+      '</div>';
+    if(!ciclo){
+      return toggle +
+        '<div class="mini-label" style="text-align:left;margin-top:10px;">Calorias e macronutrientes</div>'+
+        macroColumnsHtml(f, attrPrefix, f.id, null, pesoAtual);
+    }
+    var blocos = f.variacoes.map(function(v, i){
+      var nDias = diasDaVariacao(v).length;
+      return '<div class="dieta-variacao-box">'+
+        '<div class="mini-label" style="text-align:left;">Nome da variação '+(i+1)+(nDias?(' · '+nDias+(nDias===1?' dia':' dias')):'')+'</div>'+
+        '<input type="text" class="dieta-variacao-nome" data-'+attrPrefix+'-varnome="'+i+'" data-'+attrPrefix+'-id="'+f.id+'" value="'+esc(v.nome||'')+'" placeholder="Ex: Carbo alto">'+
+        diasSemanaPickerHtml(v, attrPrefix, f.id, i)+
+        '<div class="mini-label" style="text-align:left;margin-top:10px;">Calorias e macronutrientes</div>'+
+        macroColumnsHtml(v, attrPrefix, f.id, i, pesoAtual)+
+      '</div>';
+    }).join('');
+    var kcalSemana = dietaKcalSemana(f);
+    var totalHtml = kcalSemana === null ? '' :
+      '<div style="margin-top:10px;font-size:13px;"><b>Total da semana: '+fmtNum(kcalSemana)+' kcal</b> '+
+      '<span class="cell-muted">(média de '+fmtNum(Math.round(kcalSemana/7))+' kcal/dia)</span></div>';
+    return toggle + blocos + cicloDiasAvisoHtml(f) + totalHtml;
+  }
   function fichaItemsHtml(list, openMap, attrPrefix, kind, pesoAtual){
     var items = list.map(function(f, idx){
       var isCurrent = idx === 0;
@@ -4310,20 +4475,7 @@
       var extraFieldsHtml = '';
       if(isOpen){
         if(kind === 'dieta'){
-          var macroInputs = MACRO_CATEGORIES.map(function(cat){
-            var val = (f[cat.key] !== undefined && f[cat.key] !== null) ? f[cat.key] : '';
-            return '<div><div class="mini-label">'+esc(cat.label)+'</div><input type="number" min="0" step="1" data-'+attrPrefix+'-macro="'+cat.key+'" data-'+attrPrefix+'-id="'+f.id+'" value="'+esc(String(val))+'" placeholder="0"></div>';
-          }).join('') + (function(){
-            // Fibras fica fora do MACRO_CATEGORIES de proposito, pra nao entrar no
-            // grafico de distribuicao nem no g/kg -- so o campo de gramas mesmo.
-            var val = (f.fibras !== undefined && f.fibras !== null) ? f.fibras : '';
-            return '<div><div class="mini-label">Fibras (g)</div><input type="number" min="0" step="1" data-'+attrPrefix+'-macro="fibras" data-'+attrPrefix+'-id="'+f.id+'" value="'+esc(String(val))+'" placeholder="0"></div>';
-          })();
-          extraFieldsHtml = '<div class="mini-label" style="text-align:left;margin-top:10px;">Calorias e macronutrientes</div>'+
-            '<div class="macro-columns">'+
-              '<div class="macro-col"><div class="mini-label" style="text-align:left;">Nutrientes do Cardápio</div><div class="volume-grupo-grid" style="grid-template-columns:1fr;">'+macroInputs+'</div></div>'+
-              '<div class="macro-col">'+macroGkgHtml(f, pesoAtual)+'<div style="margin-top:14px;">'+macroDistributionHtml(f)+'</div></div>'+
-            '</div>';
+          extraFieldsHtml = dietaMacroFieldsHtml(f, attrPrefix, pesoAtual);
         } else {
           var grupoInputs = state.grupoMuscularList.slice().sort(function(a,b){ return a.localeCompare(b, 'pt-BR'); }).map(function(g){
             var val = (f.volumePorGrupo && f.volumePorGrupo[g] !== undefined) ? f.volumePorGrupo[g] : '';
@@ -4385,25 +4537,61 @@
     return { chrono: chrono, html: '<div class="compare-chips">'+chipsHtml+picker+'</div>' };
   }
   function fmtNum(v){ return v % 1 === 0 ? String(v) : v.toFixed(1); }
-  function compareBarsHtml(categories, chrono, getVal, opts){
+  /* Desenha as barras a partir de "series" ja prontas. Cada serie tem um get(categoria)
+     e um groupId: series com o mesmo groupId ficam coladas (mesma ficha, ex: carbo alto
+     e carbo baixo), e o espaco maior separa uma ficha da outra. */
+  function compareBarsFromSeriesHtml(categories, series, opts){
     opts = opts || {};
     var max = 0;
-    categories.forEach(function(cat){ chrono.forEach(function(f){ max = Math.max(max, getVal(f, cat)); }); });
+    categories.forEach(function(cat){
+      series.forEach(function(s){ max = Math.max(max, s.get(cat.key !== undefined ? cat.key : cat)); });
+    });
     if(max <= 0) max = 1;
+    // agrupa mantendo a ordem de entrada
+    var groups = [], byId = {};
+    series.forEach(function(s, idx){
+      var gid = s.groupId === undefined ? idx : s.groupId;
+      if(byId[gid] === undefined){ byId[gid] = groups.length; groups.push([]); }
+      groups[byId[gid]].push({ s: s, colorIdx: idx });
+    });
+    var temPar = groups.some(function(g){ return g.length > 1; });
+    // sem pares, o espacamento entre barras e o de sempre (14px, dentro do subgrupo)
+    var gapEntreFichas = temPar ? 26 : 14;
     return categories.map(function(cat){
-      var showGkgForCat = opts.showGkg && opts.pesoAtual && cat && cat.key && cat.key !== 'calorias';
-      var cols = chrono.map(function(f, idx){
-        var val = getVal(f, cat);
-        var pct = val>0 ? Math.max(Math.round((val/max)*100), 4) : 0;
-        var gkgHtml = showGkgForCat && val ? '<div class="volume-compare-bar-gkg">'+(val/opts.pesoAtual).toFixed(1)+' g/kg</div>' : '';
-        return '<div class="volume-compare-bar-col"><div class="volume-compare-bar-val">'+(val?fmtNum(val):'')+'</div>'+gkgHtml+'<div class="volume-compare-bar" style="height:'+pct+'%;background:'+chartColorFor(idx)+';"></div></div>';
+      var catKey = cat.key !== undefined ? cat.key : cat;
+      var showGkgForCat = opts.showGkg && opts.pesoAtual && catKey && catKey !== 'calorias';
+      var subgroups = groups.map(function(g){
+        var cols = g.map(function(item){
+          var val = item.s.get(catKey);
+          var pct = val>0 ? Math.max(Math.round((val/max)*100), 4) : 0;
+          var gkgHtml = showGkgForCat && val ? '<div class="volume-compare-bar-gkg">'+(val/opts.pesoAtual).toFixed(1)+' g/kg</div>' : '';
+          return '<div class="volume-compare-bar-col"><div class="volume-compare-bar-val">'+(val?fmtNum(val):'')+'</div>'+gkgHtml+'<div class="volume-compare-bar" style="height:'+pct+'%;background:'+chartColorFor(item.colorIdx)+';"></div></div>';
+        }).join('');
+        return '<div class="volume-compare-subgroup">'+cols+'</div>';
       }).join('');
-      return '<div class="volume-compare-group"><div class="volume-compare-bars">'+cols+'</div><div class="volume-compare-label">'+esc(cat.label||cat)+'</div></div>';
+      return '<div class="volume-compare-group"><div class="volume-compare-bars" style="gap:'+gapEntreFichas+'px;">'+subgroups+'</div>'+
+        '<div class="volume-compare-label">'+esc(cat.label||cat)+'</div></div>';
     }).join('');
+  }
+  /* Compatibilidade: o grafico de volume por grupo muscular continua chamando assim,
+     com uma ficha por serie (sem pares). */
+  function compareBarsHtml(categories, chrono, getVal, opts){
+    var series = chrono.map(function(f, idx){
+      return { groupId: idx, get: function(catKey){
+        var cat = categories.filter(function(c){ return (c.key !== undefined ? c.key : c) === catKey; })[0];
+        return getVal(f, cat !== undefined ? cat : catKey);
+      } };
+    });
+    return compareBarsFromSeriesHtml(categories, series, opts);
   }
   function compareLegendHtml(chrono){
     return '<div class="compare-legend">'+chrono.map(function(f,idx){
       return '<span class="compare-legend-item"><span class="compare-chip-dot" style="background:'+chartColorFor(idx)+';"></span>'+formatDate(f.dataPassado)+'</span>';
+    }).join('')+'</div>';
+  }
+  function compareLegendFromSeriesHtml(series){
+    return '<div class="compare-legend">'+series.map(function(s,idx){
+      return '<span class="compare-legend-item"><span class="compare-chip-dot" style="background:'+chartColorFor(idx)+';"></span>'+esc(s.label)+'</span>';
     }).join('')+'</div>';
   }
   function fichasTreinoComVolume(p){
@@ -4412,9 +4600,7 @@
     });
   }
   function fichasDietaComMacro(p){
-    return fichasDietaOrdenadas(p).filter(function(f){
-      return MACRO_CATEGORIES.some(function(cat){ return (parseFloat(f[cat.key])||0) > 0; });
-    });
+    return fichasDietaOrdenadas(p).filter(fichaDietaTemMacro);
   }
   function seedDefaultCompareSelections(p){
     state.volumeCompareSelected[p.id] = fichasTreinoComVolume(p).slice(0,2).map(function(f){ return f.id; });
@@ -4527,20 +4713,44 @@
     var chrono = cp.chrono;
     if(!chrono.length) return { chips: cp.html, chart: '<div class="empty-state" style="padding:12px;">Selecione uma data pra ver o gráfico (ou 2+ pra comparar).</div>' };
     var pesoAtual = latestPesoAtual(p);
-    var bars = compareBarsHtml(MACRO_CATEGORIES, chrono, function(f, cat){ return parseFloat(f[cat.key]) || 0; }, { pesoAtual: pesoAtual, showGkg: state.dietaCompareShowGkg });
+    // cada ficha vira 1 serie (linear) ou 2 (ciclo). O groupId mantem as duas variacoes
+    // de uma mesma ficha coladas no grafico.
+    var series = [];
+    chrono.forEach(function(f, fichaIdx){
+      dietaSeriesDaFicha(f).forEach(function(s){
+        s.groupId = fichaIdx;
+        series.push(s);
+      });
+    });
+    var bars = compareBarsFromSeriesHtml(MACRO_CATEGORIES, series, { pesoAtual: pesoAtual, showGkg: state.dietaCompareShowGkg });
     var summary = '';
-    if(chrono.length >= 2){
-      var first = chrono[0], last = chrono[chrono.length-1];
+    if(series.length >= 2){
+      var first = series[0], last = series[series.length-1];
       var summaryParts = MACRO_CATEGORIES.map(function(cat){
-        var vf = parseFloat(first[cat.key])||0, vl = parseFloat(last[cat.key])||0;
-        var d = vl - vf;
+        var d = last.get(cat.key) - first.get(cat.key);
         var shortLabel = cat.key==='calorias'?'kcal':cat.key==='proteinas'?'prot':cat.key==='carboidratos'?'carbo':'gord';
         var unit = cat.key==='calorias'?' kcal':'g';
         return shortLabel+' '+(d>=0?'↑ +':'↓ ')+d.toFixed(1)+unit;
       });
-      summary = '<div class="cell-muted" style="margin-top:8px;">Variação ('+formatDate(first.dataPassado)+' → '+formatDate(last.dataPassado)+'): '+summaryParts.join(' · ')+'</div>';
+      summary = '<div class="cell-muted" style="margin-top:8px;">Variação ('+esc(first.label)+' → '+esc(last.label)+'): '+summaryParts.join(' · ')+'</div>';
     }
-    return { chips: cp.html, chart: compareLegendHtml(chrono) + '<div class="volume-compare-chart">'+bars+'</div>' + summary };
+    // total de kcal da semana, por ficha — é o que compara dieta linear com ciclo de
+    // forma justa, já que no ciclo o valor do dia sozinho não conta a história toda.
+    var semanaHtml = '';
+    var semanas = chrono.map(function(f){ return { f: f, kcal: dietaKcalSemana(f) }; })
+                        .filter(function(x){ return x.kcal !== null; });
+    if(semanas.length){
+      var partes = semanas.map(function(x){
+        return formatDate(x.f.dataPassado)+': <b>'+fmtNum(x.kcal)+' kcal</b>';
+      }).join(' · ');
+      var deltaTxt = '';
+      if(semanas.length >= 2){
+        var d = semanas[semanas.length-1].kcal - semanas[0].kcal;
+        deltaTxt = ' — '+(d>=0?'↑ +':'↓ ')+fmtNum(Math.abs(d))+' kcal na semana';
+      }
+      semanaHtml = '<div class="cell-muted" style="margin-top:6px;">Total da semana — '+partes+deltaTxt+'</div>';
+    }
+    return { chips: cp.html, chart: compareLegendFromSeriesHtml(series) + '<div class="volume-compare-chart">'+bars+'</div>' + summary + semanaHtml };
   }
   function dietaCompareChartHtml(p){
     var gkgBtn = '<button type="button" class="compare-gkg-toggle-btn'+(state.dietaCompareShowGkg?' active':'')+'" id="dietaCompareGkgToggleBtn" title="Mostrar/ocultar distribuição por kg de peso corporal">g/kg</button>';
@@ -4802,6 +5012,58 @@
     root.innerHTML = fichaDietaListHtml(p);
     bindFichaDietaListEvents();
   }
+  /* Liga os campos de macro / tipo / dias da ficha de dieta. Serve pros dois caminhos:
+     o perfil do paciente (grava direto no paciente) e o formulario de cadastro/edicao
+     (grava no rascunho). O que muda entre eles e so o getFicha e o onChange. */
+  function bindDietaFichaFieldEvents(root, attrPrefix, getFicha, onChange){
+    function fichaFrom(el){
+      return getFicha(parseInt(el.getAttribute('data-'+attrPrefix+'-id'),10));
+    }
+    root.querySelectorAll('[data-'+attrPrefix+'-macro]').forEach(function(el){
+      el.addEventListener('change', function(){
+        var f = fichaFrom(this);
+        if(!f) return;
+        var key = this.getAttribute('data-'+attrPrefix+'-macro');
+        var vRaw = this.getAttribute('data-'+attrPrefix+'-var');
+        var val = this.value === '' ? '' : parseFloat(this.value);
+        if(vRaw === null){ f[key] = val; }
+        else { ensureDietaVariacoes(f)[parseInt(vRaw,10)][key] = val; }
+        onChange();
+      });
+    });
+    root.querySelectorAll('[data-'+attrPrefix+'-tipo]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var f = fichaFrom(this);
+        if(!f) return;
+        var tipo = this.getAttribute('data-'+attrPrefix+'-tipo');
+        if(tipo === 'ciclo'){ ensureDietaVariacoes(f); f.tipo = 'ciclo'; }
+        else { f.tipo = 'linear'; } // mantem as variacoes gravadas, caso volte pro ciclo
+        onChange();
+      });
+    });
+    root.querySelectorAll('[data-'+attrPrefix+'-varnome]').forEach(function(el){
+      el.addEventListener('blur', function(){
+        var f = fichaFrom(this);
+        if(!f) return;
+        var i = parseInt(this.getAttribute('data-'+attrPrefix+'-varnome'),10);
+        ensureDietaVariacoes(f)[i].nome = this.value.trim();
+        onChange();
+      });
+    });
+    root.querySelectorAll('[data-'+attrPrefix+'-dia]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var f = fichaFrom(this);
+        if(!f) return;
+        var dia = this.getAttribute('data-'+attrPrefix+'-dia');
+        var i = parseInt(this.getAttribute('data-'+attrPrefix+'-var'),10);
+        var v = ensureDietaVariacoes(f)[i];
+        if(!Array.isArray(v.dias)) v.dias = [];
+        var pos = v.dias.indexOf(dia);
+        if(pos === -1) v.dias.push(dia); else v.dias.splice(pos, 1);
+        onChange();
+      });
+    });
+  }
   function bindFichaDietaListEvents(){
     var root = document.getElementById('fichaDietaListRoot');
     if(!root) return;
@@ -4822,13 +5084,13 @@
         if(field !== 'expectativa') refreshFichaDietaList();
       });
     });
-    root.querySelectorAll('[data-ficha-dieta-macro]').forEach(function(el){
-      el.addEventListener('change', function(){
-        var fid = parseInt(this.getAttribute('data-ficha-dieta-id'),10);
-        var key = this.getAttribute('data-ficha-dieta-macro');
-        updateFichaDieta(state.activeId, fid, key, this.value === '' ? '' : parseFloat(this.value));
-        refreshFichaDietaList();
-      });
+    bindDietaFichaFieldEvents(root, 'ficha-dieta', function(fid){
+      var p = getPatient(state.activeId);
+      if(!p || !p.fichasDieta) return null;
+      return p.fichasDieta.filter(function(x){ return x.id === fid; })[0] || null;
+    }, function(){
+      savePatients();
+      refreshFichaDietaList();
     });
     root.querySelectorAll('[data-ficha-dieta-remove]').forEach(function(btn){
       btn.addEventListener('click', function(){
@@ -4909,13 +5171,10 @@
         if(field !== 'expectativa') refreshFichaDietaDraftList();
       });
     });
-    root.querySelectorAll('[data-ficha-dieta-draft-macro]').forEach(function(el){
-      el.addEventListener('change', function(){
-        var fid = parseInt(this.getAttribute('data-ficha-dieta-draft-id'),10);
-        var key = this.getAttribute('data-ficha-dieta-draft-macro');
-        var f = state.formDraftFichasDieta.filter(function(x){ return x.id === fid; })[0];
-        if(f){ f[key] = this.value === '' ? '' : parseFloat(this.value); }
-      });
+    bindDietaFichaFieldEvents(root, 'ficha-dieta-draft', function(fid){
+      return state.formDraftFichasDieta.filter(function(x){ return x.id === fid; })[0] || null;
+    }, function(){
+      refreshFichaDietaDraftList();
     });
     root.querySelectorAll('[data-ficha-dieta-draft-remove]').forEach(function(btn){
       btn.addEventListener('click', function(){
