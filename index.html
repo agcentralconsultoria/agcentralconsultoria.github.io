@@ -257,6 +257,15 @@
   }
   .dia-semana-btn:hover{border-color:var(--primary);color:var(--primary);}
   .dia-semana-btn.active{background:var(--primary);border-color:var(--primary);color:#fff;}
+  .dieta-livres-row{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin-top:6px;}
+  .dieta-livres-row > .mini-label{flex:1 1 180px;min-width:0;margin-bottom:0;}
+  .dieta-livres-input{display:flex;align-items:center;gap:6px;flex:0 0 auto;}
+  .dieta-livres-input input{
+    width:110px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;
+    font-size:13.5px;font-family:inherit;color:var(--text);background:var(--white);text-align:center;
+  }
+  .dieta-livres-input input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-light);}
+  .dieta-livres-input span{font-size:12.5px;color:var(--text-muted);font-weight:600;}
   .dieta-ciclo-aviso{font-size:12px;margin-top:8px;line-height:1.5;}
   .dieta-ciclo-aviso.ok{color:var(--success);}
   .dieta-ciclo-aviso.alerta{color:var(--danger);}
@@ -494,7 +503,7 @@
   .monthly-trend-drill-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-size:12.5px;font-weight:600;}
   .monthly-trend-drill table{width:100%;font-size:12.5px;}
   .monthly-trend-drill th,.monthly-trend-drill td{padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);}
-  .meta-type-toggle{display:flex;gap:6px;margin:6px 0 10px;}
+  .meta-type-toggle{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px;}
   .meta-type-btn{
     padding:6px 12px;border:1px solid var(--border);border-radius:7px;background:var(--white);
     font-size:12.5px;font-weight:600;color:var(--text-muted);cursor:pointer;font-family:inherit;
@@ -865,6 +874,11 @@
        ordenar caber do lado dela com folga, em vez de os dois se espremerem/sobreporem. */
     .jornada-select-row > .jornada-kanban-search-wrap{min-width:120px;}
 
+    /* Dias da semana do ciclo de carboidrato: no celular os 7 nao cabem numa linha e
+       sobrava "Dom" sozinho embaixo, com cara de quebrado. Em 4 por linha fica 4+3,
+       que parece proposital e mantem o alvo de toque grande. */
+    .dias-semana-row .dia-semana-btn{flex:1 1 calc(25% - 4px);text-align:center;padding:9px 4px;}
+
     /* Arquivo/Afazeres: numa tela estreita o nome da tarefa quebra em varias linhas;
        sem isso o badge e os botoes ficavam centralizados por cima do texto quebrado. */
     .jornada-arquivo-row,.jornada-afazer-row{flex-wrap:wrap;}
@@ -998,6 +1012,30 @@
     }
     var kcal = parseFloat(f.calorias) || 0;
     return kcal ? kcal * 7 : null;
+  }
+  /* ---- Extra semanal: ou "calorias livres" (a pessoa segue a dieta E come essas
+     calorias a mais na semana, entao SOMA no total) ou "refeicao livre" (troca uma
+     refeicao do plano por outra coisa, entao NAO soma — a refeicao ja estava contada).
+     E sempre um ou outro, nunca os dois. Ficha sem nada disso e o formato antigo. ---- */
+  var LIVRES_TIPOS = [
+    { key:'calorias', label:'Calorias livres', campoLabel:'Calorias livres semanais', soma:true },
+    { key:'refeicao', label:'Refeição livre', campoLabel:'Calorias da refeição livre', soma:false }
+  ];
+  function livresTipoDe(f){
+    return (f && f.livresTipo === 'refeicao') ? 'refeicao' : 'calorias';
+  }
+  function livresKcalDe(f){
+    var v = parseFloat(f && f.livresKcal);
+    return isNaN(v) || v <= 0 ? 0 : v;
+  }
+  function livresSoma(f){
+    return livresTipoDe(f) === 'calorias' ? livresKcalDe(f) : 0;
+  }
+  /* Total da semana ja com o extra somado (quando for calorias livres). */
+  function dietaKcalSemanaTotal(f){
+    var base = dietaKcalSemana(f);
+    if(base === null) return null;
+    return base + livresSoma(f);
   }
   function fichaDietaTemMacro(f){
     if(isDietaCiclo(f)){
@@ -4429,6 +4467,41 @@
     var faltam = 7 - total;
     return '<div class="dieta-ciclo-aviso alerta">⚠ '+total+' de 7 dias marcados'+(faltam>0?(' — faltam '+faltam):(' — '+Math.abs(faltam)+' a mais'))+'.</div>';
   }
+  /* Bloco do extra semanal (calorias livres OU refeicao livre) — vale pra ficha
+     inteira, tanto linear quanto ciclo, porque e um valor da semana. */
+  function livresFieldsHtml(f, attrPrefix){
+    var tipo = livresTipoDe(f);
+    var cfg = LIVRES_TIPOS.filter(function(t){ return t.key === tipo; })[0];
+    var botoes = LIVRES_TIPOS.map(function(t){
+      return '<button type="button" class="meta-type-btn'+(t.key===tipo?' active':'')+'" data-'+attrPrefix+'-livrestipo="'+t.key+'" data-'+attrPrefix+'-id="'+f.id+'">'+t.label+'</button>';
+    }).join('');
+    var val = (f.livresKcal !== undefined && f.livresKcal !== null) ? f.livresKcal : '';
+    var explica = tipo === 'calorias'
+      ? 'A pessoa segue a dieta e come essas calorias a mais na semana — por isso somam no total.'
+      : 'A pessoa troca uma refeição do plano por essa — por isso não soma no total da semana.';
+    return '<div class="mini-label" style="text-align:left;margin-top:14px;">Extra semanal</div>'+
+      '<div class="meta-type-toggle">'+botoes+'</div>'+
+      '<div class="dieta-livres-row">'+
+        '<div class="mini-label" style="text-align:left;">'+esc(cfg.campoLabel)+'</div>'+
+        '<div class="dieta-livres-input"><input type="number" min="0" step="1" data-'+attrPrefix+'-livreskcal="1" data-'+attrPrefix+'-id="'+f.id+'" value="'+esc(String(val))+'" placeholder="0"><span>kcal</span></div>'+
+      '</div>'+
+      '<div class="cell-muted" style="font-size:12px;margin-top:4px;line-height:1.5;">'+esc(explica)+'</div>';
+  }
+  /* Linha "Total da semana", mostrando o extra separado quando ele soma. */
+  function dietaTotalSemanaHtml(f){
+    var base = dietaKcalSemana(f);
+    if(base === null) return '';
+    var extra = livresSoma(f);
+    var total = base + extra;
+    var detalhe = extra
+      ? '<span class="cell-muted"> ('+fmtNum(base)+' da dieta + '+fmtNum(extra)+' livres)</span>'
+      : '<span class="cell-muted"> (média de '+fmtNum(Math.round(total/7))+' kcal/dia)</span>';
+    var refeicao = '';
+    if(livresTipoDe(f) === 'refeicao' && livresKcalDe(f)){
+      refeicao = '<div class="cell-muted" style="font-size:12.5px;margin-top:2px;">Refeição livre de '+fmtNum(livresKcalDe(f))+' kcal — substitui uma refeição do plano, não entra na soma.</div>';
+    }
+    return '<div style="margin-top:12px;font-size:13px;"><b>Total da semana: '+fmtNum(total)+' kcal</b>'+detalhe+'</div>'+refeicao;
+  }
   function dietaMacroFieldsHtml(f, attrPrefix, pesoAtual){
     var ciclo = isDietaCiclo(f);
     var toggle = '<div class="mini-label" style="text-align:left;margin-top:12px;">Formato da dieta</div>'+
@@ -4439,7 +4512,9 @@
     if(!ciclo){
       return toggle +
         '<div class="mini-label" style="text-align:left;margin-top:10px;">Calorias e macronutrientes</div>'+
-        macroColumnsHtml(f, attrPrefix, f.id, null, pesoAtual);
+        macroColumnsHtml(f, attrPrefix, f.id, null, pesoAtual)+
+        livresFieldsHtml(f, attrPrefix)+
+        dietaTotalSemanaHtml(f);
     }
     var blocos = f.variacoes.map(function(v, i){
       var nDias = diasDaVariacao(v).length;
@@ -4451,11 +4526,7 @@
         macroColumnsHtml(v, attrPrefix, f.id, i, pesoAtual)+
       '</div>';
     }).join('');
-    var kcalSemana = dietaKcalSemana(f);
-    var totalHtml = kcalSemana === null ? '' :
-      '<div style="margin-top:10px;font-size:13px;"><b>Total da semana: '+fmtNum(kcalSemana)+' kcal</b> '+
-      '<span class="cell-muted">(média de '+fmtNum(Math.round(kcalSemana/7))+' kcal/dia)</span></div>';
-    return toggle + blocos + cicloDiasAvisoHtml(f) + totalHtml;
+    return toggle + blocos + cicloDiasAvisoHtml(f) + livresFieldsHtml(f, attrPrefix) + dietaTotalSemanaHtml(f);
   }
   function fichaItemsHtml(list, openMap, attrPrefix, kind, pesoAtual){
     var items = list.map(function(f, idx){
@@ -4737,11 +4808,12 @@
     // total de kcal da semana, por ficha — é o que compara dieta linear com ciclo de
     // forma justa, já que no ciclo o valor do dia sozinho não conta a história toda.
     var semanaHtml = '';
-    var semanas = chrono.map(function(f){ return { f: f, kcal: dietaKcalSemana(f) }; })
+    var semanas = chrono.map(function(f){ return { f: f, kcal: dietaKcalSemanaTotal(f), extra: livresSoma(f) }; })
                         .filter(function(x){ return x.kcal !== null; });
     if(semanas.length){
       var partes = semanas.map(function(x){
-        return formatDate(x.f.dataPassado)+': <b>'+fmtNum(x.kcal)+' kcal</b>';
+        var det = x.extra ? ' <span style="opacity:.75;">(inclui '+fmtNum(x.extra)+' livres)</span>' : '';
+        return formatDate(x.f.dataPassado)+': <b>'+fmtNum(x.kcal)+' kcal</b>'+det;
       }).join(' · ');
       var deltaTxt = '';
       if(semanas.length >= 2){
@@ -5038,6 +5110,22 @@
         var tipo = this.getAttribute('data-'+attrPrefix+'-tipo');
         if(tipo === 'ciclo'){ ensureDietaVariacoes(f); f.tipo = 'ciclo'; }
         else { f.tipo = 'linear'; } // mantem as variacoes gravadas, caso volte pro ciclo
+        onChange();
+      });
+    });
+    root.querySelectorAll('[data-'+attrPrefix+'-livrestipo]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var f = fichaFrom(this);
+        if(!f) return;
+        f.livresTipo = this.getAttribute('data-'+attrPrefix+'-livrestipo');
+        onChange();
+      });
+    });
+    root.querySelectorAll('[data-'+attrPrefix+'-livreskcal]').forEach(function(el){
+      el.addEventListener('change', function(){
+        var f = fichaFrom(this);
+        if(!f) return;
+        f.livresKcal = this.value === '' ? '' : parseFloat(this.value);
         onChange();
       });
     });
