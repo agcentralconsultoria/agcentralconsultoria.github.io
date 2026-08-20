@@ -633,6 +633,9 @@
   .eng-yellow{background:var(--warning-bg);color:var(--warning);}
   .eng-red{background:var(--danger-bg);color:var(--danger);}
   .eng-empty{background:#FAFAFA;color:#C4C4C8;border:1px dashed var(--border);}
+  /* semana que nao se aplica ao paciente (ex: so Treino, que e quinzenal) */
+  .eng-inativa,.checkin-inativa{background:#F4F5F7;color:#C4C4C8;opacity:.55;}
+  .eng-inativa .num,.checkin-inativa .mark{color:#C4C4C8;}
   .checkin-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}
   .checkin-item{border-radius:9px;padding:12px 6px;text-align:center;border:1px solid var(--border);}
   .checkin-item .wk{font-size:10.5px;font-weight:700;text-transform:uppercase;color:var(--text-muted);}
@@ -646,6 +649,7 @@
   .week-cell-btn{background:none;border:none;padding:0;margin:0;width:100%;cursor:pointer;font-family:inherit;}
   .week-cell-btn:hover .week-cell{outline:2px solid var(--border-strong);}
   .week-cell{border-radius:8px;padding:6px 2px;text-align:center;min-width:44px;}
+  .week-cell-inativa{background:#F4F5F7;color:#C4C4C8;opacity:.55;font-weight:700;}
   .week-cell .num{font-size:13.5px;font-weight:800;}
   .week-cell .mark{font-size:11px;font-weight:700;margin-top:2px;}
   .table-scroll{overflow-x:auto;}
@@ -1755,14 +1759,37 @@
       });
     }
   }
+  /* Quem faz só Treino tem check-in a cada 14 dias, ou seja 2 por mês, e não toda semana.
+     Em vez de encurtar os arrays (o que perderia dado e bagunçaria os índices), a gente
+     mantém o tamanho e diz aqui QUAIS posições valem: 1ª e 3ª, que ficam 14 dias distantes. */
+  function isTreinoQuinzenal(p){
+    return !!p && p.servico === 'Treino';
+  }
+  function activeWeekIndexes(p, monthKey){
+    var wk = weeksInMonth(monthKey);
+    if(!isTreinoQuinzenal(p)){
+      var todas = [];
+      for(var i=0;i<wk;i++) todas.push(i);
+      return todas;
+    }
+    return [0, 2].filter(function(i){ return i < wk; });
+  }
+  function isWeekActive(p, monthKey, weekIdx){
+    return activeWeekIndexes(p, monthKey).indexOf(weekIdx) !== -1;
+  }
   function engagementRisk(p, monthKey){
     var data = getMonthData(p, monthKey);
-    var filledEng = data.engajamento.filter(function(v){ return v !== null && v !== undefined; });
+    var ativos = activeWeekIndexes(p, monthKey);
+    var eng = ativos.map(function(i){ return data.engajamento[i]; });
+    var chk = ativos.map(function(i){ return data.checkin[i]; });
+    var filledEng = eng.filter(function(v){ return v !== null && v !== undefined; });
     var avg = filledEng.length ? (filledEng.reduce(function(a,b){ return a+b; }, 0) / filledEng.length) : null;
-    var missed = data.checkin.filter(function(v){ return v === false; }).length;
-    var sent = data.checkin.filter(function(v){ return v === true; }).length;
-    var atRisk = missed > 2 || (avg !== null && avg < 8);
-    return { avg: avg, missed: missed, sent: sent, total: data.checkin.length, atRisk: atRisk };
+    var missed = chk.filter(function(v){ return v === false; }).length;
+    var sent = chk.filter(function(v){ return v === true; }).length;
+    // quinzenal tem metade dos check-ins, então o limite de faltas também cai pela metade
+    var limiteFaltas = isTreinoQuinzenal(p) ? 1 : 2;
+    var atRisk = missed > limiteFaltas || (avg !== null && avg < 8);
+    return { avg: avg, missed: missed, sent: sent, total: chk.length, atRisk: atRisk };
   }
   function consultaDiffDays(p){
     if(!p.consulta) return null;
@@ -4062,11 +4089,13 @@
 
     var data = getMonthData(p, monthKey);
     var nSem = semanasJaOcorridas(monthKey);
+    var ativos = activeWeekIndexes(p, monthKey);
     var engVazias = 0, chkVazias = 0;
-    for(var i=0;i<nSem;i++){
+    ativos.forEach(function(i){
+      if(i >= nSem) return; // semana ainda nao aconteceu, nao conta como pendencia
       if(data.engajamento[i] === null || data.engajamento[i] === undefined) engVazias++;
       if(data.checkin[i] === null || data.checkin[i] === undefined) chkVazias++;
-    }
+    });
     if(engVazias) faltas.push('Engajamento ('+engVazias+' sem.)');
     if(chkVazias) faltas.push('Check-in ('+chkVazias+' sem.)');
 
@@ -4955,6 +4984,9 @@
       var p = x.p, r = x.r;
       var data = getMonthData(p, monthKey);
       var weekTds = data.engajamento.map(function(v,i){
+        if(!isWeekActive(p, monthKey, i)){
+          return '<td style="padding:8px;"><div class="week-cell week-cell-inativa" title="Só Treino: check-in a cada 14 dias, essa semana não se aplica">·</div></td>';
+        }
         return '<td style="padding:8px;"><button type="button" class="week-cell-btn" data-week-edit="'+p.id+'|'+i+'" title="Editar engajamento/check-in dessa semana">'+weekCellHtml(v, data.checkin[i])+'</button></td>';
       }).join('');
       var avgText = r.avg === null ? '—' : r.avg.toFixed(1);
@@ -5012,6 +5044,7 @@
     return '<div style="max-width:260px;">'+
       '<div class="jornada-cal-grid" style="margin-bottom:4px;">'+weekdayHeaders+cells+'</div>'+
       legend+
+      '<div style="font-size:12px;margin-top:8px;color:var(--text-muted);">Quem faz só Treino tem acompanhamento a cada 14 dias: valem só Sem 1 e Sem 3.</div>'+
     '</div>';
   }
   function overviewTableHtml(monthKey){
@@ -5358,15 +5391,23 @@
   function profileModalHtml(p, monthKey){
     var data = getMonthData(p, monthKey);
     var wk = data.engajamento.length;
+    var quinzenal = isTreinoQuinzenal(p);
     var engHtml = data.engajamento.map(function(v,i){
+      if(!isWeekActive(p, monthKey, i)){
+        return '<div class="eng-item eng-inativa"><div class="wk">Sem '+(i+1)+'</div><div class="num">·</div></div>';
+      }
       var cls = engColorClass(v);
       return '<div class="eng-item '+cls+'"><div class="wk">Sem '+(i+1)+'</div><div class="num">'+(v===null?'—':v)+'</div></div>';
     }).join('');
     var chkHtml = data.checkin.map(function(v,i){
+      if(!isWeekActive(p, monthKey, i)){
+        return '<div class="checkin-item checkin-inativa"><div class="wk">Sem '+(i+1)+'</div><div class="mark">·</div></div>';
+      }
       var cls = v === true ? 'checkin-yes' : v === false ? 'checkin-no' : 'checkin-empty';
       var mark = v === true ? '✓' : v === false ? '✗' : '—';
       return '<div class="checkin-item '+cls+'"><div class="wk">Sem '+(i+1)+'</div><div class="mark">'+mark+'</div></div>';
     }).join('');
+    var quinzenalNota = quinzenal ? '<div class="cell-muted" style="font-size:12px;margin-bottom:6px;">Serviço só Treino: check-in a cada 14 dias (Sem 1 e Sem 3). As demais ficam desativadas.</div>' : '';
     var obsCheckinHtml = (data.obsCheckin || []).map(function(v,i){
       if(!v) return '';
       return '<div class="obscheckin-item"><b>Sem '+(i+1)+':</b> '+esc(v)+'</div>';
@@ -5403,6 +5444,7 @@
         '</div>'+
         '<div class="profile-section">'+
           '<h3>Engajamento Semanal</h3>'+
+          quinzenalNota+
           '<div class="engagement-grid" style="grid-template-columns:repeat('+wk+',1fr);">'+engHtml+'</div>'+
         '</div>'+
         '<div class="profile-section">'+
@@ -5550,11 +5592,35 @@
           '<div class="mini-label" style="text-align:left;margin-top:4px;">Use negativo pra emagrecimento (ex: -2 a -1) e positivo pra ganho de peso/bulking. Se a meta for um número só (ex: perder 2 kg), preencha só um dos dois campos — o cálculo funciona igual. A janela da meta vai desta data até a Data da Consulta.</div>'+
         '</div>'+
       '</div>'+
+      '<div class="form-group full" id="quinzenalFormAviso" style="display:none;"><div class="mini-label" style="text-align:left;">Serviço só Treino: o acompanhamento é a cada 14 dias, então valem só Sem 1 e Sem 3. As outras ficam desativadas.</div></div>'+
       '<div class="form-group full"><label>Engajamento Semanal (0-10 — deixe em branco se ainda não avaliou)</label><div class="field-row5" style="grid-template-columns:repeat('+wk+',1fr);">'+engInputs+'</div></div>'+
       '<div class="form-group full"><label>Check-in Semanal ('+monthLabel(monthKey)+' tem '+wk+' semanas)</label><div class="field-row5" style="grid-template-columns:repeat('+wk+',1fr);">'+chkInputs+'</div></div>'+
       '<div class="form-group full"><label>Observação do Check-in (o que o paciente escreveu, ou sua anotação)</label><div class="field-row5" style="grid-template-columns:repeat('+wk+',1fr);">'+obsCheckinInputs+'</div></div>'+
       '<div class="form-group full"><label>Peso Semanal (kg)</label><div class="field-row5" style="grid-template-columns:repeat('+wk+',1fr);">'+pesoInputs+'</div></div>'+
       '<div class="form-group full"><label>Observações do Mês</label><textarea id="f_obs" placeholder="Observações sobre esse mês...">'+esc(weekly.observacoes)+'</textarea></div>';
+  }
+  /* No formulário o Serviço pode ser trocado na hora, então as semanas que valem mudam
+     ali mesmo. Em vez de re-renderizar o bloco inteiro (perderia o que já foi digitado),
+     só desativamos/reativamos os campos das semanas que não se aplicam. */
+  function applyQuinzenalToForm(){
+    var servicoEl = document.getElementById('f_servico');
+    var compEl = document.getElementById('f_competencia');
+    if(!servicoEl || !compEl) return;
+    var monthKey = compEl.value;
+    var wk = weeksInMonth(monthKey);
+    var ativos = activeWeekIndexes({ servico: servicoEl.value }, monthKey);
+    for(var i=0;i<wk;i++){
+      var ativo = ativos.indexOf(i) !== -1;
+      ['f_eng_','f_chk_','f_obscheckin_','f_peso_'].forEach(function(prefix){
+        var el = document.getElementById(prefix+i);
+        if(!el) return;
+        el.disabled = !ativo;
+        var box = el.parentElement;
+        if(box) box.style.opacity = ativo ? '' : '.45';
+      });
+    }
+    var aviso = document.getElementById('quinzenalFormAviso');
+    if(aviso) aviso.style.display = isTreinoQuinzenal({ servico: servicoEl.value }) ? '' : 'none';
   }
   function maybeStartJornada(patient, jornadaInicio, modeloValue){
     if(!jornadaInicio || patient.jornada || !modeloValue) return;
@@ -5983,7 +6049,9 @@
         treinoWrap.style.display = temServicoTreino({ servico: this.value }) ? '' : 'none';
         var dietaWrap = document.getElementById('fichaDietaFormWrap');
         dietaWrap.style.display = temServicoDieta({ servico: this.value }) ? '' : 'none';
+        applyQuinzenalToForm();
       });
+      applyQuinzenalToForm();
       var fichaTreinoFormAddBtn = document.getElementById('fichaTreinoFormAddBtn');
       if(fichaTreinoFormAddBtn){
         fichaTreinoFormAddBtn.addEventListener('click', function(){
