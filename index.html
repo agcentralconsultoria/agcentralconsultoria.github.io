@@ -2306,7 +2306,18 @@
     }
     items.forEach(function(item){
       item.setAttribute('draggable', 'true');
+      /* Campo de texto dentro de um item arrastavel: o navegador sequestra o
+         clique-e-arrastar pra comecar o arraste, entao nao dava pra selecionar o texto
+         com o mouse (so com duplo/triplo clique). Enquanto o cursor estiver dentro de um
+         campo, o item para de ser arrastavel; ao sair do campo, volta a ser. */
+      item.querySelectorAll('input, textarea, select').forEach(function(campo){
+        campo.addEventListener('mousedown', function(){ item.setAttribute('draggable', 'false'); });
+        campo.addEventListener('focus', function(){ item.setAttribute('draggable', 'false'); });
+        campo.addEventListener('blur', function(){ item.setAttribute('draggable', 'true'); });
+      });
       item.addEventListener('dragstart', function(e){
+        // se o arraste comecou de dentro de um campo, ignora (o usuario esta escrevendo)
+        if(item.getAttribute('draggable') === 'false'){ e.preventDefault(); return; }
         draggedItem = item;
         item.classList.add('dragging');
         if(e.dataTransfer){
