@@ -2755,12 +2755,16 @@
   function jornadaKanbanColumns(){
     var byPatient = {};
     state.patients.forEach(function(p){
+      // Paciente vencido sai do quadro (vai pra inativos). As tarefas dele NAO sao
+      // apagadas — se renovar a vigencia, ele volta com o Kanban do jeito que estava.
       if(!p.jornada || renovacaoStatus(p) === 'Vencido') return;
+      // A coluna existe pelo paciente, nao pela tarefa: quem arquivou tudo continua no
+      // quadro (com a coluna vazia) pra poder recomeçar do zero pelo "+ Adicionar".
+      byPatient[p.id] = { patient: p, tasks: [] };
       p.jornada.tarefas.forEach(function(t){
         if(t.arquivado) return;
+        // sem corte por data: tarefa marcada pra daqui a 3 meses continua no quadro
         var diff = diasParaVencer(t.dataAlvo);
-        if(diff !== null && diff > 7) return;
-        if(!byPatient[p.id]) byPatient[p.id] = { patient: p, tasks: [] };
         var ov = state.jornadaKanbanSortOverride[p.id+':'+t.id];
         var sortDiff = ov !== undefined ? ov : (diff === null ? Infinity : diff);
         byPatient[p.id].tasks.push({ task: t, diff: diff, sortDiff: sortDiff });
@@ -2801,14 +2805,15 @@
     return columns;
   }
   function jornadaUrgencyCounts(){
-    var counts = { atrasado:0, hoje:0, semana:0, concluido:0 };
+    var counts = { atrasado:0, hoje:0, semana:0, depois:0, concluido:0 };
     jornadaKanbanColumns().forEach(function(col){
       col.tasks.forEach(function(item){
         if(item.task.concluido){ counts.concluido++; return; }
         if(item.diff === null) return;
         if(item.diff < 0) counts.atrasado++;
         else if(item.diff === 0) counts.hoje++;
-        else counts.semana++;
+        else if(item.diff <= 7) counts.semana++;
+        else counts.depois++; // agora o Kanban mostra tarefa distante, mas ela nao e urgente
       });
     });
     return counts;
@@ -2819,9 +2824,10 @@
       { label:'Atrasado', value:c.atrasado, cls:'chart-bar-danger' },
       { label:'Hoje', value:c.hoje, cls:'chart-bar-warning' },
       { label:'Essa Semana', value:c.semana, cls:'chart-bar-gray' },
+      { label:'Mais pra frente', value:c.depois, cls:'chart-bar-gray' },
       { label:'Concluído', value:c.concluido, cls:'chart-bar-success' }
     ];
-    var total = c.atrasado + c.hoje + c.semana + c.concluido;
+    var total = c.atrasado + c.hoje + c.semana + c.depois + c.concluido;
     if(!total){
       return '<div class="empty-state">Nenhum dado ainda pra mostrar no gráfico.</div>';
     }
@@ -2973,7 +2979,7 @@
   function jornadaKanbanHtml(){
     var all = jornadaKanbanColumns();
     if(!all.length){
-      return '<div class="empty-state">Nenhuma tarefa da jornada vencendo essa semana. 🎉</div>';
+      return '<div class="empty-state">Nenhum paciente com jornada ativa. Inicie uma jornada no cadastro do paciente.</div>';
     }
     var columns = jornadaKanbanFilteredColumns();
     if(!columns.length){
@@ -2982,9 +2988,12 @@
     return '<div class="jornada-kanban">'+columns.map(function(col){
       var p = col.patient;
       var collapsed = !!state.jornadaKanbanCollapsed[p.id];
-      var cards = col.tasks.map(function(item){ return jornadaKanbanCardHtml(p, item); }).join('');
-      // task nova entra na mesma fase da tarefa mais urgente ja mostrada nessa coluna
-      var faseNova = col.tasks[0].task.fase;
+      var cards = col.tasks.length
+        ? col.tasks.map(function(item){ return jornadaKanbanCardHtml(p, item); }).join('')
+        : '<div class="cell-muted" style="font-size:12.5px;text-align:center;padding:14px 6px;">Nenhuma tarefa em aberto. Use o "+ Adicionar" pra começar.</div>';
+      // task nova entra na mesma fase da tarefa mais urgente da coluna; sem tarefa
+      // nenhuma (paciente que arquivou tudo), começa da fase 0
+      var faseNova = col.tasks.length ? col.tasks[0].task.fase : 0;
       return ''+
         '<div class="jornada-kanban-col">'+
           '<div class="jornada-kanban-col-header">'+
@@ -3206,7 +3215,7 @@
         '<button class="info-icon-btn" type="button" data-info-toggle="info-jornada-agora">i</button>'+
         '<button class="btn-icon" type="button" id="jornadaKanbanSectionToggleBtn" style="margin-left:auto;">'+(state.jornadaKanbanSectionCollapsed?'Mostrar':'Recolher')+'</button>'+
       '</div>'+
-      '<div class="info-popover" id="info-jornada-agora">Um quadro por paciente com os marcos da jornada que vencem essa semana ou já passaram do prazo. Marque como feito direto aqui — o cartão fica marcado mas continua na tela até você arquivar.</div>'+
+      '<div class="info-popover" id="info-jornada-agora">Um quadro por paciente com todas as tarefas em aberto, não importa a data — inclusive as marcadas pra meses à frente. O que vence antes fica em cima. Marque como feito direto aqui: o cartão fica marcado mas continua na tela até você arquivar. Paciente com a vigência vencida sai do quadro e vai pra inativos, mas as tarefas dele ficam guardadas — se renovar, volta tudo como estava.</div>'+
       '<div id="jornadaKanbanSectionWrap" style="'+(state.jornadaKanbanSectionCollapsed?'display:none;':'')+'">'+
         '<div id="jornadaKanbanToolbarRoot">'+jornadaKanbanToolbarHtml()+'</div>'+
         '<div style="margin-bottom:32px;" id="jornadaKanbanRoot">'+jornadaKanbanHtml()+'</div>'+
@@ -4730,7 +4739,9 @@
               '<button type="button" class="btn-icon" data-arquivo-patient-toggle="'+p.id+'" title="'+(collapsed?'Mostrar':'Minimizar')+'">'+(collapsed?'▸':'▾')+'</button>'+
             '</div>'+
           '</div>'+
-          (collapsed ? '' : '<div class="jornada-afazer-group-body">'+rows+'</div>')+
+          (collapsed ? '' : '<div class="jornada-afazer-group-body">'+rows+
+            '<button type="button" class="btn-icon btn-danger-outline" data-arquivo-limpar="'+p.id+'" style="margin-top:4px;">🗑 Excluir todo o histórico de '+esc(p.nome)+'</button>'+
+          '</div>')+
         '</div>';
     }).join('');
   }
@@ -4773,6 +4784,21 @@
         var id = parseInt(this.getAttribute('data-arquivo-patient-toggle'),10);
         state.jornadaArquivoCollapsedPatients[id] = state.jornadaArquivoCollapsedPatients[id] === false ? true : false;
         refreshJornadaArquivo();
+      });
+    });
+    root.querySelectorAll('[data-arquivo-limpar]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var id = parseInt(this.getAttribute('data-arquivo-limpar'),10);
+        var p = getPatient(id);
+        if(!p || !p.jornada) return;
+        var arquivadas = p.jornada.tarefas.filter(function(t){ return t.arquivado; });
+        if(!arquivadas.length) return;
+        if(!confirm('Excluir as '+arquivadas.length+' tarefas arquivadas de '+p.nome+' permanentemente? Essa ação não pode ser desfeita.\n\nAs tarefas que ainda estão no Kanban não são afetadas.')) return;
+        p.jornada.tarefas = p.jornada.tarefas.filter(function(t){ return !t.arquivado; });
+        savePatients();
+        refreshJornadaArquivo();
+        refreshAllJornadaViews();
+        showToast(arquivadas.length+' tarefa(s) excluída(s) do histórico.', 'success');
       });
     });
   }
