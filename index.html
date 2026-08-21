@@ -171,6 +171,59 @@
   }
   .logout-btn:hover{background:#1f1f1f;color:#fff;border-color:#4b4b4b;}
 
+  /* ---------- Kanban de Leads ---------- */
+  .lead-kanban{display:flex;gap:14px;overflow-x:auto;padding-bottom:10px;align-items:flex-start;}
+  .lead-col{
+    flex:0 0 250px;background:#FAFAFA;border:1px solid var(--border);border-radius:10px;
+    padding:11px;min-height:120px;
+  }
+  .lead-col.drag-target{border-color:var(--primary);background:var(--primary-light);}
+  .lead-col-header{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    margin-bottom:9px;padding-bottom:8px;border-bottom:1px solid var(--border);
+  }
+  .lead-col-title{font-size:13px;font-weight:700;color:var(--secondary);}
+  .lead-col-title .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;}
+  .etapa-novo .dot{background:var(--gray-badge);}
+  .etapa-conversa .dot{background:var(--info);}
+  .etapa-negociacao .dot{background:var(--warning);}
+  .etapa-fechado .dot{background:var(--success);}
+  .etapa-sem-avanco .dot{background:var(--danger);}
+  .lead-cards{min-height:40px;}
+  .lead-card{
+    background:var(--white);border:1px solid var(--border);border-radius:9px;
+    padding:10px;margin-bottom:7px;cursor:grab;
+  }
+  .lead-card:hover{border-color:var(--primary);}
+  .lead-card.dragging{opacity:.4;cursor:grabbing;}
+  .lead-card-nome{font-size:13.5px;font-weight:700;color:var(--secondary);margin-bottom:5px;line-height:1.3;}
+  .lead-card-meta{display:flex;flex-wrap:wrap;gap:4px;align-items:center;}
+  .lead-temp{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:999px;white-space:nowrap;}
+  .temp-Frio{background:var(--info-bg);color:var(--info);}
+  .temp-Morno{background:var(--warning-bg);color:var(--warning);}
+  .temp-Quente{background:var(--danger-bg);color:var(--danger);}
+  .lead-tag{
+    font-size:10.5px;padding:2px 7px;border-radius:999px;white-space:nowrap;
+    background:var(--gray-badge-bg);color:var(--gray-badge);font-weight:600;
+  }
+  .lead-card-acoes{display:flex;gap:5px;margin-top:7px;}
+  .lead-link-btn{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:28px;height:28px;border-radius:7px;text-decoration:none;font-size:13px;
+    border:1px solid var(--border);background:var(--white);cursor:pointer;flex-shrink:0;
+  }
+  .lead-link-btn.wa{background:#25D366;border-color:#25D366;color:#fff;}
+  .lead-link-btn.ig{background:linear-gradient(45deg,#F58529,#DD2A7B,#8134AF);border-color:transparent;color:#fff;}
+  .lead-link-btn:hover{opacity:.85;}
+  .lead-empty-col{font-size:12px;color:var(--text-muted);text-align:center;padding:14px 6px;}
+  .etiqueta-picker{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+  .etiqueta-btn{
+    padding:6px 11px;border:1px solid var(--border);border-radius:999px;background:var(--white);
+    font-size:12.5px;font-weight:600;color:var(--text-muted);cursor:pointer;font-family:inherit;
+  }
+  .etiqueta-btn.active{background:var(--primary);border-color:var(--primary);color:#fff;}
+  .etiqueta-btn:hover{border-color:var(--primary);}
+
   /* ---------- Barra lateral ----------
      No computador e uma coluna fixa a esquerda; no celular (regra la embaixo) vira
      uma gaveta que abre por cima do conteudo. Herda o preto do cabecalho e o laranja
@@ -960,6 +1013,12 @@
        ordenar caber do lado dela com folga, em vez de os dois se espremerem/sobreporem. */
     .jornada-select-row > .jornada-kanban-search-wrap{min-width:120px;}
 
+    /* Kanban de Leads no celular: uma coluna por vez, deslizando de lado — mesmo
+       padrao do Kanban da Jornada, que ja funciona bem. */
+    .lead-kanban{gap:10px;}
+    .lead-col{flex:0 0 84vw;}
+    .lead-link-btn{width:36px;height:36px;} /* alvo de toque maior */
+
     /* Dias da semana do ciclo de carboidrato: no celular os 7 nao cabem numa linha e
        sobrava "Dom" sozinho embaixo, com cara de quebrado. Em 4 por linha fica 4+3,
        que parece proposital e mantem o alvo de toque grande. */
@@ -1213,6 +1272,11 @@
     sidebarCollapsed: false,   // computador: barra estreita so com icones
     sidebarDrawerOpen: false,  // celular: gaveta aberta por cima do conteudo
     captacaoExpanded: true,    // grupo Captacao aberto no menu
+    captacao: null,
+    leadSearch: '',
+    leadTemperaturaFilter: 'todos',
+    leadEtiquetaFilter: 'todos',
+    leadEditId: null,          // id do lead aberto no modal
     search: '',
     statusFilter: 'todos',
     planoFilter: 'todos',
@@ -1832,6 +1896,64 @@
     mfa.setDoc(mfa.doc(mfa.db, 'crmData', 'jornadaTemplates'), { data: state.jornadaTemplates }).catch(function(err){
       showToast('Erro ao salvar modelos: ' + err.message, 'danger');
     });
+  }
+
+  /* ---------- Captação ----------
+     Documento proprio no Firestore, separado de patients e jornadaTemplates: se algo
+     der errado aqui, o que ja esta no ar continua intacto. */
+  var LEAD_ETAPAS = [
+    { key:'novo',       label:'Novo',        cls:'etapa-novo' },
+    { key:'conversa',   label:'Em conversa', cls:'etapa-conversa' },
+    { key:'negociacao', label:'Negociação',  cls:'etapa-negociacao' },
+    { key:'fechado',    label:'Fechado',     cls:'etapa-fechado',   final:true },
+    { key:'sem-avanco', label:'Sem avanço',  cls:'etapa-sem-avanco', final:true }
+  ];
+  function etapaInfo(key){
+    return LEAD_ETAPAS.filter(function(e){ return e.key === key; })[0] || LEAD_ETAPAS[0];
+  }
+  function etapaEhFinal(key){ return !!etapaInfo(key).final; }
+  var LEAD_TEMPERATURAS = ['Frio','Morno','Quente'];
+  var LEAD_ORIGENS = ['Indicação','Social Selling','Parceria','Anúncio','Orgânico','Outro'];
+  var ETIQUETAS_PADRAO = ['Emagrecimento','Hipertrofia','Recomposição corporal'];
+  function captacaoVazia(){
+    return { leads: [], parcerias: [], indicacoes: [], comunidade: [], etiquetas: ETIQUETAS_PADRAO.slice(), marcos: [] };
+  }
+  function normalizeCaptacao(raw){
+    var c = captacaoVazia();
+    if(!raw || typeof raw !== 'object') return c;
+    ['leads','parcerias','indicacoes','comunidade'].forEach(function(k){
+      if(Array.isArray(raw[k])) c[k] = raw[k];
+    });
+    if(Array.isArray(raw.etiquetas) && raw.etiquetas.length) c.etiquetas = raw.etiquetas;
+    if(Array.isArray(raw.marcos)) c.marcos = raw.marcos;
+    // garante os campos que o resto do codigo assume existir
+    c.leads.forEach(function(l, i){
+      if(!l.etapa) l.etapa = 'novo';
+      if(!l.temperatura) l.temperatura = 'Morno';
+      if(!Array.isArray(l.etiquetas)) l.etiquetas = [];
+      if(l.ordem === undefined || l.ordem === null) l.ordem = i;
+    });
+    return c;
+  }
+  function loadCaptacaoAsync(){
+    return mfa.getDoc(mfa.doc(mfa.db, 'crmData', 'captacao')).then(function(snap){
+      if(snap.exists() && snap.data().data) return normalizeCaptacao(snap.data().data);
+      var vazia = captacaoVazia();
+      return mfa.setDoc(mfa.doc(mfa.db, 'crmData', 'captacao'), { data: vazia }).then(function(){ return vazia; });
+    });
+  }
+  function saveCaptacao(){
+    mfa.setDoc(mfa.doc(mfa.db, 'crmData', 'captacao'), { data: state.captacao }).catch(function(err){
+      showToast('Erro ao salvar captação: ' + err.message, 'danger');
+    });
+  }
+  function getLead(id){
+    if(!state.captacao) return null;
+    return state.captacao.leads.filter(function(l){ return l.id === id; })[0] || null;
+  }
+  function nextLeadId(){
+    if(!state.captacao || !state.captacao.leads.length) return 1;
+    return state.captacao.leads.reduce(function(m,l){ return Math.max(m, l.id||0); }, 0) + 1;
   }
   function backfillGluteoMedio(list){
     if(list.indexOf('Glúteo médio') === -1){
@@ -3393,10 +3515,11 @@
     attachAppEvents();
   }
   function loadAllDataAndRender(){
-    Promise.all([loadPatientsAsync(), loadJornadaTemplatesAsync(), loadGrupoMuscularListAsync()]).then(function(results){
+    Promise.all([loadPatientsAsync(), loadJornadaTemplatesAsync(), loadGrupoMuscularListAsync(), loadCaptacaoAsync()]).then(function(results){
       state.patients = results[0];
       state.jornadaTemplates = results[1];
       state.grupoMuscularList = results[2];
+      state.captacao = results[3];
       state.booting = false;
       render();
     }).catch(function(err){
@@ -3659,6 +3782,7 @@
     'cap-comunidade': { titulo:'Comunidade', desc:'Cronograma de conteúdos e ações do grupo de WhatsApp.' }
   };
   function captacaoTemplate(tab){
+    if(tab === 'cap-leads') return leadsTemplate();
     var info = CAPTACAO_EM_BREVE[tab] || CAPTACAO_EM_BREVE['cap-visao'];
     return ''+
       '<h1 class="page-title">'+esc(info.titulo)+'</h1>'+
@@ -3671,7 +3795,410 @@
       '</div>';
   }
   function attachCaptacaoEvents(tab){
-    // cada sub-area registra os proprios eventos conforme for construida
+    if(tab === 'cap-leads') attachLeadsEvents();
+  }
+
+  /* ---------- Leads: filtro e Kanban ---------- */
+  /* Regra do mes: quem esta em andamento aparece sempre (precisa de acao agora);
+     quem foi finalizado fica preso ao mes em que foi finalizado, pra o quadro nao
+     virar um cemiterio e o historico daquele mes ficar guardado. */
+  function leadVisivelNoMes(l, monthKey){
+    if(!etapaEhFinal(l.etapa)) return true;
+    return (l.mesFinalizado || (l.criadoEm||'').slice(0,7)) === monthKey;
+  }
+  function leadsFiltrados(monthKey){
+    if(!state.captacao) return [];
+    var termo = state.leadSearch.trim().toLowerCase();
+    return state.captacao.leads.filter(function(l){
+      if(!leadVisivelNoMes(l, monthKey)) return false;
+      if(termo && (l.nome||'').toLowerCase().indexOf(termo) === -1) return false;
+      if(state.leadTemperaturaFilter !== 'todos' && l.temperatura !== state.leadTemperaturaFilter) return false;
+      if(state.leadEtiquetaFilter !== 'todos' && (l.etiquetas||[]).indexOf(state.leadEtiquetaFilter) === -1) return false;
+      return true;
+    });
+  }
+  function whatsappHref(tel){ return 'https://wa.me/' + whatsappDigits(tel); }
+  function instagramHandle(v){ return String(v||'').trim().replace(/^@/,'').replace(/^https?:\/\/(www\.)?instagram\.com\//i,'').replace(/\/$/,''); }
+  function instagramHref(v){ return 'https://instagram.com/' + instagramHandle(v); }
+  /* Botao so aparece quando o dado existe — nunca botao vazio. */
+  function leadAtalhosHtml(l){
+    var btns = '';
+    if(l.whatsapp) btns += '<a class="lead-link-btn wa" href="'+esc(whatsappHref(l.whatsapp))+'" target="_blank" rel="noopener" title="Abrir WhatsApp" data-stop="1">💬</a>';
+    if(l.instagram) btns += '<a class="lead-link-btn ig" href="'+esc(instagramHref(l.instagram))+'" target="_blank" rel="noopener" title="Abrir Instagram" data-stop="1">📷</a>';
+    return btns ? '<div class="lead-card-acoes">'+btns+'</div>' : '';
+  }
+  function leadCardHtml(l){
+    var tags = (l.etiquetas||[]).slice(0,3).map(function(t){ return '<span class="lead-tag">'+esc(t)+'</span>'; }).join('');
+    var extra = (l.etiquetas||[]).length > 3 ? '<span class="lead-tag">+'+((l.etiquetas.length)-3)+'</span>' : '';
+    var virouPaciente = l.pacienteId ? '<span class="lead-tag" style="background:var(--success-bg);color:var(--success);">✓ paciente</span>' : '';
+    return ''+
+      '<div class="lead-card" draggable="true" data-lead-id="'+l.id+'">'+
+        '<div class="lead-card-nome" data-lead-open="'+l.id+'">'+esc(l.nome||'(sem nome)')+'</div>'+
+        '<div class="lead-card-meta">'+
+          '<span class="lead-temp temp-'+esc(l.temperatura||'Morno')+'">'+esc(l.temperatura||'Morno')+'</span>'+
+          tags+extra+virouPaciente+
+        '</div>'+
+        leadAtalhosHtml(l)+
+      '</div>';
+  }
+  function leadKanbanHtml(monthKey){
+    var lista = leadsFiltrados(monthKey);
+    var cols = LEAD_ETAPAS.map(function(et){
+      var doGrupo = lista.filter(function(l){ return l.etapa === et.key; })
+                         .sort(function(a,b){ return (a.ordem||0)-(b.ordem||0); });
+      var cards = doGrupo.length
+        ? doGrupo.map(leadCardHtml).join('')
+        : '<div class="lead-empty-col">Arraste um lead pra cá</div>';
+      return ''+
+        '<div class="lead-col '+et.cls+'" data-lead-col="'+et.key+'">'+
+          '<div class="lead-col-header">'+
+            '<span class="lead-col-title"><span class="dot"></span>'+esc(et.label)+'</span>'+
+            '<span class="badge badge-gray">'+doGrupo.length+'</span>'+
+          '</div>'+
+          '<div class="lead-cards">'+cards+'</div>'+
+        '</div>';
+    }).join('');
+    return '<div class="lead-kanban">'+cols+'</div>';
+  }
+  function leadsTemplate(){
+    var monthKey = state.competencia;
+    var etiquetaOpts = (state.captacao ? state.captacao.etiquetas : []).map(function(t){ return {value:t,label:t}; });
+    return ''+
+      '<div class="profile-top" style="margin-bottom:4px;">'+
+        '<div><h1 class="page-title" style="margin-bottom:2px;">Leads</h1>'+
+        '<p class="page-sub" style="margin:0;">Captação · funil comercial</p></div>'+
+        '<button class="btn btn-primary" id="leadNovoBtn">+ Novo Lead</button>'+
+      '</div>'+
+      '<div class="section-header-row" style="margin-top:18px;">'+
+        '<h2 class="section-title">Funil</h2>'+
+        '<button class="info-icon-btn" type="button" data-info-toggle="info-leads">i</button>'+
+      '</div>'+
+      '<div class="info-popover" id="info-leads">Arraste o lead entre as colunas conforme a conversa evolui — a etapa muda sozinha. Quem está em andamento aparece em qualquer mês; quem foi Fechado ou ficou Sem avanço fica guardado no mês em que foi finalizado.</div>'+
+      '<div class="toolbar">'+
+        '<div class="toolbar-filters">'+
+          '<input type="text" id="leadSearchInput" class="search-input" placeholder="Buscar por nome..." value="'+esc(state.leadSearch)+'">'+
+          filterChipHtml('leadTemperaturaFilter', 'Temperatura', 'Todas', LEAD_TEMPERATURAS)+
+          (etiquetaOpts.length ? filterChipHtml('leadEtiquetaFilter', 'Etiqueta', 'Todas', etiquetaOpts) : '')+
+        '</div>'+
+        '<div class="form-group" style="min-width:190px;margin:0;"><label>Competência</label>'+
+          '<select id="leadCompetenciaSelect" class="filter-select">'+monthSelectOptions(monthKey)+'</select></div>'+
+      '</div>'+
+      '<div id="leadKanbanRoot">'+leadKanbanHtml(monthKey)+'</div>';
+  }
+  function refreshLeadKanban(){
+    var root = document.getElementById('leadKanbanRoot');
+    if(!root) return;
+    root.innerHTML = leadKanbanHtml(state.competencia);
+    bindLeadKanbanEvents();
+  }
+  /* Arrastar entre colunas: a coluna e o alvo do drop e define a etapa nova. */
+  function bindLeadKanbanEvents(){
+    var root = document.getElementById('leadKanbanRoot');
+    if(!root) return;
+    var arrastando = null;
+    root.querySelectorAll('.lead-card').forEach(function(card){
+      card.addEventListener('dragstart', function(e){
+        arrastando = card;
+        card.classList.add('dragging');
+        if(e.dataTransfer){
+          e.dataTransfer.effectAllowed = 'move';
+          try{ e.dataTransfer.setData('text/plain', card.getAttribute('data-lead-id')); }catch(err){}
+        }
+      });
+      card.addEventListener('dragend', function(){
+        card.classList.remove('dragging');
+        root.querySelectorAll('.lead-col').forEach(function(c){ c.classList.remove('drag-target'); });
+        arrastando = null;
+      });
+    });
+    root.querySelectorAll('.lead-col').forEach(function(col){
+      col.addEventListener('dragover', function(e){
+        if(!arrastando) return;
+        e.preventDefault();
+        col.classList.add('drag-target');
+      });
+      col.addEventListener('dragleave', function(){ col.classList.remove('drag-target'); });
+      col.addEventListener('drop', function(e){
+        if(!arrastando) return;
+        e.preventDefault();
+        col.classList.remove('drag-target');
+        var id = parseInt(arrastando.getAttribute('data-lead-id'),10);
+        moverLeadParaEtapa(id, col.getAttribute('data-lead-col'));
+      });
+    });
+    root.querySelectorAll('[data-lead-open]').forEach(function(el){
+      el.addEventListener('click', function(){
+        abrirLead(parseInt(this.getAttribute('data-lead-open'),10));
+      });
+    });
+    // clicar no atalho nao deve abrir o lead junto
+    root.querySelectorAll('[data-stop]').forEach(function(a){
+      a.addEventListener('click', function(e){ e.stopPropagation(); });
+    });
+  }
+  function moverLeadParaEtapa(id, etapa){
+    var l = getLead(id);
+    if(!l || l.etapa === etapa) return;
+    var anterior = l.etapa;
+    l.etapa = etapa;
+    if(etapaEhFinal(etapa)){
+      // prende ao mes atual pra sumir quando trocar de competencia
+      l.mesFinalizado = state.competencia;
+      l.dataFinalizado = todayISODate();
+    } else {
+      l.mesFinalizado = null;
+      l.dataFinalizado = null;
+    }
+    // ordem no fim da coluna nova
+    var naEtapa = state.captacao.leads.filter(function(x){ return x.etapa === etapa && x.id !== id; });
+    l.ordem = naEtapa.reduce(function(m,x){ return Math.max(m, x.ordem||0); }, -1) + 1;
+    saveCaptacao();
+    refreshLeadKanban();
+    if(etapa === 'fechado' && anterior !== 'fechado' && !l.pacienteId){
+      criarPacienteDoLead(l);
+    } else {
+      showToast('Lead movido para "'+etapaInfo(etapa).label+'".', 'success');
+    }
+  }
+  /* Lead que fecha vira paciente automaticamente. O cadastro nasce incompleto de
+     proposito — ele aparece no "Resumo de Entrega de Paciente" do Dashboard com tudo
+     que falta preencher, entao nada se perde. */
+  function criarPacienteDoLead(l){
+    var novo = emptyPatientCore();
+    novo.id = nextId();
+    novo.nome = l.nome || 'Novo paciente';
+    novo.telefone = l.whatsapp || '';
+    novo.createdAt = nextCreatedAt();
+    novo.createdDate = todayISODate();
+    novo.meses = {};
+    novo.leadId = l.id;
+    if(l.observacoes) novo.observacoes = l.observacoes;
+    state.patients.push(novo);
+    l.pacienteId = novo.id;
+    savePatients();
+    saveCaptacao();
+    refreshLeadKanban();
+    showToast('Lead fechado! Paciente "'+novo.nome+'" criado — complete o cadastro.', 'success');
+  }
+  /* ---------- Modal do Lead ---------- */
+  function abrirLead(id){
+    state.leadEditId = id; // null = novo
+    state.modal = 'lead';
+    renderModal();
+  }
+  function leadModalHtml(){
+    var novo = state.leadEditId === null;
+    var l = novo ? { nome:'', whatsapp:'', instagram:'', origem:'Orgânico', indicadoPor:'',
+                     temperatura:'Morno', etiquetas:[], etapa:'novo', observacoes:'' }
+                 : getLead(state.leadEditId);
+    if(!l) return '';
+    var etiquetas = state.captacao ? state.captacao.etiquetas : [];
+    var etiquetaBtns = etiquetas.map(function(t){
+      var on = (l.etiquetas||[]).indexOf(t) !== -1;
+      return '<button type="button" class="etiqueta-btn'+(on?' active':'')+'" data-lead-etiqueta="'+esc(t)+'">'+esc(t)+'</button>';
+    }).join('');
+    var tempBtns = LEAD_TEMPERATURAS.map(function(t){
+      return '<button type="button" class="meta-type-btn'+(l.temperatura===t?' active':'')+'" data-lead-temp="'+esc(t)+'">'+esc(t)+'</button>';
+    }).join('');
+    var origemOpts = LEAD_ORIGENS.map(function(o){
+      return '<option value="'+esc(o)+'"'+(l.origem===o?' selected':'')+'>'+esc(o)+'</option>';
+    }).join('');
+    var etapaOpts = LEAD_ETAPAS.map(function(e){
+      return '<option value="'+esc(e.key)+'"'+(l.etapa===e.key?' selected':'')+'>'+esc(e.label)+'</option>';
+    }).join('');
+    var atalhos = '';
+    if(!novo && (l.whatsapp || l.instagram)){
+      atalhos = '<div class="form-group full"><label>Atalhos</label><div style="display:flex;gap:8px;">'+
+        (l.whatsapp ? '<a class="btn btn-secondary" href="'+esc(whatsappHref(l.whatsapp))+'" target="_blank" rel="noopener">💬 WhatsApp</a>' : '')+
+        (l.instagram ? '<a class="btn btn-secondary" href="'+esc(instagramHref(l.instagram))+'" target="_blank" rel="noopener">📷 Instagram</a>' : '')+
+      '</div></div>';
+    }
+    var vinculo = (!novo && l.pacienteId) ?
+      '<div class="form-group full"><div class="meta-box">✓ Este lead virou paciente. '+
+      '<button type="button" class="link-btn" id="leadIrPacienteBtn" style="color:#9A3412;text-decoration:underline;">Abrir o cadastro</button></div></div>' : '';
+    return ''+
+    '<div class="modal modal-wide">'+
+      '<div class="modal-header">'+
+        '<h2>'+(novo?'Novo Lead':'Editar Lead')+'</h2>'+
+        '<button class="modal-close" id="modalCloseBtn">&times;</button>'+
+      '</div>'+
+      '<div class="modal-body">'+
+        vinculo+
+        '<div class="form-grid">'+
+          '<div class="form-group full"><label>Nome *</label><input type="text" id="l_nome" value="'+esc(l.nome||'')+'" placeholder="Nome da pessoa"></div>'+
+          '<div class="form-group"><label>WhatsApp</label><input type="text" id="l_whatsapp" value="'+esc(l.whatsapp||'')+'" placeholder="(11) 99999-9999"></div>'+
+          '<div class="form-group"><label>Instagram</label><input type="text" id="l_instagram" value="'+esc(l.instagram||'')+'" placeholder="@perfil"></div>'+
+          '<div class="form-group"><label>Origem</label><select id="l_origem" class="filter-select" style="width:100%;">'+origemOpts+'</select></div>'+
+          '<div class="form-group"><label>Indicado por</label><input type="text" id="l_indicadoPor" value="'+esc(l.indicadoPor||'')+'" placeholder="Quem indicou (se veio de indicação)"></div>'+
+          '<div class="form-group"><label>Etapa do funil</label><select id="l_etapa" class="filter-select" style="width:100%;">'+etapaOpts+'</select></div>'+
+          '<div class="form-group"><label>Temperatura</label><div class="meta-type-toggle" id="leadTempToggle">'+tempBtns+'</div></div>'+
+          '<div class="form-group full"><label>Etiquetas</label><div class="etiqueta-picker" id="leadEtiquetaPicker">'+etiquetaBtns+'</div>'+
+            '<div style="display:flex;gap:8px;margin-top:8px;">'+
+              '<input type="text" id="l_novaEtiqueta" placeholder="Criar nova etiqueta" style="flex:1;">'+
+              '<button type="button" class="btn-icon" id="leadAddEtiquetaBtn">+ Criar</button>'+
+            '</div></div>'+
+          atalhos+
+          '<div class="form-group full"><label>Observações</label><textarea id="l_observacoes" placeholder="O que conversaram, contexto, o que ela busca...">'+esc(l.observacoes||'')+'</textarea></div>'+
+        '</div>'+
+      '</div>'+
+      '<div class="modal-footer">'+
+        (novo ? '' : '<button class="btn btn-danger" id="leadRemoveBtn" style="margin-right:auto;">Excluir</button>')+
+        '<button class="btn btn-secondary" id="leadCancelBtn">Cancelar</button>'+
+        '<button class="btn btn-primary" id="leadSaveBtn">Salvar</button>'+
+      '</div>'+
+    '</div>';
+  }
+  function bindLeadModalEvents(){
+    var novo = state.leadEditId === null;
+    // rascunho local pras escolhas de botao (temperatura/etiquetas) antes de salvar
+    var base = novo ? { temperatura:'Morno', etiquetas:[] } : getLead(state.leadEditId);
+    var draft = { temperatura: base.temperatura || 'Morno', etiquetas: (base.etiquetas||[]).slice() };
+    var toggleRoot = document.getElementById('leadTempToggle');
+    if(toggleRoot){
+      toggleRoot.querySelectorAll('[data-lead-temp]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          draft.temperatura = this.getAttribute('data-lead-temp');
+          toggleRoot.querySelectorAll('[data-lead-temp]').forEach(function(b){
+            b.classList.toggle('active', b.getAttribute('data-lead-temp') === draft.temperatura);
+          });
+        });
+      });
+    }
+    function bindEtiquetas(){
+      var picker = document.getElementById('leadEtiquetaPicker');
+      if(!picker) return;
+      picker.querySelectorAll('[data-lead-etiqueta]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          var t = this.getAttribute('data-lead-etiqueta');
+          var i = draft.etiquetas.indexOf(t);
+          if(i === -1) draft.etiquetas.push(t); else draft.etiquetas.splice(i,1);
+          this.classList.toggle('active', i === -1);
+        });
+      });
+    }
+    bindEtiquetas();
+    var addEtBtn = document.getElementById('leadAddEtiquetaBtn');
+    if(addEtBtn){
+      addEtBtn.addEventListener('click', function(){
+        var inp = document.getElementById('l_novaEtiqueta');
+        var nova = inp.value.trim();
+        if(!nova) return;
+        if(state.captacao.etiquetas.indexOf(nova) === -1){
+          state.captacao.etiquetas.push(nova);
+          saveCaptacao();
+        }
+        if(draft.etiquetas.indexOf(nova) === -1) draft.etiquetas.push(nova);
+        inp.value = '';
+        // redesenha so o seletor de etiquetas, mantendo o resto do formulario
+        var picker = document.getElementById('leadEtiquetaPicker');
+        picker.innerHTML = state.captacao.etiquetas.map(function(t){
+          var on = draft.etiquetas.indexOf(t) !== -1;
+          return '<button type="button" class="etiqueta-btn'+(on?' active':'')+'" data-lead-etiqueta="'+esc(t)+'">'+esc(t)+'</button>';
+        }).join('');
+        bindEtiquetas();
+      });
+    }
+    var irPac = document.getElementById('leadIrPacienteBtn');
+    if(irPac){
+      irPac.addEventListener('click', function(){
+        var pid = getLead(state.leadEditId).pacienteId;
+        closeModal();
+        state.tab = 'pacientes';
+        render();
+        openProfile(pid);
+      });
+    }
+    document.getElementById('leadCancelBtn').addEventListener('click', closeModal);
+    var rmBtn = document.getElementById('leadRemoveBtn');
+    if(rmBtn){
+      rmBtn.addEventListener('click', function(){
+        if(!confirm('Excluir esse lead? Essa ação não pode ser desfeita.')) return;
+        state.captacao.leads = state.captacao.leads.filter(function(x){ return x.id !== state.leadEditId; });
+        saveCaptacao();
+        closeModal();
+        render();
+        showToast('Lead excluído.', 'success');
+      });
+    }
+    document.getElementById('leadSaveBtn').addEventListener('click', function(){
+      var nome = document.getElementById('l_nome').value.trim();
+      if(!nome){ alert('O campo Nome é obrigatório.'); return; }
+      var etapaNova = document.getElementById('l_etapa').value;
+      var dados = {
+        nome: nome,
+        whatsapp: document.getElementById('l_whatsapp').value.trim(),
+        instagram: document.getElementById('l_instagram').value.trim(),
+        origem: document.getElementById('l_origem').value,
+        indicadoPor: document.getElementById('l_indicadoPor').value.trim(),
+        observacoes: document.getElementById('l_observacoes').value.trim(),
+        temperatura: draft.temperatura,
+        etiquetas: draft.etiquetas
+      };
+      var lead;
+      if(novo){
+        lead = Object.assign({
+          id: nextLeadId(), etapa: etapaNova, ordem: 0,
+          criadoEm: todayISODate(), mesFinalizado: null, pacienteId: null
+        }, dados);
+        if(etapaEhFinal(etapaNova)){ lead.mesFinalizado = state.competencia; lead.dataFinalizado = todayISODate(); }
+        state.captacao.leads.push(lead);
+      } else {
+        lead = getLead(state.leadEditId);
+        var etapaAntiga = lead.etapa;
+        Object.assign(lead, dados);
+        if(etapaNova !== etapaAntiga){
+          lead.etapa = etapaNova;
+          if(etapaEhFinal(etapaNova)){ lead.mesFinalizado = state.competencia; lead.dataFinalizado = todayISODate(); }
+          else { lead.mesFinalizado = null; lead.dataFinalizado = null; }
+        }
+      }
+      saveCaptacao();
+      var fechouAgora = etapaEhFinal(etapaNova) && etapaNova === 'fechado' && !lead.pacienteId;
+      closeModal();
+      render();
+      if(fechouAgora) criarPacienteDoLead(lead);
+      else showToast(novo ? 'Lead criado.' : 'Lead atualizado.', 'success');
+    });
+  }
+
+  function attachLeadsEvents(){
+    var content = document.getElementById('content');
+    var busca = document.getElementById('leadSearchInput');
+    if(busca){
+      busca.addEventListener('input', function(){
+        state.leadSearch = this.value;
+        refreshLeadKanban();
+      });
+    }
+    var comp = document.getElementById('leadCompetenciaSelect');
+    if(comp){
+      comp.addEventListener('change', function(){
+        state.competencia = this.value;
+        refreshLeadKanban();
+      });
+    }
+    var novoBtn = document.getElementById('leadNovoBtn');
+    if(novoBtn){
+      novoBtn.addEventListener('click', function(){ abrirLead(null); });
+    }
+    bindInfoIcons(content);
+    // mesmo padrao delegado que as outras telas usam pros menus de filtro
+    content.addEventListener('click', function(e){
+      var toggle = e.target.closest('[data-filter-toggle]');
+      if(toggle){
+        var menu = toggle.closest('.th-filter').querySelector('.filter-menu');
+        var willOpen = !menu.classList.contains('open');
+        document.querySelectorAll('.filter-menu.open').forEach(function(m){ m.classList.remove('open'); });
+        if(willOpen) menu.classList.add('open');
+        return;
+      }
+      var option = e.target.closest('.filter-menu-option');
+      if(option){
+        applyFilterSelection(option.getAttribute('data-filter-key'), option.getAttribute('data-filter-value'));
+        refreshLeadKanban();
+      }
+    });
+    bindLeadKanbanEvents();
   }
 
   /* ================= DASHBOARD ================= */
@@ -6573,6 +7100,9 @@
       html = weekEditModalHtml(pw, state.weekEditMonthKey, state.weekEditIndex);
     } else if(state.modal === 'settings'){
       html = settingsModalHtml();
+    } else if(state.modal === 'lead'){
+      html = leadModalHtml();
+      if(!html){ closeModal(); return; }
     }
     root.innerHTML = '<div class="modal-overlay" id="modalOverlay">'+html+'</div>';
 
@@ -6797,6 +7327,9 @@
         render();
         showToast('Semana atualizada.', 'success');
       });
+    }
+    if(state.modal === 'lead'){
+      bindLeadModalEvents();
     }
     if(state.modal === 'settings'){
       document.querySelectorAll('[data-settings-tab]').forEach(function(btn){
