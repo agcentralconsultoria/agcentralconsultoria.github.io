@@ -546,6 +546,18 @@
   .jornada-kanban-card.status-atrasado{border-color:#FCA5A5;background:var(--danger-bg);}
   .jornada-kanban-card.status-hoje{border-color:#FDE68A;background:var(--warning-bg);}
   .jornada-kanban-card.status-semana{border-color:#86EFAC;background:var(--success-bg);}
+  /* Vermelho FORTE = a data cai depois do fim da vigencia. Diferente do vermelho claro
+     de "atrasado": borda grossa e escura + fundo mais carregado, pra nao confundir os
+     dois de relance. */
+  .jornada-kanban-card.status-posvigencia{
+    border:2px solid #991B1B;background:#F8A0A0;
+    box-shadow:inset 4px 0 0 #7F1D1D;
+  }
+  .jornada-kanban-card.status-posvigencia .jornada-kanban-card-name{color:#5F1414;font-weight:700;}
+  .badge-posvigencia{
+    background:#B91C1C;color:#fff;font-size:10.5px;padding:3px 8px;
+    margin-top:4px;display:inline-block;white-space:normal;line-height:1.35;
+  }
   .jornada-kanban-card.status-concluido{opacity:.65;}
   .jornada-kanban-card.status-concluido .jornada-kanban-card-name{text-decoration:line-through;}
   .jornada-kanban-card-top{display:flex;align-items:flex-start;gap:8px;}
@@ -2933,12 +2945,26 @@
       });
     });
   }
+  /* Tarefa marcada pra depois do fim da vigencia: naquela data o paciente ja nao estaria
+     mais em acompanhamento, a nao ser que renove. A tarefa continua no quadro (ele pode
+     renovar), mas ganha destaque proprio pra isso nao passar batido. Sem vencimento
+     cadastrado nao da pra comparar, entao nao marca nada. */
+  function tarefaDepoisDaVigencia(p, t){
+    if(!p || !p.vencimento || !t || !t.dataAlvo || t.concluido) return false;
+    return t.dataAlvo > p.vencimento;
+  }
   function jornadaKanbanCardHtml(p, item){
     var t = item.task, diff = item.diff;
     var key = p.id+':'+t.id;
+    var posVigencia = tarefaDepoisDaVigencia(p, t);
     var status = t.concluido ? 'concluido' : diff === null ? 'semdata' : diff < 0 ? 'atrasado' : diff === 0 ? 'hoje' : 'semana';
     var diffText = t.concluido ? 'Concluído' : diff === null ? 'Sem data' : diff < 0 ? 'Atrasado (' + Math.abs(diff) + 'd)' : diff === 0 ? 'Hoje' : 'Em ' + diff + ' dias';
     var badgeCls = status === 'concluido' ? 'badge-success' : status === 'atrasado' ? 'badge-danger' : status === 'hoje' ? 'badge-warning' : status === 'semana' ? 'badge-success' : 'badge-gray';
+    // o vermelho forte manda na cor do cartao, mas o selo continua dizendo se atrasou
+    if(posVigencia) status = 'posvigencia';
+    var avisoVigencia = posVigencia
+      ? '<span class="badge badge-posvigencia" title="Nessa data a vigência do plano já terá vencido — a não ser que ele renove antes">⚠ vigência vence antes ('+formatDate(p.vencimento)+')</span>'
+      : '';
     var expanded = !!state.jornadaKanbanExpanded[key];
     var expandHtml = expanded ? ''+
       '<div class="jornada-kanban-card-expand">'+
@@ -2953,6 +2979,7 @@
           '<div class="jornada-kanban-card-body" data-kanban-card-toggle="'+key+'">'+
             '<div class="jornada-kanban-card-name">'+esc(t.nome)+'</div>'+
             '<span class="badge '+badgeCls+'">'+diffText+'</span>'+
+            avisoVigencia+
           '</div>'+
           '<button type="button" class="jornada-kanban-archive-btn" data-kanban-archive="'+key+'" title="Arquivar">🗄</button>'+
         '</div>'+
