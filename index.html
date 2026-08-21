@@ -558,6 +558,12 @@
     background:#B91C1C;color:#fff;font-size:10.5px;padding:3px 8px;
     margin-top:4px;display:inline-block;white-space:normal;line-height:1.35;
   }
+  /* Mesmo desenho do aviso de vigencia, mas em azul — aqui a cor do cartao nao muda,
+     o selo sozinho ja avisa que da pra tratar renovacao naquela data. */
+  .badge-renovacao{
+    background:var(--info);color:#fff;font-size:10.5px;padding:3px 8px;
+    margin-top:4px;display:inline-block;white-space:normal;line-height:1.35;
+  }
   .jornada-kanban-card.status-concluido{opacity:.65;}
   .jornada-kanban-card.status-concluido .jornada-kanban-card-name{text-decoration:line-through;}
   .jornada-kanban-card-top{display:flex;align-items:flex-start;gap:8px;}
@@ -2049,6 +2055,11 @@
     return '<span class="badge '+cls+'">'+esc(v)+'</span>';
   }
   var RENOVACAO_RANK = { 'Vencido': 0, 'Renovação antecipada': 1, 'Atenção': 2, 'Ativo': 3, 'Sem vencimento': 4 };
+  /* Janela de renovacao antecipada: 40 dias antes do vencimento. Eram 30, mas 30 fica
+     em cima da hora e da risco de perder a data — os 10 dias a mais sao margem de
+     seguranca. Com 40 aqui, a antiga faixa "Atencao" (31-40) deixa de existir: o proprio
+     aviso de renovacao ja cumpre esse papel. */
+  var DIAS_RENOVACAO_ANTECIPADA = 40;
   function renovacaoStatus(p){
     if(!p.vencimento) return 'Sem vencimento';
     var today = new Date();
@@ -2056,8 +2067,7 @@
     var v = new Date(p.vencimento + 'T00:00:00');
     var diff = Math.ceil((v - today) / 86400000);
     if(diff < 0) return 'Vencido';
-    if(diff <= 30) return 'Renovação antecipada';
-    if(diff <= 40) return 'Atenção';
+    if(diff <= DIAS_RENOVACAO_ANTECIPADA) return 'Renovação antecipada';
     return 'Ativo';
   }
   function renovacaoBadge(p){
@@ -2964,6 +2974,17 @@
     if(!p || !p.vencimento || !t || !t.dataAlvo || t.concluido) return false;
     return t.dataAlvo > p.vencimento;
   }
+  /* Tarefa que cai dentro da janela de renovacao antecipada (os 40 dias antes do
+     vencimento). Aqui a cor do cartao NAO muda — entra so o aviso escrito, pra lembrar
+     que naquele dia ja da pra falar de renovacao. */
+  function tarefaNaRenovacaoAntecipada(p, t){
+    if(!p || !p.vencimento || !t || !t.dataAlvo || t.concluido) return false;
+    if(t.dataAlvo > p.vencimento) return false; // depois do vencimento e o caso do vermelho forte
+    var venc = new Date(p.vencimento + 'T00:00:00');
+    var alvo = new Date(t.dataAlvo + 'T00:00:00');
+    var diff = Math.ceil((venc - alvo) / 86400000);
+    return diff <= DIAS_RENOVACAO_ANTECIPADA;
+  }
   function jornadaKanbanCardHtml(p, item){
     var t = item.task, diff = item.diff;
     var key = p.id+':'+t.id;
@@ -2975,7 +2996,9 @@
     if(posVigencia) status = 'posvigencia';
     var avisoVigencia = posVigencia
       ? '<span class="badge badge-posvigencia" title="Nessa data a vigência do plano já terá vencido — a não ser que ele renove antes">⚠ vigência vence antes ('+formatDate(p.vencimento)+')</span>'
-      : '';
+      : (tarefaNaRenovacaoAntecipada(p, t)
+        ? '<span class="badge badge-renovacao" title="Nessa data ele já estará na janela de renovação antecipada">↻ renovação antecipada</span>'
+        : '');
     var expanded = !!state.jornadaKanbanExpanded[key];
     var expandHtml = expanded ? ''+
       '<div class="jornada-kanban-card-expand">'+
@@ -6293,7 +6316,7 @@
           filterThHtml('planoFilter', 'Plano', 'Todos os Planos', ['Avulso','Trimestral','Semestral','Anual'])+
           filterThHtml('prioridadeFilter', 'Prioridade', 'Todas as Prioridades', ['Modo Bebezinho','Urgente','Moderada','Sem urgência'])+
           filterThHtml('statusFilter', 'Status', 'Todos os Status', [
-            {value:'Ativo', label:'Ativo'}, {value:'Atenção', label:'Atenção'}, {value:'Renovação antecipada', label:'Renovação antecipada'}
+            {value:'Ativo', label:'Ativo'}, {value:'Renovação antecipada', label:'Renovação antecipada'}
           ])+
           '<th>Ações</th>'+
         '</tr></thead>'+
@@ -6901,7 +6924,7 @@
           '<div class="form-group"><label>Prioridade</label><select id="f_prioridade">'+
             ['Modo Bebezinho','Urgente','Moderada','Sem urgência'].map(function(o){ return '<option value="'+o+'"'+(p.prioridade===o?' selected':'')+'>'+o+'</option>'; }).join('')+
           '</select></div>'+
-          '<div class="form-group"><label>Vigência do Plano</label><input type="date" id="f_venc" value="'+esc(p.vencimento)+'"><div class="mini-label" style="text-align:left;margin-top:4px;">Status (Ativo/Atenção/Vencido) é calculado automaticamente a partir desta data.</div></div>'+
+          '<div class="form-group"><label>Vigência do Plano</label><input type="date" id="f_venc" value="'+esc(p.vencimento)+'"><div class="mini-label" style="text-align:left;margin-top:4px;">Status é calculado automaticamente a partir desta data: Renovação antecipada nos 40 dias antes do vencimento, Vencido depois dele.</div></div>'+
           '<div class="form-group"><label>Data da Consulta</label><input type="date" id="f_consulta" value="'+esc(p.consulta)+'"><div class="mini-label" style="text-align:left;margin-top:4px;">Status (Em dia/Próximo/Atrasado) é calculado automaticamente: verde ≥16 dias, amarelo ≤15 dias, vermelho se já passou.</div></div>'+
           '<div class="form-group"><label>Data de Nascimento</label><input type="date" id="f_nascimento" value="'+esc(p.nascimento)+'"></div>'+
           '<div class="form-group"><label>Material Pós-Consulta</label>'+
