@@ -1471,10 +1471,15 @@
     var w = Math.round(dias/7);
     return 'há ' + w + (w === 1 ? ' semana' : ' semanas');
   }
+  /* Ate 7 semanas: verde. De 8 a 11: amarelo. De 12 em diante: vermelho. Calculado em
+     cima do mesmo numero de semanas arredondado que aparece escrito no badge
+     (elapsedWeeksText), pra cor e texto nunca discordarem (ex: nunca mostrar "8 semanas"
+     em verde). */
   function fichaTreinoTempoClass(dias){
     if(dias === null) return 'badge-gray';
-    if(dias < 28) return 'badge-success';
-    if(dias < 56) return 'badge-warning';
+    var semanas = Math.round(dias/7);
+    if(semanas <= 7) return 'badge-success';
+    if(semanas <= 11) return 'badge-warning';
     return 'badge-danger';
   }
   function nthFridayDate(monthKey, weekIndex){
@@ -3007,6 +3012,7 @@
         '<textarea class="jornada-task-name obscheckin-autosize" data-kanban-task-nome="'+key+'">'+esc(t.nome)+'</textarea>'+
         jornadaDateFieldHtml('kanban-'+p.id+'-'+t.id, p.id, t.dataAlvo)+
         '<textarea class="jornada-task-obs obscheckin-autosize" data-kanban-task-obs="'+key+'" placeholder="Observação / mensagem a enviar (opcional)">'+esc(t.observacao)+'</textarea>'+
+        '<button type="button" class="btn-icon" data-kanban-duplicate="'+key+'" style="width:100%;" title="Cria uma cópia desta tarefa sem data, pra você só ajustar a data nova">📋 Duplicar tarefa</button>'+
       '</div>' : '';
     return ''+
       '<div class="jornada-kanban-card status-'+status+'" data-kanban-drag-key="'+key+'">'+
@@ -3168,6 +3174,21 @@
         refreshAllJornadaViews();
         var cardEl = document.querySelector('.jornada-kanban-card[data-kanban-drag-key="'+pid+':'+newId+'"]');
         if(cardEl) cardEl.scrollIntoView({behavior:'smooth', block:'nearest'});
+      });
+    });
+    root.querySelectorAll('[data-kanban-duplicate]').forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        var parts = this.getAttribute('data-kanban-duplicate').split(':');
+        var pid = parseInt(parts[0],10), tid = parseInt(parts[1],10);
+        var newId = duplicatePatientTask(pid, tid);
+        if(newId === null) return;
+        // a copia ja abre expandida, pronta pra so preencher a data
+        state.jornadaKanbanExpanded[pid+':'+newId] = true;
+        refreshAllJornadaViews();
+        var cardEl = document.querySelector('.jornada-kanban-card[data-kanban-drag-key="'+pid+':'+newId+'"]');
+        if(cardEl) cardEl.scrollIntoView({behavior:'smooth', block:'nearest'});
+        showToast('Tarefa duplicada. Agora é só ajustar a data.', 'success');
       });
     });
     root.querySelectorAll('.jornada-kanban-cards').forEach(function(colEl){
@@ -4905,6 +4926,25 @@
     var maxOrdem = p.jornada.tarefas.reduce(function(m,t){ return Math.max(m, t.ordem||0); }, -1);
     var newId = maxId+1;
     p.jornada.tarefas.push({ id: newId, nome: 'Nova tarefa', fase: fase, dataAlvo: null, concluido: false, dataConclusao: null, observacao: '', arquivado: false, ordem: maxOrdem+1 });
+    savePatients();
+    return newId;
+  }
+  /* Duplica uma tarefa (nome, fase, observacao). A data NAO e copiada — fica em branco
+     de proposito, do mesmo jeito que uma tarefa nova, ja que na pratica so a data muda
+     de uma copia pra outra e assim fica obvio que precisa preencher uma data nova. */
+  function duplicatePatientTask(patientId, taskId){
+    var p = getPatient(patientId);
+    if(!p || !p.jornada) return null;
+    var original = p.jornada.tarefas.filter(function(t){ return t.id === taskId; })[0];
+    if(!original) return null;
+    var maxId = p.jornada.tarefas.reduce(function(m,t){ return Math.max(m, t.id); }, -1);
+    var maxOrdem = p.jornada.tarefas.reduce(function(m,t){ return Math.max(m, t.ordem||0); }, -1);
+    var newId = maxId+1;
+    p.jornada.tarefas.push({
+      id: newId, nome: original.nome, fase: original.fase, dataAlvo: null,
+      concluido: false, dataConclusao: null, observacao: original.observacao,
+      arquivado: false, ordem: maxOrdem+1
+    });
     savePatients();
     return newId;
   }
