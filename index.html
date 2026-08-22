@@ -3181,14 +3181,27 @@
         e.stopPropagation();
         var parts = this.getAttribute('data-kanban-duplicate').split(':');
         var pid = parseInt(parts[0],10), tid = parseInt(parts[1],10);
+        var p = getPatient(pid);
+        var original = p && p.jornada ? p.jornada.tarefas.filter(function(t){ return t.id === tid; })[0] : null;
+        if(!original) return;
+        // guarda onde a original esta ordenada AGORA (pode ja estar congelada por uma
+        // edicao anterior), pra colar a copia logo atras dela — nao no fim da coluna
+        // como uma tarefa nova (a copia nao tem data ainda, entao sozinha iria pro fim).
+        var origDiff = diasParaVencer(original.dataAlvo);
+        var origOv = state.jornadaKanbanSortOverride[pid+':'+tid];
+        var origSortDiff = origOv !== undefined ? origOv : (origDiff === null ? Infinity : origDiff);
         var newId = duplicatePatientTask(pid, tid);
         if(newId === null) return;
+        var copia = p.jornada.tarefas.filter(function(t){ return t.id === newId; })[0];
+        if(copia) copia.ordem = (original.ordem||0) + 0.5; // entre a original e a proxima
+        state.jornadaKanbanSortOverride[pid+':'+newId] = origSortDiff;
+        savePatients();
         // a copia ja abre expandida, pronta pra so preencher a data
         state.jornadaKanbanExpanded[pid+':'+newId] = true;
         refreshAllJornadaViews();
         var cardEl = document.querySelector('.jornada-kanban-card[data-kanban-drag-key="'+pid+':'+newId+'"]');
         if(cardEl) cardEl.scrollIntoView({behavior:'smooth', block:'nearest'});
-        showToast('Tarefa duplicada. Agora é só ajustar a data.', 'success');
+        showToast('Tarefa duplicada logo abaixo da original.', 'success');
       });
     });
     root.querySelectorAll('.jornada-kanban-cards').forEach(function(colEl){
