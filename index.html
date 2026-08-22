@@ -216,6 +216,20 @@
   .lead-link-btn.ig{background:linear-gradient(45deg,#F58529,#DD2A7B,#8134AF);border-color:transparent;color:#fff;}
   .lead-link-btn:hover{opacity:.85;}
   .lead-empty-col{font-size:12px;color:var(--text-muted);text-align:center;padding:14px 6px;}
+  /* Agenda de Captação */
+  .agenda-faixa{margin-bottom:18px;}
+  .agenda-faixa:last-child{margin-bottom:0;}
+  .agenda-faixa-titulo{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  .agenda-item{
+    display:flex;align-items:flex-start;gap:9px;padding:8px 10px;border-radius:8px;
+    border:1px solid var(--border);margin-bottom:6px;background:var(--white);
+  }
+  .agenda-item input[type=checkbox]{width:17px;height:17px;flex-shrink:0;cursor:pointer;margin-top:2px;}
+  .agenda-item-body{flex:1;min-width:0;}
+  .agenda-item-nome{font-size:13px;font-weight:600;color:var(--text);line-height:1.35;}
+  .agenda-item-meta{font-size:11.5px;margin-top:2px;}
+  .agenda-item-acoes{display:flex;gap:5px;flex-shrink:0;}
+
   /* Ações da Jornada do Lead dentro do modal */
   .lead-tarefa{
     border:1px solid var(--border);border-radius:9px;padding:9px 10px;margin-bottom:6px;background:var(--white);
@@ -1318,6 +1332,8 @@
     leadJornadaExpanded: {},   // tarefas abertas no detalhe do lead
     leadModelosCollapsed: true,
     leadModeloAberto: {},      // modelos expandidos no editor
+    agendaCollapsedPessoas: {},
+    agendaMostrarProximos: false,
     leadSearch: '',
     leadTemperaturaFilter: 'todos',
     leadEtiquetaFilter: 'todos',
@@ -4049,6 +4065,7 @@
   };
   function captacaoTemplate(tab){
     if(tab === 'cap-leads') return leadsTemplate();
+    if(tab === 'cap-visao') return captacaoVisaoTemplate();
     var info = CAPTACAO_EM_BREVE[tab] || CAPTACAO_EM_BREVE['cap-visao'];
     return ''+
       '<h1 class="page-title">'+esc(info.titulo)+'</h1>'+
@@ -4062,6 +4079,10 @@
   }
   function attachCaptacaoEvents(tab){
     if(tab === 'cap-leads') attachLeadsEvents();
+    if(tab === 'cap-visao'){
+      bindInfoIcons(document.getElementById('content'));
+      bindAgendaCaptacaoEvents();
+    }
   }
 
   /* ---------- Leads: filtro e Kanban ---------- */
@@ -4273,6 +4294,173 @@
     refreshLeadKanban();
     showToast('Lead fechado! Paciente "'+novo.nome+'" criado — complete o cadastro.', 'success');
   }
+  /* ---------- Agenda de Captação ----------
+     Nao guarda nada: le as tarefas que ja existem nas outras areas. Concluir aqui
+     conclui na origem porque e o MESMO registro, nao uma copia. Hoje so os Leads tem
+     jornada — quando Parcerias, Indicacoes e Comunidade existirem, e so acrescentar
+     nesta funcao e o resto da tela funciona sozinho. */
+  function agendaCaptacaoItens(){
+    var itens = [];
+    if(!state.captacao) return itens;
+    state.captacao.leads.forEach(function(l){
+      if(!l.jornada || !Array.isArray(l.jornada.tarefas)) return;
+      l.jornada.tarefas.forEach(function(t){
+        if(t.arquivado || t.concluido || !t.dataAlvo) return;
+        itens.push({
+          origem:'lead', origemLabel:'Lead', origemIco:'🎯',
+          pessoaId:'lead-'+l.id, pessoaNome:l.nome,
+          whatsapp:l.whatsapp, instagram:l.instagram,
+          abrirAttr:'data-agenda-abrir-lead="'+l.id+'"',
+          doneAttr:'data-agenda-done="lead:'+l.id+':'+t.id+'"',
+          tarefa:t, diff:diasParaVencer(t.dataAlvo)
+        });
+      });
+    });
+    return itens;
+  }
+  var AGENDA_FAIXAS = [
+    { key:'atrasado', label:'Atrasado',    cls:'badge-danger',  teste:function(d){ return d < 0; } },
+    { key:'hoje',     label:'Hoje',        cls:'badge-warning', teste:function(d){ return d === 0; } },
+    { key:'semana',   label:'Esta semana', cls:'badge-success', teste:function(d){ return d >= 1 && d <= 7; } },
+    { key:'proximos', label:'Próximos',    cls:'badge-gray',    teste:function(d){ return d > 7; } }
+  ];
+  function agendaItemHtml(it){
+    var t = it.tarefa;
+    var canal = canalInfo(t.canal);
+    var quando = it.diff < 0 ? 'atrasada há '+Math.abs(it.diff)+'d'
+               : it.diff === 0 ? 'hoje'
+               : 'em '+it.diff+'d';
+    var atalhos = '';
+    if(it.whatsapp) atalhos += '<a class="lead-link-btn wa" href="'+esc(whatsappHref(it.whatsapp))+'" target="_blank" rel="noopener" title="Abrir WhatsApp">💬</a>';
+    if(it.instagram) atalhos += '<a class="lead-link-btn ig" href="'+esc(instagramHref(it.instagram))+'" target="_blank" rel="noopener" title="Abrir Instagram">📷</a>';
+    return ''+
+      '<div class="agenda-item">'+
+        '<input type="checkbox" '+it.doneAttr+' title="Marcar como feita">'+
+        '<div class="agenda-item-body">'+
+          '<div class="agenda-item-nome">'+canal.ico+' '+esc(t.nome)+'</div>'+
+          '<div class="agenda-item-meta">'+
+            '<span class="cell-muted">'+formatDate(t.dataAlvo)+' · '+esc(quando)+'</span>'+
+          '</div>'+
+        '</div>'+
+        (atalhos ? '<div class="agenda-item-acoes">'+atalhos+'</div>' : '')+
+      '</div>';
+  }
+  function agendaGrupoPessoaHtml(pessoaId, pessoaNome, origemIco, abrirAttr, itens){
+    var recolhido = state.agendaCollapsedPessoas[pessoaId] === true;
+    var linhas = itens.map(agendaItemHtml).join('');
+    return ''+
+      '<div class="jornada-afazer-group">'+
+        '<div class="jornada-afazer-group-header">'+
+          '<button class="link-btn" '+abrirAttr+'>'+origemIco+' '+esc(pessoaNome)+'</button>'+
+          '<div style="display:flex;align-items:center;gap:6px;">'+
+            '<span class="badge badge-gray">'+itens.length+'</span>'+
+            '<button type="button" class="btn-icon" data-agenda-pessoa-toggle="'+esc(pessoaId)+'" title="'+(recolhido?'Mostrar':'Minimizar')+'">'+(recolhido?'▸':'▾')+'</button>'+
+          '</div>'+
+        '</div>'+
+        (recolhido ? '' : '<div class="jornada-afazer-group-body">'+linhas+'</div>')+
+      '</div>';
+  }
+  function agendaCaptacaoHtml(){
+    var todos = agendaCaptacaoItens();
+    if(!todos.length){
+      return '<div class="empty-state">Nada pendente na captação. Aplique uma jornada num lead pra começar. 🎉</div>';
+    }
+    var blocos = AGENDA_FAIXAS.map(function(faixa){
+      if(faixa.key === 'proximos' && !state.agendaMostrarProximos) return '';
+      var daFaixa = todos.filter(function(it){ return faixa.teste(it.diff); });
+      if(!daFaixa.length) return '';
+      // agrupa por pessoa, mantendo a ordem de urgencia dentro de cada grupo
+      var porPessoa = {}, ordem = [];
+      daFaixa.sort(function(a,b){ return a.diff - b.diff; }).forEach(function(it){
+        if(!porPessoa[it.pessoaId]){ porPessoa[it.pessoaId] = []; ordem.push(it); }
+        porPessoa[it.pessoaId].push(it);
+      });
+      var grupos = ordem.map(function(primeiro){
+        return agendaGrupoPessoaHtml(primeiro.pessoaId, primeiro.pessoaNome, primeiro.origemIco, primeiro.abrirAttr, porPessoa[primeiro.pessoaId]);
+      }).join('');
+      return ''+
+        '<div class="agenda-faixa">'+
+          '<div class="agenda-faixa-titulo">'+
+            '<span class="badge '+faixa.cls+'">'+esc(faixa.label)+'</span>'+
+            '<span class="cell-muted" style="font-size:12.5px;">'+daFaixa.length+' '+(daFaixa.length===1?'ação':'ações')+'</span>'+
+          '</div>'+
+          grupos+
+        '</div>';
+    }).join('');
+    var proximosQtd = todos.filter(function(it){ return it.diff > 7; }).length;
+    var botaoProximos = proximosQtd
+      ? '<button type="button" class="btn-icon" id="agendaProximosBtn" style="width:100%;margin-top:6px;">'+
+        (state.agendaMostrarProximos ? 'Ocultar os '+proximosQtd+' de mais pra frente' : 'Mostrar '+proximosQtd+' de mais pra frente')+'</button>'
+      : '';
+    if(!blocos && !state.agendaMostrarProximos && proximosQtd){
+      blocos = '<div class="empty-state" style="padding:20px;">Nada atrasado nem pra essa semana. 🎉</div>';
+    }
+    return blocos + botaoProximos;
+  }
+  function refreshAgendaCaptacao(){
+    var root = document.getElementById('agendaCaptacaoRoot');
+    if(!root) return;
+    root.innerHTML = agendaCaptacaoHtml();
+    bindAgendaCaptacaoEvents();
+  }
+  function bindAgendaCaptacaoEvents(){
+    var root = document.getElementById('agendaCaptacaoRoot');
+    if(!root) return;
+    root.querySelectorAll('[data-agenda-done]').forEach(function(cb){
+      cb.addEventListener('change', function(){
+        var parts = this.getAttribute('data-agenda-done').split(':');
+        if(parts[0] === 'lead'){
+          var l = getLead(parseInt(parts[1],10));
+          if(!l || !l.jornada) return;
+          var t = l.jornada.tarefas.filter(function(x){ return x.id === parseInt(parts[2],10); })[0];
+          if(!t) return;
+          // e o MESMO objeto que o lead usa — muda aqui, muda em todo lugar
+          t.concluido = true;
+          t.dataConclusao = todayISODate();
+          saveCaptacao();
+        }
+        refreshAgendaCaptacao();
+        showToast('Ação concluída.', 'success');
+      });
+    });
+    root.querySelectorAll('[data-agenda-pessoa-toggle]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var id = this.getAttribute('data-agenda-pessoa-toggle');
+        state.agendaCollapsedPessoas[id] = !state.agendaCollapsedPessoas[id];
+        refreshAgendaCaptacao();
+      });
+    });
+    root.querySelectorAll('[data-agenda-abrir-lead]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        abrirLead(parseInt(this.getAttribute('data-agenda-abrir-lead'),10));
+      });
+    });
+    var proxBtn = document.getElementById('agendaProximosBtn');
+    if(proxBtn){
+      proxBtn.addEventListener('click', function(){
+        state.agendaMostrarProximos = !state.agendaMostrarProximos;
+        refreshAgendaCaptacao();
+      });
+    }
+  }
+  function captacaoVisaoTemplate(){
+    return ''+
+      '<h1 class="page-title">Visão Geral</h1>'+
+      '<p class="page-sub">Captação</p>'+
+      '<div class="section-header-row" style="margin-top:18px;">'+
+        '<h2 class="section-title">Agenda de Captação</h2>'+
+        '<button class="info-icon-btn" type="button" data-info-toggle="info-agenda-cap">i</button>'+
+      '</div>'+
+      '<div class="info-popover" id="info-agenda-cap">Tudo que precisa de ação pra movimentar a captação, de todas as áreas juntas, agrupado por pessoa. Não se cadastra nada aqui — são as mesmas tarefas das jornadas, então marcar como feita aqui marca na origem também.</div>'+
+      '<div class="card" style="padding:16px;margin-bottom:32px;" id="agendaCaptacaoRoot">'+agendaCaptacaoHtml()+'</div>'+
+      '<div class="card" style="padding:18px;">'+
+        '<div class="cell-muted" style="font-size:13px;line-height:1.6;">'+
+          '<b style="color:var(--text);">Indicadores em breve.</b><br>'+
+          'Leads novos, conversas iniciadas, taxa de conversão, indicações e parcerias — com comparação entre o mês atual e o anterior. Entram quando as outras áreas da Captação estiverem prontas, pra os números já nascerem completos.'+
+        '</div>'+
+      '</div>';
+  }
+
   /* ---------- Editor de Modelos de Jornada de Lead ----------
      Mexer aqui muda o modelo pros PROXIMOS leads. Quem ja recebeu a jornada mantem a
      copia dele intacta — mesma regra dos modelos de paciente. */
