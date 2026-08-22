@@ -1981,17 +1981,24 @@
   var LEAD_TEMPERATURAS = ['Frio','Morno','Quente'];
   var LEAD_ORIGENS = ['Indicação','Social Selling','Parceria','Anúncio','Orgânico','Outro'];
   var ETIQUETAS_PADRAO = ['Emagrecimento','Hipertrofia','Recomposição corporal'];
+  /* Marcos de bonificacao: ao atingir N indicacoes CONVERTIDAS (o indicado fechou),
+     a pessoa conquista a recompensa. E cumulativo e nunca zera. */
+  var MARCOS_PADRAO = [
+    { fechamentos: 1, recompensa: '+15 dias de acompanhamento' },
+    { fechamentos: 2, recompensa: 'Camisa do time' }
+  ];
   function captacaoVazia(){
-    return { leads: [], parcerias: [], indicacoes: [], comunidade: [], etiquetas: ETIQUETAS_PADRAO.slice(), marcos: [] };
+    return { leads: [], parcerias: [], indicacoes: [], comunidade: [],
+             etiquetas: ETIQUETAS_PADRAO.slice(), marcos: MARCOS_PADRAO.slice(), conquistas: [] };
   }
   function normalizeCaptacao(raw){
     var c = captacaoVazia();
     if(!raw || typeof raw !== 'object') return c;
-    ['leads','parcerias','indicacoes','comunidade'].forEach(function(k){
+    ['leads','parcerias','indicacoes','comunidade','conquistas'].forEach(function(k){
       if(Array.isArray(raw[k])) c[k] = raw[k];
     });
     if(Array.isArray(raw.etiquetas) && raw.etiquetas.length) c.etiquetas = raw.etiquetas;
-    if(Array.isArray(raw.marcos)) c.marcos = raw.marcos;
+    if(Array.isArray(raw.marcos) && raw.marcos.length) c.marcos = raw.marcos;
     // garante os campos que o resto do codigo assume existir
     c.leads.forEach(function(l, i){
       if(!l.etapa) l.etapa = 'novo';
@@ -4066,6 +4073,7 @@
   function captacaoTemplate(tab){
     if(tab === 'cap-leads') return leadsTemplate();
     if(tab === 'cap-visao') return captacaoVisaoTemplate();
+    if(tab === 'cap-indica') return indicacoesTemplate();
     var info = CAPTACAO_EM_BREVE[tab] || CAPTACAO_EM_BREVE['cap-visao'];
     return ''+
       '<h1 class="page-title">'+esc(info.titulo)+'</h1>'+
@@ -4082,6 +4090,10 @@
     if(tab === 'cap-visao'){
       bindInfoIcons(document.getElementById('content'));
       bindAgendaCaptacaoEvents();
+    }
+    if(tab === 'cap-indica'){
+      bindInfoIcons(document.getElementById('content'));
+      bindIndicacoesEvents();
     }
   }
 
@@ -4268,10 +4280,21 @@
     l.ordem = naEtapa.reduce(function(m,x){ return Math.max(m, x.ordem||0); }, -1) + 1;
     saveCaptacao();
     refreshLeadKanban();
-    if(etapa === 'fechado' && anterior !== 'fechado' && !l.pacienteId){
-      criarPacienteDoLead(l);
+    if(etapa === 'fechado' && anterior !== 'fechado'){
+      // indicação vira convertida sozinha e o contador do indicador sobe
+      avisarConversaoDeIndicacao(converterIndicacaoDoLead(id));
+      if(!l.pacienteId){ criarPacienteDoLead(l); return; }
+    }
+    showToast('Lead movido para "'+etapaInfo(etapa).label+'".', 'success');
+  }
+  /* Avisa a conversão e, se bateu marco, a recompensa conquistada. */
+  function avisarConversaoDeIndicacao(r){
+    if(!r) return;
+    if(r.conquistas.length){
+      var lista = r.conquistas.map(function(c){ return c.recompensa; }).join(' e ');
+      showToast('🎁 '+r.indicacao.indicadorNome+' conquistou: '+lista+' ('+r.total+' indicações convertidas)', 'success');
     } else {
-      showToast('Lead movido para "'+etapaInfo(etapa).label+'".', 'success');
+      showToast('Indicação de '+r.indicacao.indicadorNome+' convertida ('+r.total+' no total).', 'success');
     }
   }
   /* Lead que fecha vira paciente automaticamente. O cadastro nasce incompleto de
@@ -4294,6 +4317,380 @@
     refreshLeadKanban();
     showToast('Lead fechado! Paciente "'+novo.nome+'" criado — complete o cadastro.', 'success');
   }
+  /* ---------- Indicações ----------
+     Guarda so o VINCULO: quem indicou -> quem foi indicado. A pessoa indicada vira um
+     Lead (fonte unica), nunca um cadastro paralelo. */
+  var INDICADOR_TIPOS = [
+    { key:'paciente', label:'Paciente' },
+    { key:'lead',     label:'Lead' },
+    { key:'outro',    label:'Outra pessoa' }
+  ];
+  function nextIndicacaoId(){
+    if(!state.captacao.indicacoes.length) return 1;
+    return state.captacao.indicacoes.reduce(function(m,i){ return Math.max(m, i.id||0); }, 0) + 1;
+  }
+  /* Chave estavel do indicador, pra somar as conversoes e as recompensas dele. */
+  function indicadorChave(ind){
+    return ind.indicadorTipo + ':' + (ind.indicadorId !== null && ind.indicadorId !== undefined ? ind.indicadorId : (ind.indicadorNome||'').toLowerCase());
+  }
+  /* Procura a pessoa nas bases antes de criar qualquer coisa — e o que evita duplicata. */
+  function acharLeadPorContato(nome, whatsapp, instagram){
+    if(!state.captacao) return null;
+    var wa = whatsappDigits(whatsapp||'');
+    var ig = instagramHandle(instagram||'').toLowerCase();
+    var n = (nome||'').trim().toLowerCase();
+    return state.captacao.leads.filter(function(l){
+      if(wa && whatsappDigits(l.whatsapp||'') === wa) return true;
+      if(ig && instagramHandle(l.instagram||'').toLowerCase() === ig) return true;
+      if(n && (l.nome||'').trim().toLowerCase() === n) return true;
+      return false;
+    })[0] || null;
+  }
+  /* Automação central: cadastrou indicação e a pessoa não existe -> cria o Lead sozinho,
+     na coluna Novo, com Origem = Indicação e o indicador preenchido. Se já existe,
+     apenas vincula. */
+  function criarOuVincularLeadDaIndicacao(dados){
+    var existente = acharLeadPorContato(dados.indicadoNome, dados.indicadoWhatsapp, dados.indicadoInstagram);
+    if(existente){
+      if(!existente.indicadoPor) existente.indicadoPor = dados.indicadorNome;
+      if(!existente.origem || existente.origem === 'Orgânico') existente.origem = 'Indicação';
+      return { lead: existente, criado: false };
+    }
+    var novo = {
+      id: nextLeadId(), nome: dados.indicadoNome,
+      whatsapp: dados.indicadoWhatsapp || '', instagram: dados.indicadoInstagram || '',
+      origem: 'Indicação', indicadoPor: dados.indicadorNome,
+      temperatura: 'Morno', etiquetas: [], etapa: 'novo',
+      criadoEm: todayISODate(), mesFinalizado: null, pacienteId: null,
+      observacoes: '', ordem: 0
+    };
+    state.captacao.leads.push(novo);
+    return { lead: novo, criado: true };
+  }
+  function indicacoesDoIndicador(chave){
+    return state.captacao.indicacoes.filter(function(i){ return indicadorChave(i) === chave; });
+  }
+  function conversoesDoIndicador(chave){
+    return indicacoesDoIndicador(chave).filter(function(i){ return i.convertida; }).length;
+  }
+  /* Depois de uma conversão, confere se a pessoa bateu algum marco novo. As conquistas
+     ficam registradas pra você controlar a entrega — e nunca são recalculadas pra trás. */
+  function verificarMarcos(chave, indicadorNome){
+    var total = conversoesDoIndicador(chave);
+    var novas = [];
+    (state.captacao.marcos||[]).forEach(function(m){
+      if(total < m.fechamentos) return;
+      var jaTem = state.captacao.conquistas.some(function(c){
+        return c.chave === chave && c.fechamentos === m.fechamentos;
+      });
+      if(jaTem) return;
+      var nova = { chave: chave, indicadorNome: indicadorNome, fechamentos: m.fechamentos,
+                   recompensa: m.recompensa, dataConquista: todayISODate(),
+                   entregue: false, dataEntrega: null };
+      state.captacao.conquistas.push(nova);
+      novas.push(nova);
+    });
+    return novas;
+  }
+  /* Chamado quando um lead entra em "Fechado": se ele veio de indicação, a indicação
+     é marcada como convertida e o contador do indicador sobe. */
+  function converterIndicacaoDoLead(leadId){
+    if(!state.captacao) return null;
+    var ind = state.captacao.indicacoes.filter(function(i){ return i.leadId === leadId && !i.convertida; })[0];
+    if(!ind) return null;
+    ind.convertida = true;
+    ind.dataConversao = todayISODate();
+    var chave = indicadorChave(ind);
+    var novas = verificarMarcos(chave, ind.indicadorNome);
+    saveCaptacao();
+    return { indicacao: ind, conquistas: novas, total: conversoesDoIndicador(chave) };
+  }
+
+  /* ---------- Tela de Indicações ---------- */
+  function indicacaoLinhaHtml(ind){
+    var lead = ind.leadId ? getLead(ind.leadId) : null;
+    var statusLead = lead ? etapaInfo(lead.etapa).label : 'lead removido';
+    var badgeConv = ind.convertida
+      ? '<span class="badge badge-success">✓ Fechou</span>'
+      : '<span class="badge badge-gray">'+esc(statusLead)+'</span>';
+    return '<tr>'+
+      '<td><b>'+esc(ind.indicadorNome)+'</b><div class="cell-muted" style="font-size:11.5px;">'+esc((INDICADOR_TIPOS.filter(function(t){return t.key===ind.indicadorTipo;})[0]||{label:''}).label)+'</div></td>'+
+      '<td>'+(lead ? '<button class="link-btn" data-ind-abrir-lead="'+lead.id+'">'+esc(ind.indicadoNome)+'</button>' : esc(ind.indicadoNome))+'</td>'+
+      '<td class="cell-muted">'+formatDate(ind.data)+'</td>'+
+      '<td>'+badgeConv+'</td>'+
+      '<td><button class="btn-icon btn-danger-outline" data-ind-remover="'+ind.id+'">Excluir</button></td>'+
+    '</tr>';
+  }
+  function indicacoesRows(){
+    var lista = (state.captacao ? state.captacao.indicacoes : []).slice()
+      .sort(function(a,b){ return (b.data||'').localeCompare(a.data||''); });
+    if(!lista.length) return '<tr><td colspan="5"><div class="empty-state">Nenhuma indicação registrada ainda.</div></td></tr>';
+    return lista.map(indicacaoLinhaHtml).join('');
+  }
+  /* Placar por pessoa: quantas indicou, quantas fecharam. Tudo somado na hora a partir
+     das indicações — não existe campo manual pra desencontrar. */
+  function placarIndicadoresRows(){
+    if(!state.captacao) return '';
+    var porChave = {};
+    state.captacao.indicacoes.forEach(function(i){
+      var k = indicadorChave(i);
+      if(!porChave[k]) porChave[k] = { nome:i.indicadorNome, total:0, convertidas:0 };
+      porChave[k].total++;
+      if(i.convertida) porChave[k].convertidas++;
+    });
+    var lista = Object.keys(porChave).map(function(k){
+      var x = porChave[k]; x.chave = k;
+      x.conquistas = state.captacao.conquistas.filter(function(c){ return c.chave === k; });
+      return x;
+    }).sort(function(a,b){ return b.convertidas - a.convertidas || b.total - a.total; });
+    if(!lista.length) return '<tr><td colspan="4"><div class="empty-state">Ninguém indicou ainda.</div></td></tr>';
+    return lista.map(function(x){
+      var recompensas = x.conquistas.length
+        ? x.conquistas.map(function(c){
+            return '<div style="margin-bottom:3px;">'+
+              '<span class="badge '+(c.entregue?'badge-success':'badge-warning')+'">'+(c.entregue?'✓ entregue':'a entregar')+'</span> '+
+              '<span style="font-size:12.5px;">'+esc(c.recompensa)+'</span> '+
+              (c.entregue
+                ? '<span class="cell-muted" style="font-size:11px;">em '+formatDate(c.dataEntrega)+'</span>'
+                : '<button class="btn-icon" data-conq-entregar="'+esc(c.chave)+'|'+c.fechamentos+'" style="padding:3px 8px;font-size:11px;">Marcar entregue</button>')+
+            '</div>';
+          }).join('')
+        : '<span class="cell-muted" style="font-size:12.5px;">—</span>';
+      return '<tr>'+
+        '<td><b>'+esc(x.nome)+'</b></td>'+
+        '<td>'+x.total+'</td>'+
+        '<td><span class="badge '+(x.convertidas?'badge-success':'badge-gray')+'">'+x.convertidas+'</span></td>'+
+        '<td>'+recompensas+'</td>'+
+      '</tr>';
+    }).join('');
+  }
+  function marcosRows(){
+    var lista = (state.captacao ? state.captacao.marcos : []).slice()
+      .sort(function(a,b){ return a.fechamentos - b.fechamentos; });
+    if(!lista.length) return '<div class="cell-muted" style="font-size:12.5px;">Nenhum marco configurado.</div>';
+    return lista.map(function(m, i){
+      return '<div class="jornada-template-task lead-modelo-acao">'+
+        '<input type="number" class="jornada-template-dia" data-marco-qtd="'+i+'" value="'+m.fechamentos+'" min="1" title="Quantos fechamentos">'+
+        '<input type="text" class="jornada-template-nome" data-marco-recompensa="'+i+'" value="'+esc(m.recompensa)+'" placeholder="Recompensa">'+
+        '<button type="button" class="btn-icon btn-danger-outline" data-marco-remover="'+i+'">×</button>'+
+      '</div>';
+    }).join('');
+  }
+  function indicacoesTemplate(){
+    return ''+
+      '<div class="profile-top" style="margin-bottom:4px;">'+
+        '<div><h1 class="page-title" style="margin-bottom:2px;">Indicações</h1>'+
+        '<p class="page-sub" style="margin:0;">Captação · quem indicou quem</p></div>'+
+        '<button class="btn btn-primary" id="indNovaBtn">+ Nova Indicação</button>'+
+      '</div>'+
+      '<div class="section-header-row" style="margin-top:18px;">'+
+        '<h2 class="section-title">Indicações recebidas</h2>'+
+        '<button class="info-icon-btn" type="button" data-info-toggle="info-indicacoes">i</button>'+
+      '</div>'+
+      '<div class="info-popover" id="info-indicacoes">Ao cadastrar, se a pessoa indicada ainda não existir, o Lead é criado sozinho na coluna Novo, com Origem = Indicação. Se já existir, só vincula — nunca duplica. A indicação vira "Fechou" automaticamente quando esse lead chega em Fechado.</div>'+
+      '<div class="card" style="margin-bottom:28px;">'+
+        '<table><thead><tr><th>Quem indicou</th><th>Indicado</th><th>Data</th><th>Situação</th><th>Ações</th></tr></thead>'+
+        '<tbody id="indicacoesBody">'+indicacoesRows()+'</tbody></table>'+
+      '</div>'+
+      '<div class="section-header-row">'+
+        '<h2 class="section-title">Placar e recompensas</h2>'+
+        '<button class="info-icon-btn" type="button" data-info-toggle="info-placar">i</button>'+
+      '</div>'+
+      '<div class="info-popover" id="info-placar">A recompensa só conta quando o indicado fecha. A contagem é cumulativa e nunca zera. Quando alguém bate um marco, a recompensa aparece aqui pra você marcar a entrega.</div>'+
+      '<div class="card" style="margin-bottom:28px;">'+
+        '<table><thead><tr><th>Pessoa</th><th>Indicou</th><th>Fecharam</th><th>Recompensas</th></tr></thead>'+
+        '<tbody id="placarBody">'+placarIndicadoresRows()+'</tbody></table>'+
+      '</div>'+
+      '<div class="section-header-row">'+
+        '<h2 class="section-title">Marcos de bonificação</h2>'+
+        '<button class="info-icon-btn" type="button" data-info-toggle="info-marcos">i</button>'+
+      '</div>'+
+      '<div class="info-popover" id="info-marcos">Ao atingir X indicações que fecharam, a pessoa conquista a recompensa. Acrescente quantos marcos quiser — 3, 5, 10 — sem mexer em mais nada.</div>'+
+      '<div class="card" style="padding:16px;margin-bottom:32px;">'+
+        '<div class="mini-label" style="text-align:left;margin-bottom:6px;">Fechamentos → recompensa</div>'+
+        '<div id="marcosRoot">'+marcosRows()+'</div>'+
+        '<button type="button" class="btn-icon" id="marcoAddBtn" style="width:100%;margin-top:6px;">+ Adicionar marco</button>'+
+      '</div>';
+  }
+  function refreshIndicacoes(){
+    var b1 = document.getElementById('indicacoesBody');
+    var b2 = document.getElementById('placarBody');
+    var b3 = document.getElementById('marcosRoot');
+    if(b1) b1.innerHTML = indicacoesRows();
+    if(b2) b2.innerHTML = placarIndicadoresRows();
+    if(b3) b3.innerHTML = marcosRows();
+    bindIndicacoesEvents();
+    applyMobileTableLabels();
+  }
+  function bindIndicacoesEvents(){
+    var content = document.getElementById('content');
+    if(!content) return;
+    content.querySelectorAll('[data-ind-abrir-lead]').forEach(function(btn){
+      btn.addEventListener('click', function(){ abrirLead(parseInt(this.getAttribute('data-ind-abrir-lead'),10)); });
+    });
+    content.querySelectorAll('[data-ind-remover]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var id = parseInt(this.getAttribute('data-ind-remover'),10);
+        if(!confirm('Excluir esta indicação? O lead criado a partir dela continua no funil.')) return;
+        state.captacao.indicacoes = state.captacao.indicacoes.filter(function(i){ return i.id !== id; });
+        saveCaptacao();
+        refreshIndicacoes();
+        showToast('Indicação excluída.', 'success');
+      });
+    });
+    content.querySelectorAll('[data-conq-entregar]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var parts = this.getAttribute('data-conq-entregar').split('|');
+        var c = state.captacao.conquistas.filter(function(x){
+          return x.chave === parts[0] && x.fechamentos === parseInt(parts[1],10);
+        })[0];
+        if(!c) return;
+        c.entregue = true;
+        c.dataEntrega = todayISODate();
+        saveCaptacao();
+        refreshIndicacoes();
+        showToast('Recompensa marcada como entregue.', 'success');
+      });
+    });
+    content.querySelectorAll('[data-marco-qtd]').forEach(function(el){
+      el.addEventListener('change', function(){
+        var v = parseInt(this.value,10);
+        state.captacao.marcos[parseInt(this.getAttribute('data-marco-qtd'),10)].fechamentos = isNaN(v)||v<1 ? 1 : v;
+        saveCaptacao();
+        refreshIndicacoes();
+      });
+    });
+    content.querySelectorAll('[data-marco-recompensa]').forEach(function(el){
+      el.addEventListener('blur', function(){
+        state.captacao.marcos[parseInt(this.getAttribute('data-marco-recompensa'),10)].recompensa = this.value.trim() || 'Recompensa';
+        saveCaptacao();
+      });
+    });
+    content.querySelectorAll('[data-marco-remover]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        state.captacao.marcos.splice(parseInt(this.getAttribute('data-marco-remover'),10), 1);
+        saveCaptacao();
+        refreshIndicacoes();
+      });
+    });
+    var addBtn = document.getElementById('marcoAddBtn');
+    if(addBtn && !addBtn.__bound){
+      addBtn.__bound = true;
+      addBtn.addEventListener('click', function(){
+        var maior = state.captacao.marcos.reduce(function(m,x){ return Math.max(m, x.fechamentos||0); }, 0);
+        state.captacao.marcos.push({ fechamentos: maior+1, recompensa: 'Nova recompensa' });
+        saveCaptacao();
+        refreshIndicacoes();
+      });
+    }
+    var novaBtn = document.getElementById('indNovaBtn');
+    if(novaBtn && !novaBtn.__bound){
+      novaBtn.__bound = true;
+      novaBtn.addEventListener('click', function(){ state.modal = 'indicacao'; renderModal(); });
+    }
+  }
+  /* Modal de nova indicação */
+  function indicacaoModalHtml(){
+    var pacientes = state.patients.slice().sort(function(a,b){ return a.nome.localeCompare(b.nome,'pt-BR'); });
+    var leads = (state.captacao ? state.captacao.leads : []).slice().sort(function(a,b){ return (a.nome||'').localeCompare(b.nome||'','pt-BR'); });
+    var optsPac = pacientes.map(function(p){ return '<option value="'+p.id+'">'+esc(p.nome)+'</option>'; }).join('');
+    var optsLead = leads.map(function(l){ return '<option value="'+l.id+'">'+esc(l.nome||'')+'</option>'; }).join('');
+    var tipoBtns = INDICADOR_TIPOS.map(function(t,i){
+      return '<button type="button" class="meta-type-btn'+(i===0?' active':'')+'" data-ind-tipo="'+t.key+'">'+esc(t.label)+'</button>';
+    }).join('');
+    return ''+
+    '<div class="modal">'+
+      '<div class="modal-header"><h2>Nova Indicação</h2>'+
+        '<button class="modal-close" id="modalCloseBtn">&times;</button></div>'+
+      '<div class="modal-body">'+
+        '<div class="form-grid">'+
+          '<div class="form-group full"><label>Quem indicou</label>'+
+            '<div class="meta-type-toggle" id="indTipoToggle">'+tipoBtns+'</div>'+
+            '<select id="ind_paciente" class="filter-select" style="width:100%;">'+(optsPac||'<option value="">Nenhum paciente</option>')+'</select>'+
+            '<select id="ind_lead" class="filter-select" style="width:100%;display:none;">'+(optsLead||'<option value="">Nenhum lead</option>')+'</select>'+
+            '<input type="text" id="ind_outro" placeholder="Nome de quem indicou" style="display:none;">'+
+          '</div>'+
+          '<div class="form-group full"><label>Nome de quem foi indicado *</label>'+
+            '<input type="text" id="ind_nome" placeholder="Nome da pessoa indicada"></div>'+
+          '<div class="form-group"><label>WhatsApp</label><input type="text" id="ind_whatsapp" placeholder="(11) 99999-9999"></div>'+
+          '<div class="form-group"><label>Instagram</label><input type="text" id="ind_instagram" placeholder="@perfil"></div>'+
+          '<div class="form-group"><label>Data da indicação</label><input type="date" id="ind_data" value="'+todayISODate()+'"></div>'+
+          '<div class="form-group full"><label>Observações</label><textarea id="ind_obs" placeholder="Contexto da indicação (opcional)"></textarea></div>'+
+        '</div>'+
+        '<div class="meta-box" style="font-size:13px;">Se essa pessoa ainda não existir no funil, o Lead é criado sozinho na coluna <b>Novo</b>, com Origem = Indicação. Se já existir, só vincula.</div>'+
+      '</div>'+
+      '<div class="modal-footer">'+
+        '<button class="btn btn-secondary" id="indCancelBtn">Cancelar</button>'+
+        '<button class="btn btn-primary" id="indSalvarBtn">Salvar</button>'+
+      '</div>'+
+    '</div>';
+  }
+  function bindIndicacaoModalEvents(){
+    var tipo = 'paciente';
+    function mostrarCampo(){
+      document.getElementById('ind_paciente').style.display = tipo==='paciente' ? '' : 'none';
+      document.getElementById('ind_lead').style.display     = tipo==='lead' ? '' : 'none';
+      document.getElementById('ind_outro').style.display    = tipo==='outro' ? '' : 'none';
+    }
+    document.querySelectorAll('[data-ind-tipo]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        tipo = this.getAttribute('data-ind-tipo');
+        document.querySelectorAll('[data-ind-tipo]').forEach(function(b){
+          b.classList.toggle('active', b.getAttribute('data-ind-tipo') === tipo);
+        });
+        mostrarCampo();
+      });
+    });
+    mostrarCampo();
+    document.getElementById('indCancelBtn').addEventListener('click', closeModal);
+    document.getElementById('indSalvarBtn').addEventListener('click', function(){
+      var nome = document.getElementById('ind_nome').value.trim();
+      if(!nome){ alert('Informe o nome de quem foi indicado.'); return; }
+      var indicadorId = null, indicadorNome = '';
+      if(tipo === 'paciente'){
+        var pid = parseInt(document.getElementById('ind_paciente').value,10);
+        var p = getPatient(pid);
+        if(!p){ alert('Selecione quem indicou.'); return; }
+        indicadorId = pid; indicadorNome = p.nome;
+      } else if(tipo === 'lead'){
+        var lid = parseInt(document.getElementById('ind_lead').value,10);
+        var l = getLead(lid);
+        if(!l){ alert('Selecione quem indicou.'); return; }
+        indicadorId = lid; indicadorNome = l.nome;
+      } else {
+        indicadorNome = document.getElementById('ind_outro').value.trim();
+        if(!indicadorNome){ alert('Informe o nome de quem indicou.'); return; }
+      }
+      var dados = {
+        indicadorNome: indicadorNome,
+        indicadoNome: nome,
+        indicadoWhatsapp: document.getElementById('ind_whatsapp').value.trim(),
+        indicadoInstagram: document.getElementById('ind_instagram').value.trim()
+      };
+      var r = criarOuVincularLeadDaIndicacao(dados);
+      var ind = {
+        id: nextIndicacaoId(), indicadorTipo: tipo, indicadorId: indicadorId, indicadorNome: indicadorNome,
+        leadId: r.lead.id, indicadoNome: nome, data: document.getElementById('ind_data').value || todayISODate(),
+        convertida: false, dataConversao: null, observacoes: document.getElementById('ind_obs').value.trim()
+      };
+      // lead ja fechado no momento do cadastro? entao a indicacao ja nasce convertida
+      if(r.lead.etapa === 'fechado'){
+        ind.convertida = true;
+        ind.dataConversao = todayISODate();
+      }
+      state.captacao.indicacoes.push(ind);
+      var conquistas = ind.convertida ? verificarMarcos(indicadorChave(ind), indicadorNome) : [];
+      saveCaptacao();
+      closeModal();
+      render();
+      if(conquistas.length){
+        showToast('🎁 '+indicadorNome+' conquistou: '+conquistas.map(function(c){return c.recompensa;}).join(' e '), 'success');
+      } else {
+        showToast(r.criado ? 'Indicação salva e Lead "'+nome+'" criado no funil.' : 'Indicação salva e vinculada ao lead existente.', 'success');
+      }
+    });
+  }
+
   /* ---------- Agenda de Captação ----------
      Nao guarda nada: le as tarefas que ja existem nas outras areas. Concluir aqui
      conclui na origem porque e o MESMO registro, nao uma copia. Hoje so os Leads tem
@@ -4940,7 +5337,7 @@
         temperatura: draft.temperatura,
         etiquetas: draft.etiquetas
       };
-      var lead;
+      var lead, fechouAgora = false;
       if(novo){
         lead = Object.assign({
           id: nextLeadId(), etapa: etapaNova, ordem: 0,
@@ -4948,6 +5345,7 @@
         }, dados);
         if(etapaEhFinal(etapaNova)){ lead.mesFinalizado = state.competencia; lead.dataFinalizado = todayISODate(); }
         state.captacao.leads.push(lead);
+        fechouAgora = etapaNova === 'fechado';
       } else {
         lead = getLead(state.leadEditId);
         var etapaAntiga = lead.etapa;
@@ -4956,14 +5354,17 @@
           lead.etapa = etapaNova;
           if(etapaEhFinal(etapaNova)){ lead.mesFinalizado = state.competencia; lead.dataFinalizado = todayISODate(); }
           else { lead.mesFinalizado = null; lead.dataFinalizado = null; }
+          fechouAgora = etapaNova === 'fechado';
         }
       }
       saveCaptacao();
-      var fechouAgora = etapaEhFinal(etapaNova) && etapaNova === 'fechado' && !lead.pacienteId;
+      var conversao = fechouAgora ? converterIndicacaoDoLead(lead.id) : null;
+      var precisaPaciente = fechouAgora && !lead.pacienteId;
       closeModal();
       render();
-      if(fechouAgora) criarPacienteDoLead(lead);
-      else showToast(novo ? 'Lead criado.' : 'Lead atualizado.', 'success');
+      if(conversao) avisarConversaoDeIndicacao(conversao);
+      if(precisaPaciente) criarPacienteDoLead(lead);
+      else if(!conversao) showToast(novo ? 'Lead criado.' : 'Lead atualizado.', 'success');
     });
   }
 
@@ -7972,6 +8373,8 @@
     } else if(state.modal === 'lead'){
       html = leadModalHtml();
       if(!html){ closeModal(); return; }
+    } else if(state.modal === 'indicacao'){
+      html = indicacaoModalHtml();
     }
     root.innerHTML = '<div class="modal-overlay" id="modalOverlay">'+html+'</div>';
 
@@ -8199,6 +8602,9 @@
     }
     if(state.modal === 'lead'){
       bindLeadModalEvents();
+    }
+    if(state.modal === 'indicacao'){
+      bindIndicacaoModalEvents();
     }
     if(state.modal === 'settings'){
       document.querySelectorAll('[data-settings-tab]').forEach(function(btn){
