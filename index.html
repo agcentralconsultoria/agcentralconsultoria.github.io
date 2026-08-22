@@ -2054,12 +2054,13 @@
     var cls = v==='Modo Bebezinho' ? 'badge-baby' : v==='Urgente' ? 'badge-danger' : v==='Moderada' ? 'badge-warning' : 'badge-gray';
     return '<span class="badge '+cls+'">'+esc(v)+'</span>';
   }
-  var RENOVACAO_RANK = { 'Vencido': 0, 'Renovação antecipada': 1, 'Atenção': 2, 'Ativo': 3, 'Sem vencimento': 4 };
-  /* Janela de renovacao antecipada: 40 dias antes do vencimento. Eram 30, mas 30 fica
-     em cima da hora e da risco de perder a data — os 10 dias a mais sao margem de
-     seguranca. Com 40 aqui, a antiga faixa "Atencao" (31-40) deixa de existir: o proprio
-     aviso de renovacao ja cumpre esse papel. */
-  var DIAS_RENOVACAO_ANTECIPADA = 40;
+  var RENOVACAO_RANK = { 'Vencido': 0, 'Renovação antecipada': 1, 'Renovação próxima': 2, 'Ativo': 3, 'Sem vencimento': 4 };
+  /* Dois avisos antes do vencimento: "Renovação próxima" (31-40 dias, amarelo — fica de
+     olho) e "Renovação antecipada" (0-30 dias, azul no status; no Kanban vira o selo azul
+     nas tarefas). A faixa de 31-40 ja existiu antes como "Atenção", mas o nome sozinho nao
+     dizia do que se tratava e acabou esquecido — o nome novo carrega o motivo junto. */
+  var DIAS_RENOVACAO_ANTECIPADA = 30;
+  var DIAS_RENOVACAO_PROXIMA = 40;
   function renovacaoStatus(p){
     if(!p.vencimento) return 'Sem vencimento';
     var today = new Date();
@@ -2068,11 +2069,12 @@
     var diff = Math.ceil((v - today) / 86400000);
     if(diff < 0) return 'Vencido';
     if(diff <= DIAS_RENOVACAO_ANTECIPADA) return 'Renovação antecipada';
+    if(diff <= DIAS_RENOVACAO_PROXIMA) return 'Renovação próxima';
     return 'Ativo';
   }
   function renovacaoBadge(p){
     var status = renovacaoStatus(p);
-    var map = { 'Ativo':'badge-success', 'Atenção':'badge-warning', 'Renovação antecipada':'badge-info', 'Vencido':'badge-danger', 'Sem vencimento':'badge-gray' };
+    var map = { 'Ativo':'badge-success', 'Renovação próxima':'badge-warning', 'Renovação antecipada':'badge-info', 'Vencido':'badge-danger', 'Sem vencimento':'badge-gray' };
     return '<span class="badge '+(map[status]||'badge-gray')+'">'+esc(status)+'</span>';
   }
   function renovacaoStatusSimplified(p){
@@ -4307,7 +4309,8 @@
     inativos: { title: 'Pacientes Inativos' },
     treinoVencido: { title: 'Ficha de Treino Vencida' },
     treinoAVencer: { title: 'Ficha de Treino a Vencer' },
-    renovacaoAntecipada: { title: 'Renovação Antecipada' }
+    renovacaoAntecipada: { title: 'Renovação Antecipada' },
+    renovacaoProxima: { title: 'Renovação Próxima' }
   };
   function dashboardFilterPatients(key){
     var today = new Date();
@@ -4323,6 +4326,7 @@
       if(key === 'consulta') return consultaStatus(p) === 'proximo';
       if(key === 'inativos') return renovacaoStatus(p) === 'Vencido';
       if(key === 'renovacaoAntecipada') return renovacaoStatus(p) === 'Renovação antecipada';
+      if(key === 'renovacaoProxima') return renovacaoStatus(p) === 'Renovação próxima';
       return false;
     });
     return list.sort(function(a,b){ return a.nome.localeCompare(b.nome, 'pt-BR'); });
@@ -4568,6 +4572,10 @@
       '<button class="kpi-card muted'+(state.dashboardFilter==='inativos'?' selected':'')+'" data-kpi="inativos">'+
         '<div class="kpi-label">Pacientes Inativos</div>'+
         '<div class="kpi-value">'+dashboardFilterPatients('inativos').length+'</div>'+
+      '</button>'+
+      '<button class="kpi-card alt'+(state.dashboardFilter==='renovacaoProxima'?' selected':'')+'" data-kpi="renovacaoProxima">'+
+        '<div class="kpi-label">Renovação Próxima</div>'+
+        '<div class="kpi-value">'+dashboardFilterPatients('renovacaoProxima').length+'</div>'+
       '</button>'+
       '<button class="kpi-card info'+(state.dashboardFilter==='renovacaoAntecipada'?' selected':'')+'" data-kpi="renovacaoAntecipada">'+
         '<div class="kpi-label">Renovação Antecipada</div>'+
@@ -6316,7 +6324,7 @@
           filterThHtml('planoFilter', 'Plano', 'Todos os Planos', ['Avulso','Trimestral','Semestral','Anual'])+
           filterThHtml('prioridadeFilter', 'Prioridade', 'Todas as Prioridades', ['Modo Bebezinho','Urgente','Moderada','Sem urgência'])+
           filterThHtml('statusFilter', 'Status', 'Todos os Status', [
-            {value:'Ativo', label:'Ativo'}, {value:'Renovação antecipada', label:'Renovação antecipada'}
+            {value:'Ativo', label:'Ativo'}, {value:'Renovação próxima', label:'Renovação próxima'}, {value:'Renovação antecipada', label:'Renovação antecipada'}
           ])+
           '<th>Ações</th>'+
         '</tr></thead>'+
@@ -6924,7 +6932,7 @@
           '<div class="form-group"><label>Prioridade</label><select id="f_prioridade">'+
             ['Modo Bebezinho','Urgente','Moderada','Sem urgência'].map(function(o){ return '<option value="'+o+'"'+(p.prioridade===o?' selected':'')+'>'+o+'</option>'; }).join('')+
           '</select></div>'+
-          '<div class="form-group"><label>Vigência do Plano</label><input type="date" id="f_venc" value="'+esc(p.vencimento)+'"><div class="mini-label" style="text-align:left;margin-top:4px;">Status é calculado automaticamente a partir desta data: Renovação antecipada nos 40 dias antes do vencimento, Vencido depois dele.</div></div>'+
+          '<div class="form-group"><label>Vigência do Plano</label><input type="date" id="f_venc" value="'+esc(p.vencimento)+'"><div class="mini-label" style="text-align:left;margin-top:4px;">Status é calculado automaticamente a partir desta data: Renovação próxima de 31 a 40 dias antes, Renovação antecipada nos últimos 30 dias, Vencido depois dele.</div></div>'+
           '<div class="form-group"><label>Data da Consulta</label><input type="date" id="f_consulta" value="'+esc(p.consulta)+'"><div class="mini-label" style="text-align:left;margin-top:4px;">Status (Em dia/Próximo/Atrasado) é calculado automaticamente: verde ≥16 dias, amarelo ≤15 dias, vermelho se já passou.</div></div>'+
           '<div class="form-group"><label>Data de Nascimento</label><input type="date" id="f_nascimento" value="'+esc(p.nascimento)+'"></div>'+
           '<div class="form-group"><label>Material Pós-Consulta</label>'+
