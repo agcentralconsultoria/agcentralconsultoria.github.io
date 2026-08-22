@@ -1045,6 +1045,15 @@
        ordenar caber do lado dela com folga, em vez de os dois se espremerem/sobreporem. */
     .jornada-select-row > .jornada-kanban-search-wrap{min-width:120px;}
 
+    /* Editor de modelos de Lead: o campo de dias, o canal e o botao de excluir cabem
+       juntos numa linha. Sem isso o "×" sobrava sozinho numa terceira linha, com cara
+       de quebrado. O nome fica na linha de cima, sozinho. */
+    /* o width:100% da regra generica acima jogaria cada campo pra uma linha; aqui
+       eles voltam a dividir a mesma linha */
+    .lead-modelo-acao .jornada-template-dia{flex:0 0 68px;width:68px;}
+    .lead-modelo-acao .jornada-template-fase{flex:1 1 0;min-width:0;width:auto;}
+    .lead-modelo-acao .btn-icon{flex:0 0 auto;padding:8px 11px;}
+
     /* Kanban de Leads no celular: uma coluna por vez, deslizando de lado — mesmo
        padrao do Kanban da Jornada, que ja funciona bem. */
     .lead-kanban{gap:10px;}
@@ -1307,6 +1316,8 @@
     captacao: null,
     captacaoTemplates: null,
     leadJornadaExpanded: {},   // tarefas abertas no detalhe do lead
+    leadModelosCollapsed: true,
+    leadModeloAberto: {},      // modelos expandidos no editor
     leadSearch: '',
     leadTemperaturaFilter: 'todos',
     leadEtiquetaFilter: 'todos',
@@ -2097,8 +2108,9 @@
     return state.captacaoTemplates.lead.filter(function(m){ return m.id === id; })[0] || null;
   }
   /* Aplica um modelo a um lead: as acoes viram tarefas com data real, contando a partir
-     da data de inicio. Cai em fim de semana? Empurra pra segunda, igual na Jornada do
-     Paciente. */
+     da data de inicio. Diferente da Jornada do Paciente, aqui a data NAO e empurrada pra
+     dia util — vender em fim de semana e normal, e adiar pra segunda so atrasaria o
+     contato de graca. */
   function aplicarJornadaLead(lead, modeloId, dataInicio){
     var modelo = getLeadTemplate(modeloId);
     if(!modelo) return false;
@@ -2109,7 +2121,7 @@
       tarefas: modelo.acoes.map(function(a, idx){
         return {
           id: idx, nome: a.nome, canal: a.canal || 'outro',
-          dataAlvo: nextBusinessDayIso(addDaysIso(dataInicio, a.dia || 0)),
+          dataAlvo: addDaysIso(dataInicio, a.dia || 0),
           concluido: false, dataConclusao: null, observacao: '',
           arquivado: false, ordem: idx
         };
@@ -4155,7 +4167,16 @@
         '<div class="form-group" style="min-width:190px;margin:0;"><label>Competência</label>'+
           '<select id="leadCompetenciaSelect" class="filter-select">'+monthSelectOptions(monthKey)+'</select></div>'+
       '</div>'+
-      '<div id="leadKanbanRoot">'+leadKanbanHtml(monthKey)+'</div>';
+      '<div id="leadKanbanRoot">'+leadKanbanHtml(monthKey)+'</div>'+
+      '<div class="section-header-row" style="margin-top:30px;">'+
+        '<h2 class="section-title">Modelos de Jornada de Lead</h2>'+
+        '<button class="info-icon-btn" type="button" data-info-toggle="info-lead-modelos">i</button>'+
+        '<button class="btn-icon" type="button" id="leadModelosToggleBtn" style="margin-left:auto;">'+(state.leadModelosCollapsed?'Mostrar':'Recolher')+'</button>'+
+      '</div>'+
+      '<div class="info-popover" id="info-lead-modelos">Os modelos que você aplica nos leads. O número em cada ação é quantos dias depois do início da jornada ela cai — Dia 0 é o próprio dia. Editar aqui muda o modelo pros próximos leads; quem já recebeu a jornada mantém a versão dele, sem ser afetado.</div>'+
+      '<div class="card" style="padding:16px;margin-bottom:32px;'+(state.leadModelosCollapsed?'display:none;':'')+'" id="leadModelosCard">'+
+        '<div id="leadModelosRoot">'+leadModelosHtml()+'</div>'+
+      '</div>';
   }
   function refreshLeadKanban(){
     var root = document.getElementById('leadKanbanRoot');
@@ -4252,6 +4273,153 @@
     refreshLeadKanban();
     showToast('Lead fechado! Paciente "'+novo.nome+'" criado — complete o cadastro.', 'success');
   }
+  /* ---------- Editor de Modelos de Jornada de Lead ----------
+     Mexer aqui muda o modelo pros PROXIMOS leads. Quem ja recebeu a jornada mantem a
+     copia dele intacta — mesma regra dos modelos de paciente. */
+  function nextLeadModeloId(){
+    return 'm_' + Date.now() + '_' + Math.floor(Math.random()*1000);
+  }
+  function leadModeloAcaoHtml(modeloId, a, idx){
+    var canalOpts = LEAD_CANAIS.map(function(c){
+      return '<option value="'+c.key+'"'+(c.key===a.canal?' selected':'')+'>'+c.ico+' '+esc(c.label)+'</option>';
+    }).join('');
+    return ''+
+      '<div class="jornada-template-task lead-modelo-acao">'+
+        '<input type="text" class="jornada-template-nome" data-lm-acao-nome="'+idx+'" data-lm-id="'+esc(modeloId)+'" value="'+esc(a.nome||'')+'" placeholder="O que fazer">'+
+        '<input type="number" class="jornada-template-dia" data-lm-acao-dia="'+idx+'" data-lm-id="'+esc(modeloId)+'" value="'+(a.dia||0)+'" min="0" title="Dias após o início da jornada">'+
+        '<select class="jornada-template-fase" data-lm-acao-canal="'+idx+'" data-lm-id="'+esc(modeloId)+'">'+canalOpts+'</select>'+
+        '<button type="button" class="btn-icon btn-danger-outline" data-lm-acao-remove="'+idx+'" data-lm-id="'+esc(modeloId)+'" title="Excluir esta ação">×</button>'+
+      '</div>';
+  }
+  function leadModeloHtml(m){
+    var aberto = !!state.leadModeloAberto[m.id];
+    var acoes = aberto ? m.acoes.map(function(a,i){ return leadModeloAcaoHtml(m.id, a, i); }).join('') : '';
+    return ''+
+      '<div class="ficha-treino-item">'+
+        '<div class="ficha-treino-header" style="cursor:default;">'+
+          '<button type="button" class="ficha-treino-summary" data-lm-toggle="'+esc(m.id)+'" style="background:none;border:none;font-family:inherit;font-size:13.5px;text-align:left;cursor:pointer;color:var(--text);">'+
+            (aberto?'▴':'▾')+' '+esc(m.nome)+'</button>'+
+          '<span class="badge badge-gray">'+m.acoes.length+' '+(m.acoes.length===1?'ação':'ações')+'</span>'+
+          '<button type="button" class="btn-icon" data-lm-duplicar="'+esc(m.id)+'">Duplicar</button>'+
+          '<button type="button" class="btn-icon btn-danger-outline" data-lm-remover="'+esc(m.id)+'">Excluir</button>'+
+        '</div>'+
+        (aberto ? ''+
+          '<div class="ficha-treino-body">'+
+            '<div class="mini-label" style="text-align:left;margin-top:10px;">Nome do modelo</div>'+
+            '<input type="text" class="dieta-variacao-nome" data-lm-nome="'+esc(m.id)+'" value="'+esc(m.nome)+'" placeholder="Ex: Lead Quente">'+
+            '<div class="mini-label" style="text-align:left;margin-top:10px;">Ações — o número é quantos dias depois do início da jornada</div>'+
+            acoes+
+            '<button type="button" class="btn-icon" data-lm-acao-add="'+esc(m.id)+'" style="width:100%;margin-top:4px;">+ Adicionar ação</button>'+
+          '</div>' : '')+
+      '</div>';
+  }
+  function leadModelosHtml(){
+    var lista = state.captacaoTemplates ? state.captacaoTemplates.lead : [];
+    if(!lista.length){
+      return '<div class="empty-state" style="padding:20px;">Nenhum modelo. Crie o primeiro abaixo.</div>'+
+             '<button type="button" class="btn-icon" id="leadModeloNovoBtn" style="width:100%;">+ Novo modelo</button>';
+    }
+    return lista.map(leadModeloHtml).join('')+
+      '<button type="button" class="btn-icon" id="leadModeloNovoBtn" style="width:100%;margin-top:8px;">+ Novo modelo</button>';
+  }
+  function refreshLeadModelos(){
+    var root = document.getElementById('leadModelosRoot');
+    if(!root) return;
+    root.innerHTML = leadModelosHtml();
+    bindLeadModelosEvents();
+  }
+  function bindLeadModelosEvents(){
+    var root = document.getElementById('leadModelosRoot');
+    if(!root) return;
+    function modeloDe(el){ return getLeadTemplate(el.getAttribute('data-lm-id') || el.getAttribute('data-lm-toggle')); }
+    root.querySelectorAll('[data-lm-toggle]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var id = this.getAttribute('data-lm-toggle');
+        state.leadModeloAberto[id] = !state.leadModeloAberto[id];
+        refreshLeadModelos();
+      });
+    });
+    root.querySelectorAll('[data-lm-nome]').forEach(function(el){
+      el.addEventListener('blur', function(){
+        var m = getLeadTemplate(this.getAttribute('data-lm-nome'));
+        if(m){ m.nome = this.value.trim() || 'Sem nome'; saveCaptacaoTemplates(); refreshLeadModelos(); }
+      });
+    });
+    root.querySelectorAll('[data-lm-acao-nome]').forEach(function(el){
+      el.addEventListener('blur', function(){
+        var m = modeloDe(this); if(!m) return;
+        m.acoes[parseInt(this.getAttribute('data-lm-acao-nome'),10)].nome = this.value.trim() || 'Sem nome';
+        saveCaptacaoTemplates();
+      });
+    });
+    root.querySelectorAll('[data-lm-acao-dia]').forEach(function(el){
+      el.addEventListener('change', function(){
+        var m = modeloDe(this); if(!m) return;
+        var v = parseInt(this.value,10);
+        m.acoes[parseInt(this.getAttribute('data-lm-acao-dia'),10)].dia = isNaN(v) || v < 0 ? 0 : v;
+        saveCaptacaoTemplates();
+      });
+    });
+    root.querySelectorAll('[data-lm-acao-canal]').forEach(function(el){
+      el.addEventListener('change', function(){
+        var m = modeloDe(this); if(!m) return;
+        m.acoes[parseInt(this.getAttribute('data-lm-acao-canal'),10)].canal = this.value;
+        saveCaptacaoTemplates();
+      });
+    });
+    root.querySelectorAll('[data-lm-acao-remove]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var m = modeloDe(this); if(!m) return;
+        m.acoes.splice(parseInt(this.getAttribute('data-lm-acao-remove'),10), 1);
+        saveCaptacaoTemplates();
+        refreshLeadModelos();
+      });
+    });
+    root.querySelectorAll('[data-lm-acao-add]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var m = getLeadTemplate(this.getAttribute('data-lm-acao-add')); if(!m) return;
+        var ultimoDia = m.acoes.length ? (m.acoes[m.acoes.length-1].dia || 0) : 0;
+        m.acoes.push({ nome:'Nova ação', dia: ultimoDia, canal:'whatsapp' });
+        saveCaptacaoTemplates();
+        refreshLeadModelos();
+      });
+    });
+    root.querySelectorAll('[data-lm-duplicar]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var m = getLeadTemplate(this.getAttribute('data-lm-duplicar')); if(!m) return;
+        var copia = { id: nextLeadModeloId(), nome: m.nome + ' (cópia)', isDefault: false,
+                      acoes: JSON.parse(JSON.stringify(m.acoes)) };
+        state.captacaoTemplates.lead.push(copia);
+        state.leadModeloAberto[copia.id] = true;
+        saveCaptacaoTemplates();
+        refreshLeadModelos();
+        showToast('Modelo duplicado.', 'success');
+      });
+    });
+    root.querySelectorAll('[data-lm-remover]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var id = this.getAttribute('data-lm-remover');
+        var m = getLeadTemplate(id); if(!m) return;
+        if(!confirm('Excluir o modelo "'+m.nome+'"? Os leads que já receberam essa jornada não são afetados.')) return;
+        state.captacaoTemplates.lead = state.captacaoTemplates.lead.filter(function(x){ return x.id !== id; });
+        saveCaptacaoTemplates();
+        refreshLeadModelos();
+        showToast('Modelo excluído.', 'success');
+      });
+    });
+    var novoBtn = document.getElementById('leadModeloNovoBtn');
+    if(novoBtn){
+      novoBtn.addEventListener('click', function(){
+        var novo = { id: nextLeadModeloId(), nome:'Novo modelo', isDefault:false,
+                     acoes:[{ nome:'Primeiro contato', dia:0, canal:'whatsapp' }] };
+        state.captacaoTemplates.lead.push(novo);
+        state.leadModeloAberto[novo.id] = true;
+        saveCaptacaoTemplates();
+        refreshLeadModelos();
+      });
+    }
+  }
+
   /* ---------- Modal do Lead ---------- */
   function abrirLead(id){
     state.leadEditId = id; // null = novo
@@ -4648,6 +4816,15 @@
         refreshLeadKanban();
       }
     });
+    var modelosToggle = document.getElementById('leadModelosToggleBtn');
+    if(modelosToggle){
+      modelosToggle.addEventListener('click', function(){
+        state.leadModelosCollapsed = !state.leadModelosCollapsed;
+        document.getElementById('leadModelosCard').style.display = state.leadModelosCollapsed ? 'none' : '';
+        this.textContent = state.leadModelosCollapsed ? 'Mostrar' : 'Recolher';
+      });
+    }
+    bindLeadModelosEvents();
     bindLeadKanbanEvents();
   }
 
