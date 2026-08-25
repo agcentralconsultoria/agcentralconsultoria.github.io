@@ -6702,8 +6702,9 @@
       groups[byId[gid]].push({ s: s, colorIdx: idx });
     });
     var temPar = groups.some(function(g){ return g.length > 1; });
-    // sem pares, o espacamento entre barras e o de sempre (14px, dentro do subgrupo)
-    var gapEntreFichas = temPar ? 26 : 14;
+    // sem pares, o espacamento entre barras e o de sempre (14px, dentro do subgrupo),
+    // a menos que o chamador peca outro valor (ex: treino usa 0 pra colar as barras)
+    var gapEntreFichas = temPar ? 26 : (opts.fichaGap !== undefined ? opts.fichaGap : 14);
     return categories.map(function(cat){
       var catKey = cat.key !== undefined ? cat.key : cat;
       var showGkgForCat = opts.showGkg && opts.pesoAtual && catKey && catKey !== 'calorias';
@@ -6772,7 +6773,7 @@
     var totals = {};
     groups.forEach(function(g){ totals[g] = chrono.reduce(function(sum,f){ return sum + (f.volumePorGrupo[g]||0); }, 0); });
     groups = groups.slice().sort(function(a,b){ return totals[b]-totals[a]; });
-    var bars = compareBarsHtml(groups, chrono, function(f, g){ return f.volumePorGrupo[g] || 0; });
+    var bars = compareBarsHtml(groups, chrono, function(f, g){ return f.volumePorGrupo[g] || 0; }, { fichaGap: 0 });
     var summary = '';
     if(chrono.length >= 2){
       var first = chrono[0], last = chrono[chrono.length-1];
