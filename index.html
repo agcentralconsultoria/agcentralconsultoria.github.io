@@ -698,6 +698,8 @@
   .peso-history-table{width:100%;font-size:13px;}
   .peso-history-table th,.peso-history-table td{padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);}
   .peso-var-up,.peso-var-down{color:var(--text);font-weight:600;}
+  .peso-history-pager{display:flex;align-items:center;gap:10px;margin-top:8px;}
+  .peso-history-pager button:disabled{opacity:.4;cursor:default;}
   .peso-history-layout{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;}
   .peso-history-left{flex:0 1 420px;min-width:300px;}
   .peso-history-right{flex:1 1 380px;min-width:300px;}
@@ -1360,6 +1362,7 @@
     dashboardTrendDrill: null,
     pesoHistoryOpen: {},
     pesoEditingKey: null,
+    pesoHistoryPage: {},
     pesoChartShowObs: false,
     weekEditIndex: null,
     weekEditMonthKey: null,
@@ -1673,7 +1676,7 @@
     var hoversHtml = dots.map(function(d){ return d.hover; }).join('');
     return '<div class="peso-chart-wrap">'+
       '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">'+
-        '<div class="mini-label" style="text-align:left;margin:0;">Evolução do peso (passe o mouse pra ver peso e variação)</div>'+
+        '<div class="mini-label" style="text-align:left;margin:0;">Evolução do peso</div>'+
         '<button type="button" class="btn-icon" data-peso-chart-obs-toggle="1">'+(showObs ? 'Ocultar observações do check-in' : 'Mostrar observações do check-in')+'</button>'+
       '</div>'+
       '<svg class="peso-chart-svg" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet">'+
@@ -1711,6 +1714,14 @@
     while(m.pesoData.length < wk) m.pesoData.push(null);
     m.peso[weekIndex] = value;
     m.pesoData[weekIndex] = dateStr;
+    savePatients();
+  }
+  function deletePesoEntry(patientId, monthKey, weekIndex){
+    var p = getPatient(patientId);
+    if(!p || !p.meses || !p.meses[monthKey]) return;
+    var m = p.meses[monthKey];
+    if(Array.isArray(m.peso) && weekIndex < m.peso.length) m.peso[weekIndex] = null;
+    if(Array.isArray(m.pesoData) && weekIndex < m.pesoData.length) m.pesoData[weekIndex] = null;
     savePatients();
   }
   function updateObsCheckinEntry(patientId, monthKey, weekIndex, obsVal){
@@ -1813,7 +1824,12 @@
     if(!list.length){
       return '<div class="peso-history-box">'+paceHtml+'<div class="empty-state" style="padding:16px;">Nenhum peso registrado ainda.</div>'+addHtml+'</div>';
     }
-    var rows = list.map(function(entry, idx){
+    var PESO_PAGE_SIZE = 5;
+    var totalPages = Math.max(1, Math.ceil(list.length / PESO_PAGE_SIZE));
+    if(!state.pesoHistoryPage) state.pesoHistoryPage = {};
+    var page = Math.min(Math.max(state.pesoHistoryPage[p.id] || 0, 0), totalPages - 1);
+    state.pesoHistoryPage[p.id] = page;
+    var rowsArr = list.map(function(entry, idx){
       var key = p.id+'|'+entry.monthKey+'|'+entry.weekIndex;
       if(state.pesoEditingKey === key){
         return '<tr class="peso-history-edit-row"><td colspan="4">'+
@@ -1831,12 +1847,23 @@
       var varText = variacao === null ? '—' : (variacao > 0 ? '↑ +'+fmtPeso(variacao)+' kg' : variacao < 0 ? '↓ '+fmtPeso(variacao)+' kg' : '0 kg');
       var varCls = variacao === null ? 'cell-muted' : variacao > 0 ? 'peso-var-up' : variacao < 0 ? 'peso-var-down' : 'cell-muted';
       return '<tr><td class="cell-muted">'+formatDate(entry.date)+'</td><td><b>'+fmtPeso(entry.value)+' kg</b></td><td class="'+varCls+'">'+varText+'</td>'+
-        '<td><button type="button" class="btn-icon" data-peso-edit-open="'+key+'" title="Editar data/peso">✏️</button></td></tr>';
-    }).join('');
+        '<td><button type="button" class="btn-icon" data-peso-edit-open="'+key+'" title="Editar data/peso">✏️</button> '+
+        '<button type="button" class="btn-icon" data-peso-delete="'+key+'" title="Excluir peso">🗑️</button></td></tr>';
+    });
+    var pageStart = page * PESO_PAGE_SIZE;
+    var rows = rowsArr.slice(pageStart, pageStart + PESO_PAGE_SIZE).join('');
+    var pagerHtml = totalPages > 1 ? (''+
+      '<div class="peso-history-pager">'+
+        '<button type="button" class="btn-icon" data-peso-page-prev="'+p.id+'"'+(page===0?' disabled':'')+'>&lt;</button>'+
+        '<span class="cell-muted">'+(page+1)+'/'+totalPages+'</span>'+
+        '<button type="button" class="btn-icon" data-peso-page-next="'+p.id+'"'+(page===totalPages-1?' disabled':'')+'>&gt;</button>'+
+      '</div>'
+    ) : '';
     return '<div class="peso-history-box">'+paceHtml+
       '<div class="peso-history-layout">'+
         '<div class="peso-history-left">'+
           '<table class="peso-history-table"><thead><tr><th>Data</th><th>Peso</th><th>Variação</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>'+
+          pagerHtml+
           addHtml+
         '</div>'+
         '<div class="peso-history-right">'+pesoChartHtml(list)+'</div>'+
@@ -7674,8 +7701,36 @@
         var addWeekIndex = nextFreePesoSlot(getPatient(addPid), addMonthKey);
         updatePesoEntry(addPid, addMonthKey, addWeekIndex, addValue, addDate);
         state.pesoEditingKey = null;
+        state.pesoHistoryPage[addPid] = 0;
         refreshOverviewTable();
         showToast('Peso registrado.', 'success');
+        return;
+      }
+      var pesoDeleteBtn = e.target.closest('[data-peso-delete]');
+      if(pesoDeleteBtn){
+        var delKey = pesoDeleteBtn.getAttribute('data-peso-delete').split('|');
+        var delPid = parseInt(delKey[0],10), delMonthKey = delKey[1], delWeekIndex = parseInt(delKey[2],10);
+        if(!confirm('Excluir este peso registrado? Essa ação não pode ser desfeita.')) return;
+        deletePesoEntry(delPid, delMonthKey, delWeekIndex);
+        state.pesoEditingKey = null;
+        refreshOverviewTable();
+        showToast('Peso excluído.', 'success');
+        return;
+      }
+      var pesoPagePrev = e.target.closest('[data-peso-page-prev]');
+      if(pesoPagePrev){
+        var prevPid = parseInt(pesoPagePrev.getAttribute('data-peso-page-prev'),10);
+        state.pesoHistoryPage[prevPid] = Math.max(0, (state.pesoHistoryPage[prevPid]||0) - 1);
+        state.pesoEditingKey = null;
+        refreshOverviewTable();
+        return;
+      }
+      var pesoPageNext = e.target.closest('[data-peso-page-next]');
+      if(pesoPageNext){
+        var nextPid = parseInt(pesoPageNext.getAttribute('data-peso-page-next'),10);
+        state.pesoHistoryPage[nextPid] = (state.pesoHistoryPage[nextPid]||0) + 1;
+        state.pesoEditingKey = null;
+        refreshOverviewTable();
         return;
       }
       var pesoEditOpen = e.target.closest('[data-peso-edit-open]');
