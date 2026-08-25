@@ -2426,14 +2426,27 @@
   function isTreinoQuinzenal(p){
     return !!p && p.servico === 'Treino';
   }
+  /* Planos Essencial (Trimestral/Semestral) nao tem engajamento nem check-in semanal —
+     so 1 check-in por mes, cobrindo o mes inteiro. Tem precedencia sobre o quinzenal
+     de "so Treino" caso as duas regras se apliquem ao mesmo paciente. */
+  function isEssencialMensal(p){
+    return !!p && (p.plano === 'Essencial Trimestral' || p.plano === 'Essencial Semestral');
+  }
   function activeWeekIndexes(p, monthKey){
     var wk = weeksInMonth(monthKey);
+    if(isEssencialMensal(p)) return [0];
     if(!isTreinoQuinzenal(p)){
       var todas = [];
       for(var i=0;i<wk;i++) todas.push(i);
       return todas;
     }
     return [0, 2].filter(function(i){ return i < wk; });
+  }
+  /* Indices com engajamento valido: igual ao check-in, exceto no plano Essencial, que
+     nao tem engajamento nenhum (so o check-in mensal). */
+  function activeEngagementIndexes(p, monthKey){
+    if(isEssencialMensal(p)) return [];
+    return activeWeekIndexes(p, monthKey);
   }
   function isWeekActive(p, monthKey, weekIdx){
     return activeWeekIndexes(p, monthKey).indexOf(weekIdx) !== -1;
@@ -2444,17 +2457,22 @@
     if(weekIdx === 0) return 'Sem 1/2';
     return 'Sem 3/4' + (wk >= 5 ? '/5' : '');
   }
+  function mensalBoxLabel(){
+    return 'Check-in do mês';
+  }
   function engagementRisk(p, monthKey){
     var data = getMonthData(p, monthKey);
     var ativos = activeWeekIndexes(p, monthKey);
-    var eng = ativos.map(function(i){ return data.engajamento[i]; });
+    var ativosEng = activeEngagementIndexes(p, monthKey);
+    var eng = ativosEng.map(function(i){ return data.engajamento[i]; });
     var chk = ativos.map(function(i){ return data.checkin[i]; });
     var filledEng = eng.filter(function(v){ return v !== null && v !== undefined; });
     var avg = filledEng.length ? (filledEng.reduce(function(a,b){ return a+b; }, 0) / filledEng.length) : null;
     var missed = chk.filter(function(v){ return v === false; }).length;
     var sent = chk.filter(function(v){ return v === true; }).length;
-    // quinzenal tem metade dos check-ins, então o limite de faltas também cai pela metade
-    var limiteFaltas = isTreinoQuinzenal(p) ? 1 : 2;
+    // quinzenal tem metade dos check-ins, então o limite de faltas também cai pela metade;
+    // Essencial tem só 1 check-in no mês, então perder essa 1 chance já conta como risco
+    var limiteFaltas = isEssencialMensal(p) ? 0 : (isTreinoQuinzenal(p) ? 1 : 2);
     var atRisk = missed > limiteFaltas || (avg !== null && avg < 8);
     return { avg: avg, missed: missed, sent: sent, total: chk.length, atRisk: atRisk };
   }
@@ -6332,10 +6350,14 @@
     var data = getMonthData(p, monthKey);
     var nSem = semanasJaOcorridas(monthKey);
     var ativos = activeWeekIndexes(p, monthKey);
+    var ativosEng = activeEngagementIndexes(p, monthKey);
     var engVazias = 0, chkVazias = 0;
-    ativos.forEach(function(i){
+    ativosEng.forEach(function(i){
       if(i >= nSem) return; // semana ainda nao aconteceu, nao conta como pendencia
       if(data.engajamento[i] === null || data.engajamento[i] === undefined) engVazias++;
+    });
+    ativos.forEach(function(i){
+      if(i >= nSem) return; // semana ainda nao aconteceu, nao conta como pendencia
       if(data.checkin[i] === null || data.checkin[i] === undefined) chkVazias++;
     });
     if(engVazias) faltas.push('Engajamento ('+engVazias+' sem.)');
@@ -7462,7 +7484,16 @@
       var p = x.p, r = x.r;
       var data = getMonthData(p, monthKey);
       var weekTds;
-      if(isTreinoQuinzenal(p)){
+      if(isEssencialMensal(p)){
+        // plano Essencial: 1 caixa so, cobrindo o mes inteiro, sem engajamento.
+        var labelMensal = mensalBoxLabel();
+        weekTds = '<td colspan="'+wk+'" style="padding:8px;text-align:center;">'+
+          '<button type="button" class="week-cell-btn" data-week-edit="'+p.id+'|0" title="Editar check-in — '+labelMensal+'">'+
+            '<div style="font-size:9.5px;color:var(--text-muted);font-weight:700;margin-bottom:3px;">'+labelMensal+'</div>'+
+            weekCellHtml(null, data.checkin[0])+
+          '</button>'+
+        '</td>';
+      } else if(isTreinoQuinzenal(p)){
         // so Treino: em vez de uma celula por semana (com "." nas que nao se aplicam),
         // mescla em 2 celulas so — uma cobrindo semanas 1-2, outra 3-4 (ou 3-4-5).
         weekTds = activeWeekIndexes(p, monthKey).map(function(i){
@@ -7587,7 +7618,7 @@
       '<div class="card">'+
         '<table><thead><tr>'+
           '<th class="th-sort" data-sort="nome">Nome'+sortArrow('nome')+'</th>'+
-          filterThHtml('planoFilter', 'Plano', 'Todos os Planos', ['Avulso','Trimestral','Semestral','Anual'])+
+          filterThHtml('planoFilter', 'Plano', 'Todos os Planos', ['Avulso','Trimestral','Semestral','Anual','Essencial Trimestral','Essencial Semestral'])+
           filterThHtml('prioridadeFilter', 'Prioridade', 'Todas as Prioridades', ['Modo Bebezinho','Urgente','Moderada','Sem urgência'])+
           filterThHtml('statusFilter', 'Status', 'Todos os Status', [
             {value:'Ativo', label:'Ativo'}, {value:'Renovação próxima', label:'Renovação próxima'}, {value:'Renovação antecipada', label:'Renovação antecipada'}
@@ -7956,22 +7987,34 @@
     var data = getMonthData(p, monthKey);
     var wk = data.engajamento.length;
     var quinzenal = isTreinoQuinzenal(p);
+    var essencial = isEssencialMensal(p);
     var activeIdx = activeWeekIndexes(p, monthKey);
-    var engChkWk = quinzenal ? activeIdx.length : wk;
-    var engHtml = activeIdx.map(function(i){
+    var activeEngIdx = activeEngagementIndexes(p, monthKey);
+    function boxLabel(i){
+      if(essencial) return mensalBoxLabel();
+      if(quinzenal) return quinzenalBoxLabel(i, wk);
+      return 'Sem '+(i+1);
+    }
+    var engHtml = activeEngIdx.map(function(i){
       var v = data.engajamento[i];
       var cls = engColorClass(v);
-      var label = quinzenal ? quinzenalBoxLabel(i, wk) : ('Sem '+(i+1));
-      return '<div class="eng-item '+cls+'"><div class="wk">'+label+'</div><div class="num">'+(v===null?'—':v)+'</div></div>';
+      return '<div class="eng-item '+cls+'"><div class="wk">'+boxLabel(i)+'</div><div class="num">'+(v===null?'—':v)+'</div></div>';
     }).join('');
     var chkHtml = activeIdx.map(function(i){
       var v = data.checkin[i];
       var cls = v === true ? 'checkin-yes' : v === false ? 'checkin-no' : 'checkin-empty';
       var mark = v === true ? '✓' : v === false ? '✗' : '—';
-      var label = quinzenal ? quinzenalBoxLabel(i, wk) : ('Sem '+(i+1));
-      return '<div class="checkin-item '+cls+'"><div class="wk">'+label+'</div><div class="mark">'+mark+'</div></div>';
+      return '<div class="checkin-item '+cls+'"><div class="wk">'+boxLabel(i)+'</div><div class="mark">'+mark+'</div></div>';
     }).join('');
     var quinzenalNota = quinzenal ? '<div class="cell-muted" style="font-size:12px;margin-bottom:6px;">Serviço só Treino: check-in a cada 14 dias — por isso só aparecem 2 caixas, cobrindo Sem 1/2 e Sem 3/4.</div>' : '';
+    var essencialNota = essencial ? '<div class="cell-muted" style="font-size:12px;margin-bottom:6px;">Plano Essencial: acompanhamento é mensal, sem engajamento — só o check-in do mês.</div>' : '';
+    var engagementSectionHtml = essencial ? '' : (''+
+      '<div class="profile-section">'+
+        '<h3>Engajamento Semanal</h3>'+
+        quinzenalNota+
+        '<div class="engagement-grid" style="grid-template-columns:repeat('+activeEngIdx.length+',1fr);">'+engHtml+'</div>'+
+      '</div>'
+    );
     var obsCheckinHtml = (data.obsCheckin || []).map(function(v,i){
       if(!v) return '';
       return '<div class="obscheckin-item"><b>Sem '+(i+1)+':</b> '+esc(v)+'</div>';
@@ -8006,14 +8049,11 @@
           '<h3>Meta da Próxima Consulta</h3>'+
           '<div class="meta-box">'+metaBoxText(data)+'</div>'+
         '</div>'+
+        engagementSectionHtml+
         '<div class="profile-section">'+
-          '<h3>Engajamento Semanal</h3>'+
-          quinzenalNota+
-          '<div class="engagement-grid" style="grid-template-columns:repeat('+engChkWk+',1fr);">'+engHtml+'</div>'+
-        '</div>'+
-        '<div class="profile-section">'+
-          '<h3>Check-ins Semanais</h3>'+
-          '<div class="checkin-grid" style="grid-template-columns:repeat('+engChkWk+',1fr);">'+chkHtml+'</div>'+
+          '<h3>'+(essencial?'Check-in Mensal':'Check-ins Semanais')+'</h3>'+
+          essencialNota+
+          '<div class="checkin-grid" style="grid-template-columns:repeat('+activeIdx.length+',1fr);">'+chkHtml+'</div>'+
         '</div>'+
         '<div class="profile-section">'+
           '<h3>Observações do Check-in</h3>'+
@@ -8157,6 +8197,7 @@
         '</div>'+
       '</div>'+
       '<div class="form-group full" id="quinzenalFormAviso" style="display:none;"><div class="mini-label" style="text-align:left;">Serviço só Treino: o acompanhamento é a cada 14 dias, então valem só Sem 1 e Sem 3. As outras ficam desativadas.</div></div>'+
+      '<div class="form-group full" id="mensalFormAviso" style="display:none;"><div class="mini-label" style="text-align:left;">Plano Essencial: acompanhamento mensal, sem engajamento — só o check-in do mês (Sem 1) fica disponível. O peso continua semanal.</div></div>'+
       '<div class="form-group full"><label>Engajamento Semanal (0-10 — deixe em branco se ainda não avaliou)</label><div class="field-row5" style="grid-template-columns:repeat('+wk+',1fr);">'+engInputs+'</div></div>'+
       '<div class="form-group full"><label>Check-in Semanal ('+monthLabel(monthKey)+' tem '+wk+' semanas)</label><div class="field-row5" style="grid-template-columns:repeat('+wk+',1fr);">'+chkInputs+'</div></div>'+
       '<div class="form-group full"><label>Observação do Check-in (o que o paciente escreveu, ou sua anotação)</label><div class="field-row5" style="grid-template-columns:repeat('+wk+',1fr);">'+obsCheckinInputs+'</div></div>'+
@@ -8168,23 +8209,46 @@
      só desativamos/reativamos os campos das semanas que não se aplicam. */
   function applyQuinzenalToForm(){
     var servicoEl = document.getElementById('f_servico');
+    var planoEl = document.getElementById('f_plano');
     var compEl = document.getElementById('f_competencia');
     if(!servicoEl || !compEl) return;
     var monthKey = compEl.value;
     var wk = weeksInMonth(monthKey);
-    var ativos = activeWeekIndexes({ servico: servicoEl.value }, monthKey);
+    var mock = { servico: servicoEl.value, plano: planoEl ? planoEl.value : undefined };
+    var essencial = isEssencialMensal(mock);
+    var ativosCheckin = activeWeekIndexes(mock, monthKey);
+    var ativosEng = activeEngagementIndexes(mock, monthKey);
     for(var i=0;i<wk;i++){
-      var ativo = ativos.indexOf(i) !== -1;
-      ['f_eng_','f_chk_','f_obscheckin_','f_peso_'].forEach(function(prefix){
+      var ativoChk = ativosCheckin.indexOf(i) !== -1;
+      var ativoEng = ativosEng.indexOf(i) !== -1;
+      ['f_chk_','f_obscheckin_'].forEach(function(prefix){
         var el = document.getElementById(prefix+i);
         if(!el) return;
-        el.disabled = !ativo;
+        el.disabled = !ativoChk;
         var box = el.parentElement;
-        if(box) box.style.opacity = ativo ? '' : '.45';
+        if(box) box.style.opacity = ativoChk ? '' : '.45';
       });
+      // peso continua semanal mesmo no plano Essencial — so check-in/engajamento tem
+      // cadencia diferente; no quinzenal ("so Treino") o peso ja seguia o mesmo padrao
+      // de antes, entao isso so muda pro Essencial.
+      var el2 = document.getElementById('f_peso_'+i);
+      if(el2){
+        var ativoPeso = essencial ? true : ativoChk;
+        el2.disabled = !ativoPeso;
+        var box2 = el2.parentElement;
+        if(box2) box2.style.opacity = ativoPeso ? '' : '.45';
+      }
+      var engEl = document.getElementById('f_eng_'+i);
+      if(engEl){
+        engEl.disabled = !ativoEng;
+        var engBox = engEl.parentElement;
+        if(engBox) engBox.style.opacity = ativoEng ? '' : '.45';
+      }
     }
     var aviso = document.getElementById('quinzenalFormAviso');
-    if(aviso) aviso.style.display = isTreinoQuinzenal({ servico: servicoEl.value }) ? '' : 'none';
+    if(aviso) aviso.style.display = (!essencial && isTreinoQuinzenal(mock)) ? '' : 'none';
+    var avisoMensal = document.getElementById('mensalFormAviso');
+    if(avisoMensal) avisoMensal.style.display = essencial ? '' : 'none';
   }
   function maybeStartJornada(patient, jornadaInicio, modeloValue){
     if(!jornadaInicio || patient.jornada || !modeloValue) return;
@@ -8238,7 +8302,7 @@
           '<div class="form-group"><label>E-mail</label><input type="email" id="f_email" value="'+esc(p.email)+'" placeholder="email@exemplo.com"></div>'+
           '<div class="form-group"><label>Telefone</label><input type="tel" id="f_telefone" value="'+esc(p.telefone)+'" placeholder="(11) 98765-4321"></div>'+
           '<div class="form-group"><label>Plano</label><select id="f_plano">'+
-            ['Avulso','Trimestral','Semestral','Anual'].map(function(o){ return '<option value="'+o+'"'+(p.plano===o?' selected':'')+'>'+o+'</option>'; }).join('')+
+            ['Avulso','Trimestral','Semestral','Anual','Essencial Trimestral','Essencial Semestral'].map(function(o){ return '<option value="'+o+'"'+(p.plano===o?' selected':'')+'>'+o+'</option>'; }).join('')+
           '</select></div>'+
           '<div class="form-group"><label>Serviço</label><select id="f_servico">'+
             ['Treino','Dieta','Treino + Dieta'].map(function(o){ return '<option value="'+o+'"'+(p.servico===o?' selected':'')+'>'+o+'</option>'; }).join('')+
@@ -8371,14 +8435,17 @@
     var engVal = data.engajamento[weekIndex];
     var chkVal = data.checkin[weekIndex];
     var obsVal = (data.obsCheckin && data.obsCheckin[weekIndex]) || '';
+    var essencial = isEssencialMensal(p);
+    var titulo = essencial ? ('Editar Check-in do Mês — '+esc(p.nome)) : ('Editar Semana '+(weekIndex+1)+' — '+esc(p.nome));
+    var engFieldHtml = essencial ? '' : ('<div class="form-group"><label>Engajamento (0-10)</label><input type="number" min="0" max="10" id="f_week_eng" value="'+(engVal===null?'':engVal)+'" placeholder="— (não avaliado)"></div>');
     return ''+
     '<div class="modal">'+
       '<div class="modal-header">'+
-        '<h2>Editar Semana '+(weekIndex+1)+' — '+esc(p.nome)+'</h2>'+
+        '<h2>'+titulo+'</h2>'+
         '<button class="modal-close" id="modalCloseBtn">&times;</button>'+
       '</div>'+
       '<div class="modal-body">'+
-        '<div class="form-group"><label>Engajamento (0-10)</label><input type="number" min="0" max="10" id="f_week_eng" value="'+(engVal===null?'':engVal)+'" placeholder="— (não avaliado)"></div>'+
+        engFieldHtml+
         '<div class="form-group"><label>Check-in</label><select id="f_week_chk">'+
           '<option value=""'+(chkVal===null?' selected':'')+'>— (não avaliado)</option>'+
           '<option value="sim"'+(chkVal===true?' selected':'')+'>Enviou</option>'+
@@ -8653,6 +8720,8 @@
         dietaWrap.style.display = temServicoDieta({ servico: this.value }) ? '' : 'none';
         applyQuinzenalToForm();
       });
+      var f_plano_el = document.getElementById('f_plano');
+      if(f_plano_el) f_plano_el.addEventListener('change', applyQuinzenalToForm);
       applyQuinzenalToForm();
       var fichaTreinoFormAddBtn = document.getElementById('fichaTreinoFormAddBtn');
       if(fichaTreinoFormAddBtn){
@@ -8728,7 +8797,8 @@
     }
     if(state.modal === 'weekEdit'){
       document.getElementById('weekEditSaveBtn').addEventListener('click', function(){
-        var engRaw = document.getElementById('f_week_eng').value;
+        var engEl = document.getElementById('f_week_eng');
+        var engRaw = engEl ? engEl.value : '';
         var engVal = engRaw === '' ? null : clamp(parseInt(engRaw,10), 0, 10);
         var chkRaw = document.getElementById('f_week_chk').value;
         var chkVal = chkRaw === 'sim' ? true : chkRaw === 'nao' ? false : null;
