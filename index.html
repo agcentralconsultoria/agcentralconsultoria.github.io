@@ -7547,6 +7547,9 @@
     }
     var startWeekday = new Date(year, month, 1).getDay();
     var weekdayHeaders = ['D','S','T','Q','Q','S','S'].map(function(w){ return '<span class="jornada-cal-wd">'+w+'</span>'; }).join('');
+    var hoje = new Date();
+    var isMesAtual = hoje.getFullYear() === year && hoje.getMonth() === month;
+    var diaHoje = isMesAtual ? hoje.getDate() : -1;
     var cells = '';
     for(var i=0;i<startWeekday;i++){ cells += '<span class="jornada-cal-cell empty"></span>'; }
     for(day=1; day<=daysInMonth; day++){
@@ -7555,7 +7558,8 @@
       var isFriday = fridays.indexOf(day) !== -1;
       var style = weekIdx !== -1 ? 'background:'+chartColorFor(weekIdx)+'33;' : '';
       if(isFriday) style += 'font-weight:700;box-shadow:inset 0 0 0 1.5px '+chartColorFor(weekIdx)+';';
-      cells += '<span class="jornada-cal-cell readonly-cal-cell" style="'+style+'border-radius:5px;">'+day+'</span>';
+      if(day === diaHoje) style += 'outline:2px solid var(--primary);outline-offset:-1px;';
+      cells += '<span class="jornada-cal-cell readonly-cal-cell" style="'+style+'border-radius:5px;" title="'+(day===diaHoje?'Hoje':'')+'">'+day+'</span>';
     }
     var legend = fridays.map(function(f,i){
       return '<div style="display:flex;align-items:center;gap:6px;font-size:12px;margin-top:4px;">'+
