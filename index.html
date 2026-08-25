@@ -326,6 +326,7 @@
   .kpi-card.alt{border-left-color:var(--warning);}
   .kpi-card.danger{border-left-color:var(--danger);}
   .ficha-treino-item{border:1px solid var(--border);border-radius:9px;margin-bottom:8px;overflow:hidden;background:var(--white);}
+  .ficha-treino-item.current{outline:2px solid var(--primary);outline-offset:-1px;}
   .ficha-treino-header{
     width:100%;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
     padding:10px 12px;background:none;border:none;font-family:inherit;font-size:13.5px;
@@ -6644,7 +6645,7 @@
           '<button type="button" class="btn-icon btn-danger-outline" data-'+attrPrefix+'-remove="'+f.id+'" style="margin-top:10px;">Remover ficha</button>'+
         '</div>'
       );
-      return '<div class="ficha-treino-item">'+header+body+'</div>';
+      return '<div class="ficha-treino-item'+(isCurrent?' current':'')+'">'+header+body+'</div>';
     }).join('');
     return items || ('<div class="obs-box">Nenhuma ficha de '+(kind==='dieta'?'dieta':'treino')+' registrada ainda.</div>');
   }
