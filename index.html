@@ -1518,12 +1518,15 @@
      cima do mesmo numero de semanas arredondado que aparece escrito no badge
      (elapsedWeeksText), pra cor e texto nunca discordarem (ex: nunca mostrar "8 semanas"
      em verde). */
-  function fichaTreinoTempoClass(dias){
-    if(dias === null) return 'badge-gray';
-    var semanas = Math.round(dias/7);
+  function treinoTempoClassFromSemanas(semanas){
+    if(semanas === null) return 'badge-gray';
     if(semanas <= 7) return 'badge-success';
     if(semanas <= 11) return 'badge-warning';
     return 'badge-danger';
+  }
+  function fichaTreinoTempoClass(dias){
+    if(dias === null) return 'badge-gray';
+    return treinoTempoClassFromSemanas(Math.round(dias/7));
   }
   function nthFridayDate(monthKey, weekIndex){
     var parsed = parseMonthKey(monthKey);
@@ -6307,7 +6310,7 @@
   function formatDiasOuSemanas(dias, unit){
     if(dias === null) return 'Nunca atualizado';
     if(unit === 'semanas' && dias >= 7){
-      var w = Math.round(dias/7);
+      var w = Math.floor(dias/7);
       return w + (w === 1 ? ' semana' : ' semanas');
     }
     return dias + (Math.abs(dias) === 1 ? ' dia' : ' dias');
@@ -6319,7 +6322,10 @@
     if(!list.length) return '<tr><td colspan="2"><div class="empty-state">Nenhum paciente com serviço de '+(kind==='treino'?'Treino':'Dieta')+'.</div></td></tr>';
     return list.map(function(item){
       var diasLabel = formatDiasOuSemanas(item.dias, unit);
-      var cls = kind === 'treino' ? fichaTreinoTempoClass(item.dias) : (item.dias === null || item.dias >= 30 ? 'badge-success' : item.dias >= 15 ? 'badge-warning' : 'badge-gray');
+      var clsTreino = (unit === 'semanas' && item.dias !== null && item.dias >= 7)
+        ? treinoTempoClassFromSemanas(Math.floor(item.dias/7))
+        : fichaTreinoTempoClass(item.dias);
+      var cls = kind === 'treino' ? clsTreino : (item.dias === null || item.dias >= 30 ? 'badge-success' : item.dias >= 15 ? 'badge-warning' : 'badge-gray');
       return '<tr><td><button class="link-btn" data-open-profile="'+item.p.id+'">'+esc(item.p.nome)+'</button></td><td><span class="badge '+cls+'">'+esc(diasLabel)+'</span></td></tr>';
     }).join('');
   }
