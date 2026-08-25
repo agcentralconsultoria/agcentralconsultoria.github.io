@@ -399,6 +399,8 @@
   }
   .dieta-livres-input input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-light);}
   .dieta-livres-input span{font-size:12.5px;color:var(--text-muted);font-weight:600;}
+  .dieta-livres-obs-wrap{margin-top:8px;}
+  textarea.dieta-livres-obs{width:110px;}
   .dieta-ciclo-aviso{font-size:12px;margin-top:8px;line-height:1.5;}
   .dieta-ciclo-aviso.ok{color:var(--success);}
   .dieta-ciclo-aviso.alerta{color:var(--danger);}
@@ -1216,13 +1218,13 @@
     var kcal = parseFloat(f.calorias) || 0;
     return kcal ? kcal * 7 : null;
   }
-  /* ---- Extra semanal: ou "calorias livres" (a pessoa segue a dieta E come essas
-     calorias a mais na semana, entao SOMA no total) ou "refeicao livre" (troca uma
-     refeicao do plano por outra coisa, entao NAO soma — a refeicao ja estava contada).
-     E sempre um ou outro, nunca os dois. Ficha sem nada disso e o formato antigo. ---- */
+  /* ---- Extra semanal: "calorias livres" (a pessoa segue a dieta E come essas
+     calorias a mais na semana) ou "refeicao livre" (troca uma refeicao do plano por
+     outra coisa). Os dois somam no total da semana. E sempre um ou outro, nunca os
+     dois. Ficha sem nada disso e o formato antigo. ---- */
   var LIVRES_TIPOS = [
     { key:'calorias', label:'Calorias livres', campoLabel:'Calorias livres semanais', soma:true },
-    { key:'refeicao', label:'Refeição livre', campoLabel:'Calorias da refeição livre', soma:false }
+    { key:'refeicao', label:'Refeição livre', campoLabel:'Calorias da refeição livre', soma:true }
   ];
   function livresTipoDe(f){
     return (f && f.livresTipo === 'refeicao') ? 'refeicao' : 'calorias';
@@ -1232,7 +1234,7 @@
     return isNaN(v) || v <= 0 ? 0 : v;
   }
   function livresSoma(f){
-    return livresTipoDe(f) === 'calorias' ? livresKcalDe(f) : 0;
+    return livresKcalDe(f);
   }
   /* Total da semana ja com o extra somado (quando for calorias livres). */
   function dietaKcalSemanaTotal(f){
@@ -6555,12 +6557,16 @@
     var val = (f.livresKcal !== undefined && f.livresKcal !== null) ? f.livresKcal : '';
     var explica = tipo === 'calorias'
       ? 'A pessoa segue a dieta e come essas calorias a mais na semana — por isso somam no total.'
-      : 'A pessoa troca uma refeição do plano por essa — por isso não soma no total da semana.';
+      : 'A pessoa troca uma refeição do plano por essa — por isso soma no total da semana.';
     return '<div class="mini-label" style="text-align:left;margin-top:14px;">Extra semanal</div>'+
       '<div class="meta-type-toggle">'+botoes+'</div>'+
       '<div class="dieta-livres-row">'+
         '<div class="mini-label" style="text-align:left;">'+esc(cfg.campoLabel)+'</div>'+
         '<div class="dieta-livres-input"><input type="number" min="0" step="1" data-'+attrPrefix+'-livreskcal="1" data-'+attrPrefix+'-id="'+f.id+'" value="'+esc(String(val))+'" placeholder="0"><span>kcal</span></div>'+
+      '</div>'+
+      '<div class="dieta-livres-obs-wrap">'+
+        '<div class="mini-label" style="text-align:left;">Anotação (não entra em nenhum cálculo)</div>'+
+        '<textarea class="obscheckin-autosize dieta-livres-obs" data-'+attrPrefix+'-livresobs="1" data-'+attrPrefix+'-id="'+f.id+'" placeholder="Escreva o que quiser aqui...">'+esc(f.livresObs||'')+'</textarea>'+
       '</div>'+
       '<div class="cell-muted" style="font-size:12px;margin-top:4px;line-height:1.5;">'+esc(explica)+'</div>';
   }
@@ -6575,7 +6581,7 @@
       : '<span class="cell-muted"> (média de '+fmtNum(Math.round(total/7))+' kcal/dia)</span>';
     var refeicao = '';
     if(livresTipoDe(f) === 'refeicao' && livresKcalDe(f)){
-      refeicao = '<div class="cell-muted" style="font-size:12.5px;margin-top:2px;">Refeição livre de '+fmtNum(livresKcalDe(f))+' kcal — substitui uma refeição do plano, não entra na soma.</div>';
+      refeicao = '<div class="cell-muted" style="font-size:12.5px;margin-top:2px;">Refeição livre de '+fmtNum(livresKcalDe(f))+' kcal — substitui uma refeição do plano, e entra no total da semana.</div>';
     }
     return '<div style="margin-top:12px;font-size:13px;"><b>Total da semana: '+fmtNum(total)+' kcal</b>'+detalhe+'</div>'+refeicao;
   }
@@ -7207,6 +7213,14 @@
         onChange();
       });
     });
+    root.querySelectorAll('[data-'+attrPrefix+'-livresobs]').forEach(function(el){
+      el.addEventListener('blur', function(){
+        var f = fichaFrom(this);
+        if(!f) return;
+        f.livresObs = this.value;
+        onChange();
+      });
+    });
     root.querySelectorAll('[data-'+attrPrefix+'-varnome]').forEach(function(el){
       el.addEventListener('blur', function(){
         var f = fichaFrom(this);
@@ -7299,6 +7313,7 @@
         refreshFichaDietaList();
       });
     }
+    bindObsCheckinAutosize();
   }
   function fichaDietaDraftListHtml(){
     var pesoAtual = state.modal === 'edit' ? latestPesoAtual(getPatient(state.activeId)) : null;
@@ -7352,6 +7367,7 @@
         }
       });
     });
+    bindObsCheckinAutosize();
   }
 
   /* ================= PACIENTES ================= */
