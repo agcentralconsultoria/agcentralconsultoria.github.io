@@ -1615,7 +1615,8 @@
     // pontos + tooltip em CSS puro (aparece no hover, sem depender de bind de evento)
     var TW = 138, TH = 46;
     var showObs = !!state.pesoChartShowObs;
-    function wrapObs(str, maxChars, maxLines){
+    function wrapObs(str, maxChars){
+      // sem limite de linhas: a observacao inteira aparece, por maior que seja
       var words = String(str).split(/\s+/).filter(Boolean);
       var lines = [];
       var cur = '';
@@ -1624,16 +1625,11 @@
         if(test.length > maxChars && cur){
           lines.push(cur);
           cur = words[wi];
-          if(lines.length === maxLines) break;
         } else {
           cur = test;
         }
       }
-      if(lines.length < maxLines && cur) lines.push(cur);
-      if(lines.length === maxLines && lines.join(' ').length < str.length){
-        var last = lines[maxLines-1];
-        lines[maxLines-1] = (last.length > 1 ? last.slice(0,-1) : last) + '…';
-      }
+      if(cur) lines.push(cur);
       return lines;
     }
     var dots = pts.map(function(e, i){
@@ -1645,7 +1641,7 @@
       var varTxt = variacao === null ? 'primeiro registro'
         : (variacao > 0 ? '↑ +'+fmtPeso(variacao)+' kg' : variacao < 0 ? '↓ '+fmtPeso(variacao)+' kg' : '0 kg') + pctTxt;
       var varColor = variacao === null ? 'var(--text-muted)' : 'rgba(255,255,255,0.85)';
-      var obsLines = (showObs && e.obs) ? wrapObs(e.obs, emCelular ? 22 : 26, 3) : [];
+      var obsLines = (showObs && e.obs) ? wrapObs(e.obs, emCelular ? 22 : 26) : [];
       var tw = obsLines.length ? (emCelular ? 190 : 210) : TW;
       var th = obsLines.length ? (46 + obsLines.length*11 + 10) : TH;
       // vira o tooltip pro lado esquerdo quando o ponto está na metade direita
