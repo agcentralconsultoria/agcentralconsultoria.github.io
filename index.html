@@ -1360,6 +1360,7 @@
     dashboardTrendDrill: null,
     pesoHistoryOpen: {},
     pesoEditingKey: null,
+    pesoChartShowObs: false,
     weekEditIndex: null,
     weekEditMonthKey: null,
     fichaTreinoOpen: {},
@@ -1555,12 +1556,13 @@
         var arr = p.meses[monthKey].peso;
         if(!Array.isArray(arr)) return;
         var dataArr = p.meses[monthKey].pesoData;
+        var obsArr = p.meses[monthKey].obsCheckin;
         arr.forEach(function(v, i){
           if(v === null || v === undefined || v === '') return;
           var explicit = Array.isArray(dataArr) ? dataArr[i] : null;
           var d = explicit || nthFridayDate(monthKey, i);
           if(!d) return;
-          entries.push({ date: d, value: parseFloat(v), monthKey: monthKey, weekIndex: i });
+          entries.push({ date: d, value: parseFloat(v), monthKey: monthKey, weekIndex: i, obs: (Array.isArray(obsArr) && obsArr[i]) || '' });
         });
       });
     }
@@ -1612,6 +1614,28 @@
     });
     // pontos + tooltip em CSS puro (aparece no hover, sem depender de bind de evento)
     var TW = 138, TH = 46;
+    var showObs = !!state.pesoChartShowObs;
+    function wrapObs(str, maxChars, maxLines){
+      var words = String(str).split(/\s+/).filter(Boolean);
+      var lines = [];
+      var cur = '';
+      for(var wi=0; wi<words.length; wi++){
+        var test = cur ? cur+' '+words[wi] : words[wi];
+        if(test.length > maxChars && cur){
+          lines.push(cur);
+          cur = words[wi];
+          if(lines.length === maxLines) break;
+        } else {
+          cur = test;
+        }
+      }
+      if(lines.length < maxLines && cur) lines.push(cur);
+      if(lines.length === maxLines && lines.join(' ').length < str.length){
+        var last = lines[maxLines-1];
+        lines[maxLines-1] = (last.length > 1 ? last.slice(0,-1) : last) + '…';
+      }
+      return lines;
+    }
     var dots = pts.map(function(e, i){
       var cx = xAt(i), cy = yAt(e.value);
       var prev = pts[i-1];
@@ -1621,22 +1645,35 @@
       var varTxt = variacao === null ? 'primeiro registro'
         : (variacao > 0 ? '↑ +'+fmtPeso(variacao)+' kg' : variacao < 0 ? '↓ '+fmtPeso(variacao)+' kg' : '0 kg') + pctTxt;
       var varColor = variacao === null ? 'var(--text-muted)' : 'rgba(255,255,255,0.85)';
+      var obsLines = (showObs && e.obs) ? wrapObs(e.obs, emCelular ? 22 : 26, 3) : [];
+      var tw = obsLines.length ? (emCelular ? 190 : 210) : TW;
+      var th = obsLines.length ? (46 + obsLines.length*11 + 10) : TH;
       // vira o tooltip pro lado esquerdo quando o ponto está na metade direita
-      var tipX = cx + 12 + TW > W - padR ? cx - 12 - TW : cx + 12;
-      var tipY = Math.min(Math.max(cy - TH/2, padT), H - padB - TH);
+      var tipX = cx + 12 + tw > W - padR ? cx - 12 - tw : cx + 12;
+      var tipY = Math.min(Math.max(cy - th/2, padT), H - padB - th);
+      var obsHtml = obsLines.length ? (
+        '<text x="9" y="45" font-size="8.5" fill="rgba(255,255,255,0.55)">Check-in:</text>'+
+        obsLines.map(function(line, li){
+          return '<text x="9" y="'+(56 + li*11)+'" font-size="9.5" fill="rgba(255,255,255,0.85)">'+esc(line)+'</text>';
+        }).join('')
+      ) : '';
       return '<g class="peso-chart-pt">'+
         '<circle cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="4" fill="var(--primary)" stroke="var(--white)" stroke-width="2"></circle>'+
         '<circle cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="12" fill="transparent"></circle>'+
         '<g class="peso-chart-tip" transform="translate('+tipX.toFixed(1)+','+tipY.toFixed(1)+')">'+
-          '<rect width="'+TW+'" height="'+TH+'" rx="6" fill="#1F2937"></rect>'+
+          '<rect width="'+tw+'" height="'+th+'" rx="6" fill="#1F2937"></rect>'+
           '<text x="9" y="17" font-size="9.5" fill="rgba(255,255,255,0.7)">'+formatDate(e.date)+'</text>'+
-          '<text x="'+(TW-9)+'" y="18" text-anchor="end" font-size="12.5" font-weight="700" fill="#FFFFFF">'+fmtPeso(e.value)+' kg</text>'+
+          '<text x="'+(tw-9)+'" y="18" text-anchor="end" font-size="12.5" font-weight="700" fill="#FFFFFF">'+fmtPeso(e.value)+' kg</text>'+
           '<text x="9" y="34" font-size="10" fill="'+varColor+'">'+varTxt+'</text>'+
+          obsHtml+
         '</g>'+
       '</g>';
     }).join('');
     return '<div class="peso-chart-wrap">'+
-      '<div class="mini-label" style="text-align:left;">Evolução do peso (passe o mouse pra ver peso e variação)</div>'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">'+
+        '<div class="mini-label" style="text-align:left;margin:0;">Evolução do peso (passe o mouse pra ver peso e variação)</div>'+
+        '<button type="button" class="btn-icon" data-peso-chart-obs-toggle="1">'+(showObs ? 'Ocultar observações do check-in' : 'Mostrar observações do check-in')+'</button>'+
+      '</div>'+
       '<svg class="peso-chart-svg" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet">'+
         grid + line + xLabels + dots +
       '</svg>'+
@@ -1672,6 +1709,18 @@
     while(m.pesoData.length < wk) m.pesoData.push(null);
     m.peso[weekIndex] = value;
     m.pesoData[weekIndex] = dateStr;
+    savePatients();
+  }
+  function updateObsCheckinEntry(patientId, monthKey, weekIndex, obsVal){
+    var p = getPatient(patientId);
+    if(!p) return;
+    if(!p.meses) p.meses = {};
+    if(!p.meses[monthKey]) p.meses[monthKey] = {};
+    var m = p.meses[monthKey];
+    var wk = weeksInMonth(monthKey);
+    if(!Array.isArray(m.obsCheckin)) m.obsCheckin = [];
+    while(m.obsCheckin.length < wk) m.obsCheckin.push('');
+    m.obsCheckin[weekIndex] = obsVal;
     savePatients();
   }
   function updateWeekEntry(patientId, monthKey, weekIndex, engVal, chkVal, obsVal){
@@ -1772,6 +1821,7 @@
             '<button type="button" class="btn-icon" data-peso-edit-save="'+key+'">Salvar</button>'+
             '<button type="button" class="btn-icon" data-peso-edit-cancel="1">Cancelar</button>'+
           '</div>'+
+          '<div class="form-group full" style="margin-top:8px;"><label>Observação do Check-in</label><textarea id="pesoEditObs" placeholder="Observação do check-in...">'+esc(entry.obs||'')+'</textarea></div>'+
         '</td></tr>';
       }
       var prev = list[idx+1];
@@ -7649,9 +7699,17 @@
           return;
         }
         updatePesoEntry(editPid, editMonthKey, editWeekIndex, editValue, editDate);
+        var editObsEl = document.getElementById('pesoEditObs');
+        if(editObsEl) updateObsCheckinEntry(editPid, editMonthKey, editWeekIndex, editObsEl.value.trim());
         state.pesoEditingKey = null;
         refreshOverviewTable();
         showToast('Peso atualizado.', 'success');
+        return;
+      }
+      var pesoChartObsToggle = e.target.closest('[data-peso-chart-obs-toggle]');
+      if(pesoChartObsToggle){
+        state.pesoChartShowObs = !state.pesoChartShowObs;
+        refreshOverviewTable();
         return;
       }
       var toggle = e.target.closest('[data-filter-toggle]');
