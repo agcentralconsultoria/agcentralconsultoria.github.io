@@ -1653,8 +1653,8 @@
           return '<text x="9" y="'+(56 + li*11)+'" font-size="9.5" fill="rgba(255,255,255,0.85)">'+esc(line)+'</text>';
         }).join('')
       ) : '';
-      return '<g class="peso-chart-pt">'+
-        '<circle cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="4" fill="var(--primary)" stroke="var(--white)" stroke-width="2"></circle>'+
+      var dotHtml = '<circle cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="4" fill="var(--primary)" stroke="var(--white)" stroke-width="2"></circle>';
+      var hoverHtml = '<g class="peso-chart-pt">'+
         '<circle cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="12" fill="transparent"></circle>'+
         '<g class="peso-chart-tip" transform="translate('+tipX.toFixed(1)+','+tipY.toFixed(1)+')">'+
           '<rect width="'+tw+'" height="'+th+'" rx="6" fill="#1F2937"></rect>'+
@@ -1664,14 +1664,20 @@
           obsHtml+
         '</g>'+
       '</g>';
-    }).join('');
+      return { dot: dotHtml, hover: hoverHtml };
+    });
+    // os pontos ficam numa camada, e as areas de hover+tooltip em OUTRA camada
+    // desenhada por cima de todos eles — senao o circulo de um ponto seguinte
+    // podia cair visualmente em cima do tooltip aberto de um ponto anterior.
+    var dotsHtml = dots.map(function(d){ return d.dot; }).join('');
+    var hoversHtml = dots.map(function(d){ return d.hover; }).join('');
     return '<div class="peso-chart-wrap">'+
       '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">'+
         '<div class="mini-label" style="text-align:left;margin:0;">Evolução do peso (passe o mouse pra ver peso e variação)</div>'+
         '<button type="button" class="btn-icon" data-peso-chart-obs-toggle="1">'+(showObs ? 'Ocultar observações do check-in' : 'Mostrar observações do check-in')+'</button>'+
       '</div>'+
       '<svg class="peso-chart-svg" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet">'+
-        grid + line + xLabels + dots +
+        grid + line + xLabels + dotsHtml + hoversHtml +
       '</svg>'+
     '</div>';
   }
