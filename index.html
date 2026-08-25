@@ -1897,6 +1897,38 @@
       obsCheckin: obsCheckin
     };
   }
+  /* Grava o que veio do formulario de Cadastro/Edicao no mes do paciente SEM apagar o
+     que o formulario nao conhece. Antes isso era uma atribuicao direta
+     (p.meses[key] = weekly) e cada "Salvar" no Editar Paciente destruia o pesoData —
+     as datas reais dos pesos. Sem pesoData, todo peso voltava a aparecer na sexta da
+     semana (nthFridayDate) e o slot ficava "livre" de novo, entao o proximo peso
+     registrado sobrescrevia um peso antigo em silencio.
+     Regras: o formulario manda so os indices 0..wk-1; o que estiver alem disso (peso
+     que nao coube nas caixas do mes) fica intacto. Apagar o peso apaga a data junto. */
+  function mergeWeeklyIntoMonth(p, monthKey, weekly){
+    if(!p.meses) p.meses = {};
+    var anterior = p.meses[monthKey] || {};
+    var wk = weeksInMonth(monthKey);
+    var pesoAntigo = Array.isArray(anterior.peso) ? anterior.peso : [];
+    var dataAntiga = Array.isArray(anterior.pesoData) ? anterior.pesoData : [];
+    var peso = weekly.peso.slice();
+    var pesoData = [];
+    for(var i=0;i<wk;i++){
+      // peso preenchido mantem a data com que foi registrado; peso apagado zera a data.
+      // Peso digitado direto no formulario nao tem data propria e continua caindo na
+      // sexta daquela semana, que e o comportamento de sempre.
+      pesoData.push((peso[i] === null || peso[i] === undefined) ? null : (dataAntiga[i] || null));
+    }
+    for(var j=wk; j<Math.max(pesoAntigo.length, dataAntiga.length); j++){
+      peso.push(pesoAntigo[j] !== undefined ? pesoAntigo[j] : null);
+      pesoData.push(dataAntiga[j] !== undefined ? dataAntiga[j] : null);
+    }
+    // preserva qualquer outro campo ja gravado no mes que o formulario nao edita
+    var merged = Object.assign({}, anterior, weekly);
+    merged.peso = peso;
+    merged.pesoData = pesoData;
+    p.meses[monthKey] = merged;
+  }
   function nextId(){
     return state.patients.length ? Math.max.apply(null, state.patients.map(function(p){return p.id;})) + 1 : 1;
   }
@@ -8766,7 +8798,7 @@
           patient.createdAt = nextCreatedAt();
           patient.createdDate = todayISODate();
           patient.meses = {};
-          patient.meses[result.monthKey] = result.weekly;
+          mergeWeeklyIntoMonth(patient, result.monthKey, result.weekly);
           maybeStartJornada(patient, result.jornadaInicio, result.jornadaModelo);
           state.patients.push(patient);
         } else {
@@ -8778,7 +8810,7 @@
             patient = state.patients[idx];
             Object.assign(patient, result.core);
             if(!patient.meses) patient.meses = {};
-            patient.meses[result.monthKey] = result.weekly;
+            mergeWeeklyIntoMonth(patient, result.monthKey, result.weekly);
             maybeStartJornada(patient, result.jornadaInicio, result.jornadaModelo);
           }
         }
