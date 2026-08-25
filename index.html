@@ -6307,7 +6307,7 @@
   function formatDiasOuSemanas(dias, unit){
     if(dias === null) return 'Nunca atualizado';
     if(unit === 'semanas' && dias >= 7){
-      var w = Math.floor(dias/7);
+      var w = Math.round(dias/7);
       return w + (w === 1 ? ' semana' : ' semanas');
     }
     return dias + (Math.abs(dias) === 1 ? ' dia' : ' dias');
