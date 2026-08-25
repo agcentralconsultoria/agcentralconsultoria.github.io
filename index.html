@@ -8366,6 +8366,7 @@
         '</div>'+
       '</div>'+
       '<div class="modal-footer">'+
+        (isEdit ? '<button type="button" class="btn-icon btn-danger-outline" id="formDeletePatientBtn" style="margin-right:auto;">Excluir Paciente</button>' : '')+
         '<button class="btn btn-secondary" id="formCancelBtn">Cancelar</button>'+
         '<button class="btn btn-primary" id="formSaveBtn">Salvar</button>'+
       '</div>'+
@@ -8820,6 +8821,12 @@
         render();
         showToast(wasAdd ? 'Paciente adicionado com sucesso.' : 'Paciente atualizado com sucesso.', 'success');
       });
+      var formDeleteBtn = document.getElementById('formDeletePatientBtn');
+      if(formDeleteBtn){
+        formDeleteBtn.addEventListener('click', function(){
+          openDeleteModal(state.activeId);
+        });
+      }
     }
     if(state.modal === 'delete'){
       document.getElementById('confirmDeleteBtn').addEventListener('click', function(){
