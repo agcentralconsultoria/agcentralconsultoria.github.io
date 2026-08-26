@@ -1691,7 +1691,12 @@
      slot de outro registro ja existente). Peso pode ser pesado em qualquer dia, nao so
      sexta — entao nao da pra usar "semana" pra escolher o slot: dias antes da 1a sexta
      do mes (ex: 1 a 6/ago quando a 1a sexta e dia 7) colidiam com o slot da propria 1a
-     sexta, e um registro sobrescrevia o outro em silencio. */
+     sexta, e um registro sobrescrevia o outro em silencio.
+     IMPORTANTE: "livre" e definido pelo array `peso` (o valor em si), nao por
+     `pesoData` (a data explicita) — um peso lancado pela grade semanal generica fica
+     sem data explicita (pesoData null) mas TEM valor, entao checar pesoData tratava
+     esse slot como livre e o proximo "+ Registrar peso" sobrescrevia esse peso em
+     silencio (parecia que nao dava pra registrar o mesmo valor de novo). */
   function nextFreePesoSlot(p, monthKey){
     if(!p.meses) p.meses = {};
     if(!p.meses[monthKey]) p.meses[monthKey] = {};
@@ -1701,7 +1706,7 @@
     if(!Array.isArray(m.pesoData)) m.pesoData = [];
     while(m.peso.length < wk) m.peso.push(null);
     while(m.pesoData.length < wk) m.pesoData.push(null);
-    var free = m.pesoData.indexOf(null);
+    var free = m.peso.findIndex(function(v){ return v === null || v === undefined || v === ''; });
     return free !== -1 ? free : m.peso.length;
   }
   function updatePesoEntry(patientId, monthKey, weekIndex, value, dateStr){
