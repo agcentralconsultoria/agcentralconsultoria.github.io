@@ -1343,6 +1343,12 @@
     leadTemperaturaFilter: 'todos',
     leadEtiquetaFilter: 'todos',
     leadEditId: null,          // id do lead aberto no modal
+    parceriaJornadaExpanded: {}, // tarefas abertas no detalhe da parceria
+    parceriaModelosCollapsed: true,
+    parceriaModeloAberto: {},  // modelos de jornada de parceria expandidos no editor
+    parceriaEditId: null,      // id da parceria aberta no modal
+    parceriaSearch: '',
+    parceriaEstagioFilter: 'todos',
     search: '',
     statusFilter: 'todos',
     planoFilter: 'todos',
@@ -2103,6 +2109,19 @@
   var LEAD_TEMPERATURAS = ['Frio','Morno','Quente'];
   var LEAD_ORIGENS = ['Indicação','Social Selling','Parceria','Anúncio','Orgânico','Outro'];
   var ETIQUETAS_PADRAO = ['Emagrecimento','Hipertrofia','Recomposição corporal'];
+  /* Funil de Parcerias: Prospecção -> Primeiro contato -> Ativa -> Manutenção (ciclo
+     continuo, ja e o relacionamento andando) ou Inativa (desfecho alternativo). */
+  var PARCERIA_ESTAGIOS = [
+    { key:'prospeccao',       label:'Prospecção',        badgeCls:'badge-gray' },
+    { key:'primeiro-contato', label:'Primeiro contato',  badgeCls:'badge-info' },
+    { key:'ativa',            label:'Ativa',             badgeCls:'badge-success' },
+    { key:'manutencao',       label:'Manutenção',        badgeCls:'badge-warning' },
+    { key:'inativa',          label:'Inativa',           badgeCls:'badge-danger', final:true }
+  ];
+  function parceriaEstagioInfo(key){
+    return PARCERIA_ESTAGIOS.filter(function(e){ return e.key === key; })[0] || PARCERIA_ESTAGIOS[0];
+  }
+  var PARCERIA_TIPOS_PADRAO = ['Médico','Academia','Clínica','Influenciador'];
   /* Marcos de bonificacao: ao atingir N indicacoes CONVERTIDAS (o indicado fechou),
      a pessoa conquista a recompensa. E cumulativo e nunca zera. */
   var MARCOS_PADRAO = [
@@ -2111,7 +2130,8 @@
   ];
   function captacaoVazia(){
     return { leads: [], parcerias: [], indicacoes: [], comunidade: [],
-             etiquetas: ETIQUETAS_PADRAO.slice(), marcos: MARCOS_PADRAO.slice(), conquistas: [] };
+             etiquetas: ETIQUETAS_PADRAO.slice(), parceriaTipos: PARCERIA_TIPOS_PADRAO.slice(),
+             marcos: MARCOS_PADRAO.slice(), conquistas: [] };
   }
   function normalizeCaptacao(raw){
     var c = captacaoVazia();
@@ -2120,6 +2140,7 @@
       if(Array.isArray(raw[k])) c[k] = raw[k];
     });
     if(Array.isArray(raw.etiquetas) && raw.etiquetas.length) c.etiquetas = raw.etiquetas;
+    if(Array.isArray(raw.parceriaTipos) && raw.parceriaTipos.length) c.parceriaTipos = raw.parceriaTipos;
     if(Array.isArray(raw.marcos) && raw.marcos.length) c.marcos = raw.marcos;
     // garante os campos que o resto do codigo assume existir
     c.leads.forEach(function(l, i){
@@ -2127,6 +2148,10 @@
       if(!l.temperatura) l.temperatura = 'Morno';
       if(!Array.isArray(l.etiquetas)) l.etiquetas = [];
       if(l.ordem === undefined || l.ordem === null) l.ordem = i;
+    });
+    c.parcerias.forEach(function(pa, i){
+      if(!pa.estagio) pa.estagio = 'prospeccao';
+      if(pa.ordem === undefined || pa.ordem === null) pa.ordem = i;
     });
     return c;
   }
@@ -2225,15 +2250,56 @@
                acoes: m.acoes.map(function(a){ return { nome:a.nome, dia:a.dia, canal:a.canal }; }) };
     });
   }
+  var PARCERIA_TEMPLATES_DEFAULT = [
+    { nome:'Nova Parceria', acoes:[
+      { nome:'Primeiro contato de apresentação',        dia:0,  canal:'whatsapp' },
+      { nome:'Explicar a proposta de parceria',          dia:0,  canal:'audio' },
+      { nome:'Marcar uma conversa ou visita',             dia:3,  canal:'ligacao' },
+      { nome:'Apresentar a proposta formal',              dia:7,  canal:'presencial' },
+      { nome:'Follow-up da proposta',                     dia:10, canal:'followup' },
+      { nome:'Fechar os detalhes da parceria',            dia:14, canal:'whatsapp' }
+    ]},
+    { nome:'Em Desenvolvimento', acoes:[
+      { nome:'Combinar como vai funcionar o fluxo de indicações', dia:0,  canal:'presencial' },
+      { nome:'Enviar material de apoio (cartões, folder...)',      dia:3,  canal:'whatsapp' },
+      { nome:'Verificar as primeiras indicações',                  dia:10, canal:'whatsapp' },
+      { nome:'Dar retorno sobre os casos indicados',                dia:20, canal:'whatsapp' },
+      { nome:'Conversa de alinhamento do primeiro mês',             dia:30, canal:'ligacao' },
+      { nome:'Avaliar se a parceria está rendendo',                 dia:45, canal:'presencial' }
+    ]},
+    { nome:'Manutenção', acoes:[
+      { nome:'Contato de manutenção mensal',              dia:0,  canal:'whatsapp' },
+      { nome:'Compartilhar novidade ou resultado',        dia:15, canal:'conteudo' },
+      { nome:'Perguntar como estão as indicações',        dia:30, canal:'whatsapp' },
+      { nome:'Levar um agradecimento / lembrança',        dia:45, canal:'presencial' },
+      { nome:'Conversa de manutenção do próximo mês',     dia:60, canal:'ligacao' },
+      { nome:'Revisão trimestral da parceria',            dia:90, canal:'presencial' }
+    ]},
+    { nome:'Reativação', acoes:[
+      { nome:'Retomar contato depois do tempo parado',   dia:0,  canal:'whatsapp' },
+      { nome:'Perguntar o que mudou / como está',        dia:3,  canal:'ligacao' },
+      { nome:'Apresentar novidades da consultoria',      dia:7,  canal:'conteudo' },
+      { nome:'Convidar pra um novo encontro',            dia:14, canal:'presencial' },
+      { nome:'Follow-up do convite',                     dia:21, canal:'followup' },
+      { nome:'Última tentativa de reativação',           dia:35, canal:'retomada' }
+    ]}
+  ];
+  function seedParceriaTemplates(){
+    return PARCERIA_TEMPLATES_DEFAULT.map(function(m, i){
+      return { id: 'default_p_'+i, nome: m.nome, isDefault: true,
+               acoes: m.acoes.map(function(a){ return { nome:a.nome, dia:a.dia, canal:a.canal }; }) };
+    });
+  }
   function captacaoTemplatesVazio(){
-    return { lead: seedLeadTemplates(), parceria: [] };
+    return { lead: seedLeadTemplates(), parceria: seedParceriaTemplates() };
   }
   function normalizeCaptacaoTemplates(raw){
     var t = captacaoTemplatesVazio();
     if(!raw || typeof raw !== 'object') return t;
     if(Array.isArray(raw.lead) && raw.lead.length) t.lead = raw.lead;
-    if(Array.isArray(raw.parceria)) t.parceria = raw.parceria;
+    if(Array.isArray(raw.parceria) && raw.parceria.length) t.parceria = raw.parceria;
     t.lead.forEach(function(m){ if(!Array.isArray(m.acoes)) m.acoes = []; });
+    t.parceria.forEach(function(m){ if(!Array.isArray(m.acoes)) m.acoes = []; });
     return t;
   }
   function loadCaptacaoTemplatesAsync(){
@@ -2281,6 +2347,66 @@
   function nextLeadId(){
     if(!state.captacao || !state.captacao.leads.length) return 1;
     return state.captacao.leads.reduce(function(m,l){ return Math.max(m, l.id||0); }, 0) + 1;
+  }
+  function getParceriaTemplate(id){
+    if(!state.captacaoTemplates) return null;
+    return state.captacaoTemplates.parceria.filter(function(m){ return m.id === id; })[0] || null;
+  }
+  /* Mesma logica de aplicarJornadaLead — reaproveita o motor, so troca o modelo de origem. */
+  function aplicarJornadaParceria(parceria, modeloId, dataInicio){
+    var modelo = getParceriaTemplate(modeloId);
+    if(!modelo) return false;
+    parceria.jornada = {
+      modeloId: modelo.id,
+      modeloNome: modelo.nome,
+      dataInicio: dataInicio,
+      tarefas: modelo.acoes.map(function(a, idx){
+        return {
+          id: idx, nome: a.nome, canal: a.canal || 'outro',
+          dataAlvo: addDaysIso(dataInicio, a.dia || 0),
+          concluido: false, dataConclusao: null, observacao: '',
+          arquivado: false, ordem: idx
+        };
+      })
+    };
+    return true;
+  }
+  function nextParceriaTaskId(parceria){
+    if(!parceria.jornada || !parceria.jornada.tarefas.length) return 0;
+    return parceria.jornada.tarefas.reduce(function(m,t){ return Math.max(m, t.id); }, -1) + 1;
+  }
+  function nextParceriaId(){
+    if(!state.captacao || !state.captacao.parcerias.length) return 1;
+    return state.captacao.parcerias.reduce(function(m,pa){ return Math.max(m, pa.id||0); }, 0) + 1;
+  }
+  function getParceria(id){
+    if(!state.captacao) return null;
+    return state.captacao.parcerias.filter(function(pa){ return pa.id === id; })[0] || null;
+  }
+  function parceriaProximaAcao(pa){
+    if(!pa.jornada || !pa.jornada.tarefas) return null;
+    var abertas = pa.jornada.tarefas.filter(function(t){ return !t.concluido && !t.arquivado && t.dataAlvo; });
+    if(!abertas.length) return null;
+    abertas.sort(function(a,b){ return a.dataAlvo < b.dataAlvo ? -1 : a.dataAlvo > b.dataAlvo ? 1 : 0; });
+    return abertas[0];
+  }
+  /* "Ultima interacao" nao e digitada — e a data da acao concluida mais recente da
+     jornada, igual o resto da Captacao (numero calculado, nao campo solto). */
+  function parceriaUltimaInteracao(pa){
+    if(!pa.jornada || !pa.jornada.tarefas) return null;
+    var feitas = pa.jornada.tarefas.filter(function(t){ return t.concluido && t.dataConclusao; });
+    if(!feitas.length) return null;
+    return feitas.reduce(function(m,t){ return (!m || t.dataConclusao > m) ? t.dataConclusao : m; }, null);
+  }
+  /* Quantas indicacoes essa parceria trouxe e quantas fecharam — somado a partir das
+     Indicacoes (indicadorTipo:'parceria'), igual o placar de pessoas. Nao se digita nada. */
+  function parceriaIndicacoesStats(parceriaId){
+    var chave = 'parceria:' + parceriaId;
+    var total = 0, convertidas = 0;
+    (state.captacao ? state.captacao.indicacoes : []).forEach(function(i){
+      if(indicadorChave(i) === chave){ total++; if(i.convertida) convertidas++; }
+    });
+    return { total: total, convertidas: convertidas };
   }
   function backfillGluteoMedio(list){
     if(list.indexOf('Glúteo médio') === -1){
@@ -4212,6 +4338,7 @@
   };
   function captacaoTemplate(tab){
     if(tab === 'cap-leads') return leadsTemplate();
+    if(tab === 'cap-parcerias') return parceriasTemplate();
     if(tab === 'cap-visao') return captacaoVisaoTemplate();
     if(tab === 'cap-indica') return indicacoesTemplate();
     var info = CAPTACAO_EM_BREVE[tab] || CAPTACAO_EM_BREVE['cap-visao'];
@@ -4227,6 +4354,7 @@
   }
   function attachCaptacaoEvents(tab){
     if(tab === 'cap-leads') attachLeadsEvents();
+    if(tab === 'cap-parcerias') attachParceriasEvents();
     if(tab === 'cap-visao'){
       bindInfoIcons(document.getElementById('content'));
       bindAgendaCaptacaoEvents();
@@ -4351,6 +4479,139 @@
         '<div id="leadModelosRoot">'+leadModelosHtml()+'</div>'+
       '</div>';
   }
+
+  /* ---------- Parcerias: lista + jornada de manutencao ---------- */
+  function parceriasFiltradas(){
+    if(!state.captacao) return [];
+    var termo = state.parceriaSearch.trim().toLowerCase();
+    return state.captacao.parcerias.filter(function(pa){
+      if(termo && (pa.nome||'').toLowerCase().indexOf(termo) === -1) return false;
+      if(state.parceriaEstagioFilter !== 'todos' && pa.estagio !== state.parceriaEstagioFilter) return false;
+      return true;
+    }).sort(function(a,b){ return (a.nome||'').localeCompare(b.nome||'','pt-BR'); });
+  }
+  function parceriaLinhaHtml(pa){
+    var est = parceriaEstagioInfo(pa.estagio);
+    var stats = parceriaIndicacoesStats(pa.id);
+    var ultima = parceriaUltimaInteracao(pa);
+    var prox = parceriaProximaAcao(pa);
+    var proxHtml = '<span class="cell-muted">—</span>';
+    if(prox){
+      var d = diasParaVencer(prox.dataAlvo);
+      var quando = d < 0 ? 'atrasada ('+Math.abs(d)+'d)' : d === 0 ? 'hoje' : 'em '+d+'d';
+      var cor = d < 0 ? 'var(--danger)' : d === 0 ? 'var(--warning)' : 'var(--text-muted)';
+      proxHtml = '<span style="color:'+cor+';font-weight:700;">'+canalInfo(prox.canal).ico+' '+esc(quando)+'</span> · '+esc(prox.nome);
+    }
+    return '<tr>'+
+      '<td><button class="link-btn" data-parceria-abrir="'+pa.id+'">'+esc(pa.nome||'(sem nome)')+'</button>'+
+        (pa.tipo ? '<div class="cell-muted" style="font-size:11.5px;">'+esc(pa.tipo)+'</div>' : '')+
+      '</td>'+
+      '<td><span class="badge '+est.badgeCls+'">'+esc(est.label)+'</span></td>'+
+      '<td class="cell-muted">'+(ultima?formatDate(ultima):'—')+'</td>'+
+      '<td>'+proxHtml+'</td>'+
+      '<td>'+stats.total+' / '+stats.convertidas+'</td>'+
+      '<td><button class="btn-icon btn-danger-outline" data-parceria-remover="'+pa.id+'">Excluir</button></td>'+
+    '</tr>';
+  }
+  function parceriasListaHtml(){
+    var lista = parceriasFiltradas();
+    if(!lista.length) return '<tr><td colspan="6"><div class="empty-state">Nenhuma parceria encontrada.</div></td></tr>';
+    return lista.map(parceriaLinhaHtml).join('');
+  }
+  function parceriasTemplate(){
+    var estagioOpts = PARCERIA_ESTAGIOS.map(function(e){ return {value:e.key,label:e.label}; });
+    return ''+
+      '<div class="profile-top" style="margin-bottom:4px;">'+
+        '<div><h1 class="page-title" style="margin-bottom:2px;">Parcerias</h1>'+
+        '<p class="page-sub" style="margin:0;">Captação · relacionamento com parceiros</p></div>'+
+        '<button class="btn btn-primary" id="parceriaNovoBtn">+ Nova Parceria</button>'+
+      '</div>'+
+      '<div class="section-header-row" style="margin-top:18px;">'+
+        '<h2 class="section-title">Parceiros</h2>'+
+        '<button class="info-icon-btn" type="button" data-info-toggle="info-parcerias">i</button>'+
+      '</div>'+
+      '<div class="info-popover" id="info-parcerias">Cultive o parceiro o ano todo. "Última interação" e "Indicações" são calculadas sozinhas a partir da jornada e das indicações — não se digita nada.</div>'+
+      '<div class="toolbar">'+
+        '<div class="toolbar-filters">'+
+          '<input type="text" id="parceriaSearchInput" class="search-input" placeholder="Buscar por nome..." value="'+esc(state.parceriaSearch)+'">'+
+          filterChipHtml('parceriaEstagioFilter', 'Estágio', 'Todos', estagioOpts)+
+        '</div>'+
+      '</div>'+
+      '<div class="card" style="overflow-x:auto;">'+
+        '<table><thead><tr><th>Parceiro</th><th>Estágio</th><th>Última interação</th><th>Próxima ação</th><th>Indicações (vieram/fecharam)</th><th></th></tr></thead>'+
+        '<tbody id="parceriasListaRoot">'+parceriasListaHtml()+'</tbody></table>'+
+      '</div>'+
+      '<div class="section-header-row" style="margin-top:30px;">'+
+        '<h2 class="section-title">Modelos de Jornada de Parceria</h2>'+
+        '<button class="info-icon-btn" type="button" data-info-toggle="info-parceria-modelos">i</button>'+
+        '<button class="btn-icon" type="button" id="parceriaModelosToggleBtn" style="margin-left:auto;">'+(state.parceriaModelosCollapsed?'Mostrar':'Recolher')+'</button>'+
+      '</div>'+
+      '<div class="info-popover" id="info-parceria-modelos">Os modelos que você aplica nas parcerias. O número em cada ação é quantos dias depois do início da jornada ela cai. Editar aqui muda o modelo pras próximas parcerias; quem já recebeu a jornada mantém a versão dela, sem ser afetada.</div>'+
+      '<div class="card" style="padding:16px;margin-bottom:32px;'+(state.parceriaModelosCollapsed?'display:none;':'')+'" id="parceriaModelosCard">'+
+        '<div id="parceriaModelosRoot">'+parceriaModelosHtml()+'</div>'+
+      '</div>';
+  }
+  function refreshParceriasLista(){
+    var root = document.getElementById('parceriasListaRoot');
+    if(!root) return;
+    root.innerHTML = parceriasListaHtml();
+  }
+  function attachParceriasEvents(){
+    var content = document.getElementById('content');
+    var busca = document.getElementById('parceriaSearchInput');
+    if(busca){
+      busca.addEventListener('input', function(){
+        state.parceriaSearch = this.value;
+        refreshParceriasLista();
+      });
+    }
+    var novoBtn = document.getElementById('parceriaNovoBtn');
+    if(novoBtn){
+      novoBtn.addEventListener('click', function(){ abrirParceria(null); });
+    }
+    bindInfoIcons(content);
+    content.addEventListener('click', function(e){
+      var toggle = e.target.closest('[data-filter-toggle]');
+      if(toggle){
+        var menu = toggle.closest('.th-filter').querySelector('.filter-menu');
+        var willOpen = !menu.classList.contains('open');
+        document.querySelectorAll('.filter-menu.open').forEach(function(m){ m.classList.remove('open'); });
+        if(willOpen) menu.classList.add('open');
+        return;
+      }
+      var option = e.target.closest('.filter-menu-option');
+      if(option){
+        applyFilterSelection(option.getAttribute('data-filter-key'), option.getAttribute('data-filter-value'));
+        refreshParceriasLista();
+        return;
+      }
+      var abrirBtn = e.target.closest('[data-parceria-abrir]');
+      if(abrirBtn){
+        abrirParceria(parseInt(abrirBtn.getAttribute('data-parceria-abrir'),10));
+        return;
+      }
+      var remBtn = e.target.closest('[data-parceria-remover]');
+      if(remBtn){
+        var pid = parseInt(remBtn.getAttribute('data-parceria-remover'),10);
+        var pa = getParceria(pid);
+        if(!pa) return;
+        if(!confirm('Excluir a parceria "'+pa.nome+'"? Essa ação não pode ser desfeita.')) return;
+        state.captacao.parcerias = state.captacao.parcerias.filter(function(x){ return x.id !== pid; });
+        saveCaptacao();
+        refreshParceriasLista();
+        showToast('Parceria excluída.', 'success');
+      }
+    });
+    var modelosToggle = document.getElementById('parceriaModelosToggleBtn');
+    if(modelosToggle){
+      modelosToggle.addEventListener('click', function(){
+        state.parceriaModelosCollapsed = !state.parceriaModelosCollapsed;
+        document.getElementById('parceriaModelosCard').style.display = state.parceriaModelosCollapsed ? 'none' : '';
+        this.textContent = state.parceriaModelosCollapsed ? 'Mostrar' : 'Recolher';
+      });
+    }
+    bindParceriaModelosEvents();
+  }
   function refreshLeadKanban(){
     var root = document.getElementById('leadKanbanRoot');
     if(!root) return;
@@ -4463,6 +4724,7 @@
   var INDICADOR_TIPOS = [
     { key:'paciente', label:'Paciente' },
     { key:'lead',     label:'Lead' },
+    { key:'parceria', label:'Parceria' },
     { key:'outro',    label:'Outra pessoa' }
   ];
   function nextIndicacaoId(){
@@ -4733,8 +4995,10 @@
   function indicacaoModalHtml(){
     var pacientes = state.patients.slice().sort(function(a,b){ return a.nome.localeCompare(b.nome,'pt-BR'); });
     var leads = (state.captacao ? state.captacao.leads : []).slice().sort(function(a,b){ return (a.nome||'').localeCompare(b.nome||'','pt-BR'); });
+    var parcerias = (state.captacao ? state.captacao.parcerias : []).slice().sort(function(a,b){ return (a.nome||'').localeCompare(b.nome||'','pt-BR'); });
     var optsPac = pacientes.map(function(p){ return '<option value="'+p.id+'">'+esc(p.nome)+'</option>'; }).join('');
     var optsLead = leads.map(function(l){ return '<option value="'+l.id+'">'+esc(l.nome||'')+'</option>'; }).join('');
+    var optsParceria = parcerias.map(function(pa){ return '<option value="'+pa.id+'">'+esc(pa.nome||'')+'</option>'; }).join('');
     var tipoBtns = INDICADOR_TIPOS.map(function(t,i){
       return '<button type="button" class="meta-type-btn'+(i===0?' active':'')+'" data-ind-tipo="'+t.key+'">'+esc(t.label)+'</button>';
     }).join('');
@@ -4748,6 +5012,7 @@
             '<div class="meta-type-toggle" id="indTipoToggle">'+tipoBtns+'</div>'+
             '<select id="ind_paciente" class="filter-select" style="width:100%;">'+(optsPac||'<option value="">Nenhum paciente</option>')+'</select>'+
             '<select id="ind_lead" class="filter-select" style="width:100%;display:none;">'+(optsLead||'<option value="">Nenhum lead</option>')+'</select>'+
+            '<select id="ind_parceria" class="filter-select" style="width:100%;display:none;">'+(optsParceria||'<option value="">Nenhuma parceria</option>')+'</select>'+
             '<input type="text" id="ind_outro" placeholder="Nome de quem indicou" style="display:none;">'+
           '</div>'+
           '<div class="form-group full"><label>Nome de quem foi indicado *</label>'+
@@ -4770,6 +5035,7 @@
     function mostrarCampo(){
       document.getElementById('ind_paciente').style.display = tipo==='paciente' ? '' : 'none';
       document.getElementById('ind_lead').style.display     = tipo==='lead' ? '' : 'none';
+      document.getElementById('ind_parceria').style.display = tipo==='parceria' ? '' : 'none';
       document.getElementById('ind_outro').style.display    = tipo==='outro' ? '' : 'none';
     }
     document.querySelectorAll('[data-ind-tipo]').forEach(function(btn){
@@ -4797,6 +5063,11 @@
         var l = getLead(lid);
         if(!l){ alert('Selecione quem indicou.'); return; }
         indicadorId = lid; indicadorNome = l.nome;
+      } else if(tipo === 'parceria'){
+        var paid = parseInt(document.getElementById('ind_parceria').value,10);
+        var pa = getParceria(paid);
+        if(!pa){ alert('Selecione quem indicou.'); return; }
+        indicadorId = paid; indicadorNome = pa.nome;
       } else {
         indicadorNome = document.getElementById('ind_outro').value.trim();
         if(!indicadorNome){ alert('Informe o nome de quem indicou.'); return; }
@@ -4833,8 +5104,8 @@
 
   /* ---------- Agenda de Captação ----------
      Nao guarda nada: le as tarefas que ja existem nas outras areas. Concluir aqui
-     conclui na origem porque e o MESMO registro, nao uma copia. Hoje so os Leads tem
-     jornada — quando Parcerias, Indicacoes e Comunidade existirem, e so acrescentar
+     conclui na origem porque e o MESMO registro, nao uma copia. Leads e Parcerias ja
+     tem jornada — quando Indicacoes e Comunidade tiverem tambem, e so acrescentar
      nesta funcao e o resto da tela funciona sozinho. */
   function agendaCaptacaoItens(){
     var itens = [];
@@ -4849,6 +5120,20 @@
           whatsapp:l.whatsapp, instagram:l.instagram,
           abrirAttr:'data-agenda-abrir-lead="'+l.id+'"',
           doneAttr:'data-agenda-done="lead:'+l.id+':'+t.id+'"',
+          tarefa:t, diff:diasParaVencer(t.dataAlvo)
+        });
+      });
+    });
+    state.captacao.parcerias.forEach(function(pa){
+      if(!pa.jornada || !Array.isArray(pa.jornada.tarefas)) return;
+      pa.jornada.tarefas.forEach(function(t){
+        if(t.arquivado || t.concluido || !t.dataAlvo) return;
+        itens.push({
+          origem:'parceria', origemLabel:'Parceria', origemIco:'🤝',
+          pessoaId:'parceria-'+pa.id, pessoaNome:pa.nome,
+          whatsapp:pa.whatsapp, instagram:pa.instagram,
+          abrirAttr:'data-agenda-abrir-parceria="'+pa.id+'"',
+          doneAttr:'data-agenda-done="parceria:'+pa.id+':'+t.id+'"',
           tarefa:t, diff:diasParaVencer(t.dataAlvo)
         });
       });
@@ -4955,6 +5240,14 @@
           t.concluido = true;
           t.dataConclusao = todayISODate();
           saveCaptacao();
+        } else if(parts[0] === 'parceria'){
+          var pa = getParceria(parseInt(parts[1],10));
+          if(!pa || !pa.jornada) return;
+          var tp = pa.jornada.tarefas.filter(function(x){ return x.id === parseInt(parts[2],10); })[0];
+          if(!tp) return;
+          tp.concluido = true;
+          tp.dataConclusao = todayISODate();
+          saveCaptacao();
         }
         refreshAgendaCaptacao();
         showToast('Ação concluída.', 'success');
@@ -4970,6 +5263,11 @@
     root.querySelectorAll('[data-agenda-abrir-lead]').forEach(function(btn){
       btn.addEventListener('click', function(){
         abrirLead(parseInt(this.getAttribute('data-agenda-abrir-lead'),10));
+      });
+    });
+    root.querySelectorAll('[data-agenda-abrir-parceria]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        abrirParceria(parseInt(this.getAttribute('data-agenda-abrir-parceria'),10));
       });
     });
     var proxBtn = document.getElementById('agendaProximosBtn');
@@ -5505,6 +5803,442 @@
       if(conversao) avisarConversaoDeIndicacao(conversao);
       if(precisaPaciente) criarPacienteDoLead(lead);
       else if(!conversao) showToast(novo ? 'Lead criado.' : 'Lead atualizado.', 'success');
+    });
+  }
+
+  /* ---------- Modelos de Jornada de Parceria (mesmo padrao dos modelos de Lead) ---------- */
+  function nextParceriaModeloId(){
+    return 'm_' + Date.now() + '_' + Math.floor(Math.random()*1000);
+  }
+  function parceriaModeloAcaoHtml(modeloId, a, idx){
+    var canalOpts = LEAD_CANAIS.map(function(c){
+      return '<option value="'+c.key+'"'+(c.key===a.canal?' selected':'')+'>'+c.ico+' '+esc(c.label)+'</option>';
+    }).join('');
+    return ''+
+      '<div class="jornada-template-task lead-modelo-acao">'+
+        '<input type="text" class="jornada-template-nome" data-pm-acao-nome="'+idx+'" data-pm-id="'+esc(modeloId)+'" value="'+esc(a.nome||'')+'" placeholder="O que fazer">'+
+        '<input type="number" class="jornada-template-dia" data-pm-acao-dia="'+idx+'" data-pm-id="'+esc(modeloId)+'" value="'+(a.dia||0)+'" min="0" title="Dias após o início da jornada">'+
+        '<select class="jornada-template-fase" data-pm-acao-canal="'+idx+'" data-pm-id="'+esc(modeloId)+'">'+canalOpts+'</select>'+
+        '<button type="button" class="btn-icon btn-danger-outline" data-pm-acao-remove="'+idx+'" data-pm-id="'+esc(modeloId)+'" title="Excluir esta ação">×</button>'+
+      '</div>';
+  }
+  function parceriaModeloHtml(m){
+    var aberto = !!state.parceriaModeloAberto[m.id];
+    var acoes = aberto ? m.acoes.map(function(a,i){ return parceriaModeloAcaoHtml(m.id, a, i); }).join('') : '';
+    return ''+
+      '<div class="ficha-treino-item">'+
+        '<div class="ficha-treino-header" style="cursor:default;">'+
+          '<button type="button" class="ficha-treino-summary" data-pm-toggle="'+esc(m.id)+'" style="background:none;border:none;font-family:inherit;font-size:13.5px;text-align:left;cursor:pointer;color:var(--text);">'+
+            (aberto?'▴':'▾')+' '+esc(m.nome)+'</button>'+
+          '<span class="badge badge-gray">'+m.acoes.length+' '+(m.acoes.length===1?'ação':'ações')+'</span>'+
+          '<button type="button" class="btn-icon" data-pm-duplicar="'+esc(m.id)+'">Duplicar</button>'+
+          '<button type="button" class="btn-icon btn-danger-outline" data-pm-remover="'+esc(m.id)+'">Excluir</button>'+
+        '</div>'+
+        (aberto ? ''+
+          '<div class="ficha-treino-body">'+
+            '<div class="mini-label" style="text-align:left;margin-top:10px;">Nome do modelo</div>'+
+            '<input type="text" class="dieta-variacao-nome" data-pm-nome="'+esc(m.id)+'" value="'+esc(m.nome)+'" placeholder="Ex: Nova Parceria">'+
+            '<div class="mini-label" style="text-align:left;margin-top:10px;">Ações — o número é quantos dias depois do início da jornada</div>'+
+            acoes+
+            '<button type="button" class="btn-icon" data-pm-acao-add="'+esc(m.id)+'" style="width:100%;margin-top:4px;">+ Adicionar ação</button>'+
+          '</div>' : '')+
+      '</div>';
+  }
+  function parceriaModelosHtml(){
+    var lista = state.captacaoTemplates ? state.captacaoTemplates.parceria : [];
+    if(!lista.length){
+      return '<div class="empty-state" style="padding:20px;">Nenhum modelo. Crie o primeiro abaixo.</div>'+
+             '<button type="button" class="btn-icon" id="parceriaModeloNovoBtn" style="width:100%;">+ Novo modelo</button>';
+    }
+    return lista.map(parceriaModeloHtml).join('')+
+      '<button type="button" class="btn-icon" id="parceriaModeloNovoBtn" style="width:100%;margin-top:8px;">+ Novo modelo</button>';
+  }
+  function refreshParceriaModelos(){
+    var root = document.getElementById('parceriaModelosRoot');
+    if(!root) return;
+    root.innerHTML = parceriaModelosHtml();
+    bindParceriaModelosEvents();
+  }
+  function bindParceriaModelosEvents(){
+    var root = document.getElementById('parceriaModelosRoot');
+    if(!root) return;
+    function modeloDe(el){ return getParceriaTemplate(el.getAttribute('data-pm-id') || el.getAttribute('data-pm-toggle')); }
+    root.querySelectorAll('[data-pm-toggle]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var id = this.getAttribute('data-pm-toggle');
+        state.parceriaModeloAberto[id] = !state.parceriaModeloAberto[id];
+        refreshParceriaModelos();
+      });
+    });
+    root.querySelectorAll('[data-pm-nome]').forEach(function(el){
+      el.addEventListener('blur', function(){
+        var m = getParceriaTemplate(this.getAttribute('data-pm-nome'));
+        if(m){ m.nome = this.value.trim() || 'Sem nome'; saveCaptacaoTemplates(); refreshParceriaModelos(); }
+      });
+    });
+    root.querySelectorAll('[data-pm-acao-nome]').forEach(function(el){
+      el.addEventListener('blur', function(){
+        var m = modeloDe(this); if(!m) return;
+        m.acoes[parseInt(this.getAttribute('data-pm-acao-nome'),10)].nome = this.value.trim() || 'Sem nome';
+        saveCaptacaoTemplates();
+      });
+    });
+    root.querySelectorAll('[data-pm-acao-dia]').forEach(function(el){
+      el.addEventListener('change', function(){
+        var m = modeloDe(this); if(!m) return;
+        var v = parseInt(this.value,10);
+        m.acoes[parseInt(this.getAttribute('data-pm-acao-dia'),10)].dia = isNaN(v) || v < 0 ? 0 : v;
+        saveCaptacaoTemplates();
+      });
+    });
+    root.querySelectorAll('[data-pm-acao-canal]').forEach(function(el){
+      el.addEventListener('change', function(){
+        var m = modeloDe(this); if(!m) return;
+        m.acoes[parseInt(this.getAttribute('data-pm-acao-canal'),10)].canal = this.value;
+        saveCaptacaoTemplates();
+      });
+    });
+    root.querySelectorAll('[data-pm-acao-remove]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var m = modeloDe(this); if(!m) return;
+        m.acoes.splice(parseInt(this.getAttribute('data-pm-acao-remove'),10), 1);
+        saveCaptacaoTemplates();
+        refreshParceriaModelos();
+      });
+    });
+    root.querySelectorAll('[data-pm-acao-add]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var m = getParceriaTemplate(this.getAttribute('data-pm-acao-add')); if(!m) return;
+        var ultimoDia = m.acoes.length ? (m.acoes[m.acoes.length-1].dia || 0) : 0;
+        m.acoes.push({ nome:'Nova ação', dia: ultimoDia, canal:'whatsapp' });
+        saveCaptacaoTemplates();
+        refreshParceriaModelos();
+      });
+    });
+    root.querySelectorAll('[data-pm-duplicar]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var m = getParceriaTemplate(this.getAttribute('data-pm-duplicar')); if(!m) return;
+        var copia = { id: nextParceriaModeloId(), nome: m.nome + ' (cópia)', isDefault: false,
+                      acoes: JSON.parse(JSON.stringify(m.acoes)) };
+        state.captacaoTemplates.parceria.push(copia);
+        state.parceriaModeloAberto[copia.id] = true;
+        saveCaptacaoTemplates();
+        refreshParceriaModelos();
+        showToast('Modelo duplicado.', 'success');
+      });
+    });
+    root.querySelectorAll('[data-pm-remover]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var id = this.getAttribute('data-pm-remover');
+        var m = getParceriaTemplate(id); if(!m) return;
+        if(!confirm('Excluir o modelo "'+m.nome+'"? As parcerias que já receberam essa jornada não são afetadas.')) return;
+        state.captacaoTemplates.parceria = state.captacaoTemplates.parceria.filter(function(x){ return x.id !== id; });
+        saveCaptacaoTemplates();
+        refreshParceriaModelos();
+        showToast('Modelo excluído.', 'success');
+      });
+    });
+    var novoBtn = document.getElementById('parceriaModeloNovoBtn');
+    if(novoBtn){
+      novoBtn.addEventListener('click', function(){
+        var novo = { id: nextParceriaModeloId(), nome:'Novo modelo', isDefault:false,
+                     acoes:[{ nome:'Primeiro contato', dia:0, canal:'whatsapp' }] };
+        state.captacaoTemplates.parceria.push(novo);
+        state.parceriaModeloAberto[novo.id] = true;
+        saveCaptacaoTemplates();
+        refreshParceriaModelos();
+      });
+    }
+  }
+
+  /* ---------- Modal da Parceria ---------- */
+  function abrirParceria(id){
+    state.parceriaEditId = id; // null = nova
+    state.modal = 'parceria';
+    renderModal();
+  }
+  function parceriaModalHtml(){
+    var novo = state.parceriaEditId === null;
+    var pa = novo ? { nome:'', whatsapp:'', instagram:'', tipo:'', estagio:'prospeccao', observacoes:'' }
+                  : getParceria(state.parceriaEditId);
+    if(!pa) return '';
+    var tipos = state.captacao ? state.captacao.parceriaTipos : [];
+    var tipoOpts = '<option value="">—</option>'+tipos.map(function(t){
+      return '<option value="'+esc(t)+'"'+(pa.tipo===t?' selected':'')+'>'+esc(t)+'</option>';
+    }).join('');
+    var estagioOpts = PARCERIA_ESTAGIOS.map(function(e){
+      return '<option value="'+esc(e.key)+'"'+(pa.estagio===e.key?' selected':'')+'>'+esc(e.label)+'</option>';
+    }).join('');
+    var atalhos = '';
+    if(!novo && (pa.whatsapp || pa.instagram)){
+      atalhos = '<div class="form-group full"><label>Atalhos</label><div style="display:flex;gap:8px;">'+
+        (pa.whatsapp ? '<a class="btn btn-secondary" href="'+esc(whatsappHref(pa.whatsapp))+'" target="_blank" rel="noopener">💬 WhatsApp</a>' : '')+
+        (pa.instagram ? '<a class="btn btn-secondary" href="'+esc(instagramHref(pa.instagram))+'" target="_blank" rel="noopener">📷 Instagram</a>' : '')+
+      '</div></div>';
+    }
+    var stats = novo ? null : parceriaIndicacoesStats(pa.id);
+    var statsHtml = stats ? '<div class="form-group full"><div class="meta-box">🎁 '+stats.total+' indicação(ões) vieram dessa parceria, '+stats.convertidas+' fecharam.</div></div>' : '';
+    return ''+
+    '<div class="modal modal-wide">'+
+      '<div class="modal-header">'+
+        '<h2>'+(novo?'Nova Parceria':'Editar Parceria')+'</h2>'+
+        '<button class="modal-close" id="modalCloseBtn">&times;</button>'+
+      '</div>'+
+      '<div class="modal-body">'+
+        statsHtml+
+        '<div class="form-grid">'+
+          '<div class="form-group full"><label>Nome *</label><input type="text" id="pa_nome" value="'+esc(pa.nome||'')+'" placeholder="Nome do parceiro"></div>'+
+          '<div class="form-group"><label>WhatsApp</label><input type="text" id="pa_whatsapp" value="'+esc(pa.whatsapp||'')+'" placeholder="(11) 99999-9999"></div>'+
+          '<div class="form-group"><label>Instagram</label><input type="text" id="pa_instagram" value="'+esc(pa.instagram||'')+'" placeholder="@perfil"></div>'+
+          '<div class="form-group"><label>Tipo / profissão</label><select id="pa_tipo" class="filter-select" style="width:100%;">'+tipoOpts+'</select>'+
+            '<div style="display:flex;gap:8px;margin-top:8px;">'+
+              '<input type="text" id="pa_novoTipo" placeholder="Criar novo tipo" style="flex:1;">'+
+              '<button type="button" class="btn-icon" id="parceriaAddTipoBtn">+ Criar</button>'+
+            '</div></div>'+
+          '<div class="form-group"><label>Estágio</label><select id="pa_estagio" class="filter-select" style="width:100%;">'+estagioOpts+'</select></div>'+
+          atalhos+
+          '<div class="form-group full"><label>Observações</label><textarea id="pa_observacoes" placeholder="Contexto, combinados, o que já foi feito...">'+esc(pa.observacoes||'')+'</textarea></div>'+
+        '</div>'+
+        (novo ? '' : parceriaJornadaSectionHtml(pa))+
+      '</div>'+
+      '<div class="modal-footer">'+
+        (novo ? '' : '<button class="btn btn-danger" id="parceriaRemoveBtn" style="margin-right:auto;">Excluir</button>')+
+        '<button class="btn btn-secondary" id="parceriaCancelBtn">Cancelar</button>'+
+        '<button class="btn btn-primary" id="parceriaSaveBtn">Salvar</button>'+
+      '</div>'+
+    '</div>';
+  }
+  /* ---------- Jornada dentro do modal da Parceria (mesmo padrao da Jornada do Lead) ---------- */
+  function parceriaTarefaRowHtml(pa, t){
+    var diff = diasParaVencer(t.dataAlvo);
+    var status = t.concluido ? 'concluido' : diff === null ? '' : diff < 0 ? 'atrasado' : diff === 0 ? 'hoje' : '';
+    var diffText = t.concluido ? 'Concluído' : diff === null ? 'Sem data' : diff < 0 ? 'Atrasado ('+Math.abs(diff)+'d)' : diff === 0 ? 'Hoje' : 'Em '+diff+' dias';
+    var badgeCls = t.concluido ? 'badge-success' : diff === null ? 'badge-gray' : diff < 0 ? 'badge-danger' : diff === 0 ? 'badge-warning' : 'badge-success';
+    var canal = canalInfo(t.canal);
+    var canalOpts = LEAD_CANAIS.map(function(c){
+      return '<option value="'+c.key+'"'+(c.key===t.canal?' selected':'')+'>'+c.ico+' '+esc(c.label)+'</option>';
+    }).join('');
+    var aberto = !!state.parceriaJornadaExpanded[pa.id+':'+t.id];
+    var detalhe = aberto ? ''+
+      '<div class="lead-tarefa-edit">'+
+        '<input type="text" class="dieta-variacao-nome" data-parc-task-nome="'+t.id+'" value="'+esc(t.nome)+'" placeholder="O que fazer">'+
+        '<div class="jornada-select-row" style="margin-top:6px;">'+
+          '<div><div class="mini-label">Data</div><input type="date" data-parc-task-data="'+t.id+'" value="'+esc(t.dataAlvo||'')+'"></div>'+
+          '<div><div class="mini-label">Canal</div><select class="filter-select" data-parc-task-canal="'+t.id+'" style="width:100%;">'+canalOpts+'</select></div>'+
+        '</div>'+
+        '<textarea class="jornada-task-obs obscheckin-autosize" data-parc-task-obs="'+t.id+'" placeholder="Observação / o que falar (opcional)" style="margin-top:6px;">'+esc(t.observacao||'')+'</textarea>'+
+        '<button type="button" class="btn-icon btn-danger-outline" data-parc-task-remove="'+t.id+'" style="width:100%;margin-top:6px;">Excluir esta ação</button>'+
+      '</div>' : '';
+    return ''+
+      '<div class="lead-tarefa'+(status?' status-'+status:'')+(t.concluido?' feita':'')+'">'+
+        '<div class="lead-tarefa-top">'+
+          '<input type="checkbox" data-parc-task-done="'+t.id+'" '+(t.concluido?'checked':'')+'>'+
+          '<div class="lead-tarefa-body" data-parc-task-toggle="'+t.id+'">'+
+            '<div class="lead-tarefa-nome">'+canal.ico+' '+esc(t.nome)+'</div>'+
+            '<div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-top:3px;">'+
+              '<span class="badge '+badgeCls+'">'+diffText+'</span>'+
+              '<span class="cell-muted" style="font-size:11.5px;">'+formatDate(t.dataAlvo)+'</span>'+
+            '</div>'+
+          '</div>'+
+        '</div>'+
+        detalhe+
+      '</div>';
+  }
+  function parceriaJornadaSectionHtml(pa){
+    var opts = (state.captacaoTemplates ? state.captacaoTemplates.parceria : []).map(function(m){
+      return '<option value="'+esc(m.id)+'">'+esc(m.nome)+'</option>';
+    }).join('');
+    if(!pa.jornada){
+      return ''+
+        '<div class="profile-section" style="margin-top:18px;">'+
+          '<h3>Jornada da Parceria</h3>'+
+          '<div class="mini-label" style="text-align:left;margin-bottom:8px;">Escolha um modelo pra gerar as ações com datas. Depois de aplicado, dá pra ajustar tudo só nesta parceria — o modelo não muda.</div>'+
+          '<div class="jornada-select-row">'+
+            '<div><div class="mini-label">Modelo</div><select id="parceriaJornadaModelo" class="filter-select" style="width:100%;">'+opts+'</select></div>'+
+            '<div><div class="mini-label">Começar em</div><input type="date" id="parceriaJornadaInicio" value="'+todayISODate()+'"></div>'+
+          '</div>'+
+          '<button type="button" class="btn btn-secondary" id="parceriaJornadaAplicarBtn" style="margin-top:8px;">Aplicar jornada</button>'+
+        '</div>';
+    }
+    var tarefas = pa.jornada.tarefas.filter(function(t){ return !t.arquivado; })
+      .slice().sort(function(a,b){
+        var da = a.dataAlvo ? diasParaVencer(a.dataAlvo) : Infinity;
+        var db = b.dataAlvo ? diasParaVencer(b.dataAlvo) : Infinity;
+        if(da !== db) return da - db;
+        return (a.ordem||0)-(b.ordem||0);
+      });
+    var feitas = pa.jornada.tarefas.filter(function(t){ return t.concluido; }).length;
+    var total = pa.jornada.tarefas.length;
+    var pct = total ? Math.round(feitas/total*100) : 0;
+    var linhas = tarefas.length
+      ? tarefas.map(function(t){ return parceriaTarefaRowHtml(pa, t); }).join('')
+      : '<div class="cell-muted" style="font-size:12.5px;padding:10px 0;">Nenhuma ação em aberto. Use o botão abaixo pra acrescentar.</div>';
+    return ''+
+      '<div class="profile-section" style="margin-top:18px;">'+
+        '<div class="section-header-row" style="margin-bottom:8px;">'+
+          '<h3 style="margin:0;">Jornada da Parceria</h3>'+
+          '<span class="badge '+(pct>=100?'badge-success':pct>=50?'badge-warning':'badge-gray')+'">'+feitas+'/'+total+' ('+pct+'%)</span>'+
+          '<button type="button" class="btn-icon btn-danger-outline" id="parceriaJornadaRemoverBtn" style="margin-left:auto;">Remover jornada</button>'+
+        '</div>'+
+        '<div class="mini-label" style="text-align:left;margin-bottom:8px;">Modelo "'+esc(pa.jornada.modeloNome)+'", iniciada em '+formatDate(pa.jornada.dataInicio)+'. Clique numa ação pra editar só nesta parceria.</div>'+
+        '<div id="parceriaTarefasRoot">'+linhas+'</div>'+
+        '<button type="button" class="btn-icon" id="parceriaTaskAddBtn" style="width:100%;margin-top:8px;">+ Acrescentar ação</button>'+
+      '</div>';
+  }
+  function refreshParceriaModalJornada(){
+    // re-renderiza o modal inteiro pra refletir progresso, ordem e "ultima interacao" de uma vez
+    renderModal();
+  }
+  function bindParceriaJornadaEvents(pa){
+    var aplicar = document.getElementById('parceriaJornadaAplicarBtn');
+    if(aplicar){
+      aplicar.addEventListener('click', function(){
+        var modeloId = document.getElementById('parceriaJornadaModelo').value;
+        var inicio = document.getElementById('parceriaJornadaInicio').value || todayISODate();
+        if(!aplicarJornadaParceria(pa, modeloId, inicio)){ alert('Modelo não encontrado.'); return; }
+        saveCaptacao();
+        refreshParceriaModalJornada();
+        showToast('Jornada aplicada com '+pa.jornada.tarefas.length+' ações.', 'success');
+      });
+    }
+    var remover = document.getElementById('parceriaJornadaRemoverBtn');
+    if(remover){
+      remover.addEventListener('click', function(){
+        if(!confirm('Remover a jornada desta parceria? As ações serão apagadas. Essa ação não pode ser desfeita.')) return;
+        delete pa.jornada;
+        saveCaptacao();
+        refreshParceriaModalJornada();
+        showToast('Jornada removida.', 'success');
+      });
+    }
+    var addBtn = document.getElementById('parceriaTaskAddBtn');
+    if(addBtn){
+      addBtn.addEventListener('click', function(){
+        var novoId = nextParceriaTaskId(pa);
+        var maxOrdem = pa.jornada.tarefas.reduce(function(m,t){ return Math.max(m, t.ordem||0); }, -1);
+        pa.jornada.tarefas.push({ id:novoId, nome:'Nova ação', canal:'whatsapp', dataAlvo:null,
+                                 concluido:false, dataConclusao:null, observacao:'', arquivado:false, ordem:maxOrdem+1 });
+        state.parceriaJornadaExpanded[pa.id+':'+novoId] = true;
+        saveCaptacao();
+        refreshParceriaModalJornada();
+      });
+    }
+    var root = document.getElementById('parceriaTarefasRoot');
+    if(!root) return;
+    function tarefaDe(el, attr){
+      var tid = parseInt(el.getAttribute(attr),10);
+      return pa.jornada.tarefas.filter(function(t){ return t.id === tid; })[0];
+    }
+    root.querySelectorAll('[data-parc-task-toggle]').forEach(function(el){
+      el.addEventListener('click', function(){
+        var tid = this.getAttribute('data-parc-task-toggle');
+        var key = pa.id+':'+tid;
+        state.parceriaJornadaExpanded[key] = !state.parceriaJornadaExpanded[key];
+        refreshParceriaModalJornada();
+      });
+    });
+    root.querySelectorAll('[data-parc-task-done]').forEach(function(cb){
+      cb.addEventListener('change', function(){
+        var t = tarefaDe(this, 'data-parc-task-done');
+        if(!t) return;
+        t.concluido = this.checked;
+        t.dataConclusao = this.checked ? todayISODate() : null;
+        saveCaptacao();
+        refreshParceriaModalJornada();
+      });
+    });
+    root.querySelectorAll('[data-parc-task-nome]').forEach(function(el){
+      el.addEventListener('blur', function(){
+        var t = tarefaDe(this, 'data-parc-task-nome');
+        if(t){ t.nome = this.value.trim() || 'Sem nome'; saveCaptacao(); }
+      });
+    });
+    root.querySelectorAll('[data-parc-task-data]').forEach(function(el){
+      el.addEventListener('change', function(){
+        var t = tarefaDe(this, 'data-parc-task-data');
+        if(t){ t.dataAlvo = this.value || null; saveCaptacao(); refreshParceriaModalJornada(); }
+      });
+    });
+    root.querySelectorAll('[data-parc-task-canal]').forEach(function(el){
+      el.addEventListener('change', function(){
+        var t = tarefaDe(this, 'data-parc-task-canal');
+        if(t){ t.canal = this.value; saveCaptacao(); refreshParceriaModalJornada(); }
+      });
+    });
+    root.querySelectorAll('[data-parc-task-obs]').forEach(function(el){
+      el.addEventListener('blur', function(){
+        var t = tarefaDe(this, 'data-parc-task-obs');
+        if(t){ t.observacao = this.value.trim(); saveCaptacao(); }
+      });
+    });
+    root.querySelectorAll('[data-parc-task-remove]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var tid = parseInt(this.getAttribute('data-parc-task-remove'),10);
+        if(!confirm('Excluir esta ação? Essa ação não pode ser desfeita.')) return;
+        pa.jornada.tarefas = pa.jornada.tarefas.filter(function(t){ return t.id !== tid; });
+        saveCaptacao();
+        refreshParceriaModalJornada();
+      });
+    });
+  }
+  function bindParceriaModalEvents(){
+    var novo = state.parceriaEditId === null;
+    if(!novo) bindParceriaJornadaEvents(getParceria(state.parceriaEditId));
+    var addTipoBtn = document.getElementById('parceriaAddTipoBtn');
+    if(addTipoBtn){
+      addTipoBtn.addEventListener('click', function(){
+        var inp = document.getElementById('pa_novoTipo');
+        var novoTipo = inp.value.trim();
+        if(!novoTipo) return;
+        if(state.captacao.parceriaTipos.indexOf(novoTipo) === -1){
+          state.captacao.parceriaTipos.push(novoTipo);
+          saveCaptacao();
+        }
+        var sel = document.getElementById('pa_tipo');
+        if(!Array.from(sel.options).some(function(o){ return o.value === novoTipo; })){
+          var opt = document.createElement('option');
+          opt.value = novoTipo; opt.textContent = novoTipo;
+          sel.appendChild(opt);
+        }
+        sel.value = novoTipo;
+        inp.value = '';
+      });
+    }
+    document.getElementById('parceriaCancelBtn').addEventListener('click', closeModal);
+    var rmBtn = document.getElementById('parceriaRemoveBtn');
+    if(rmBtn){
+      rmBtn.addEventListener('click', function(){
+        if(!confirm('Excluir essa parceria? Essa ação não pode ser desfeita.')) return;
+        state.captacao.parcerias = state.captacao.parcerias.filter(function(x){ return x.id !== state.parceriaEditId; });
+        saveCaptacao();
+        closeModal();
+        render();
+        showToast('Parceria excluída.', 'success');
+      });
+    }
+    document.getElementById('parceriaSaveBtn').addEventListener('click', function(){
+      var nome = document.getElementById('pa_nome').value.trim();
+      if(!nome){ alert('O campo Nome é obrigatório.'); return; }
+      var dados = {
+        nome: nome,
+        whatsapp: document.getElementById('pa_whatsapp').value.trim(),
+        instagram: document.getElementById('pa_instagram').value.trim(),
+        tipo: document.getElementById('pa_tipo').value,
+        estagio: document.getElementById('pa_estagio').value,
+        observacoes: document.getElementById('pa_observacoes').value.trim()
+      };
+      var pa;
+      if(novo){
+        pa = Object.assign({ id: nextParceriaId(), ordem: 0, criadoEm: todayISODate() }, dados);
+        state.captacao.parcerias.push(pa);
+      } else {
+        pa = getParceria(state.parceriaEditId);
+        Object.assign(pa, dados);
+      }
+      saveCaptacao();
+      closeModal();
+      render();
+      showToast(novo ? 'Parceria criada.' : 'Parceria atualizada.', 'success');
     });
   }
 
@@ -8681,6 +9415,9 @@
     } else if(state.modal === 'lead'){
       html = leadModalHtml();
       if(!html){ closeModal(); return; }
+    } else if(state.modal === 'parceria'){
+      html = parceriaModalHtml();
+      if(!html){ closeModal(); return; }
     } else if(state.modal === 'indicacao'){
       html = indicacaoModalHtml();
     }
@@ -8919,6 +9656,9 @@
     }
     if(state.modal === 'lead'){
       bindLeadModalEvents();
+    }
+    if(state.modal === 'parceria'){
+      bindParceriaModalEvents();
     }
     if(state.modal === 'indicacao'){
       bindIndicacaoModalEvents();
