@@ -687,6 +687,31 @@
   .monthly-trend-fill.trend-danger{background:var(--danger);opacity:.5;}
   .monthly-trend-fill.trend-danger.current{opacity:1;}
   .monthly-trend-label{font-size:10.5px;color:var(--text-muted);white-space:nowrap;}
+  /* Indicadores da Captacao — comparacao mes atual x anterior (barras) e funil de conversao.
+     Mesma linguagem visual do monthly-trend-fill: 1 cor (--primary), duas intensidades —
+     opacidade cheia pro mes atual, reduzida pro anterior — em vez de duas cores diferentes. */
+  .ind-chart-divider{border-top:1px solid var(--border);margin:16px 0 14px;}
+  .ind-chart-title{font-size:11.5px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px;}
+  .ind-chart-sub{font-size:11px;color:var(--text-muted);margin-bottom:10px;}
+  .ind-chart-legend{display:flex;gap:16px;font-size:11px;color:var(--text-muted);margin-bottom:12px;}
+  .ind-chart-legend-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--primary);margin-right:5px;vertical-align:middle;}
+  .ind-chart-legend-dot.previous{opacity:.4;}
+  .ind-cmp-metric{margin-bottom:13px;}
+  .ind-cmp-metric:last-child{margin-bottom:0;}
+  .ind-cmp-metric-label{font-size:12px;font-weight:600;color:var(--text);margin-bottom:5px;}
+  .ind-cmp-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
+  .ind-cmp-bar-row:last-child{margin-bottom:0;}
+  .ind-cmp-bar-track{flex:1;height:14px;background:#F4F5F7;border-radius:4px;overflow:hidden;min-width:0;}
+  .ind-cmp-bar-fill{height:100%;border-radius:4px;background:var(--primary);}
+  .ind-cmp-bar-fill.previous{opacity:.4;}
+  .ind-cmp-bar-value{font-size:11.5px;font-weight:700;color:var(--text);min-width:20px;text-align:right;flex-shrink:0;}
+  .ind-funnel{max-width:320px;margin:0 auto;}
+  .ind-funnel-stage-label{font-size:12px;color:var(--text);text-align:center;margin-bottom:5px;}
+  .ind-funnel-stage-label b{font-weight:700;}
+  .ind-funnel-bar-wrap{display:flex;justify-content:center;}
+  .ind-funnel-bar{height:32px;border-radius:6px;background:var(--primary);}
+  .ind-funnel-drop{font-size:11px;color:var(--text-muted);text-align:center;padding:6px 0;}
+  .ind-funnel-drop b{color:var(--text);font-weight:700;}
   .card{
     background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);
     overflow:hidden;
@@ -1363,6 +1388,8 @@
     comunidadeCalSelecionado: null,
     activeComunidadeId: null,
     comunidadePrefillData: null,
+    indicadoresMes: null,
+    indicadoresView: 'mes',
     leadSearch: '',
     leadTemperaturaFilter: 'todos',
     leadEtiquetaFilter: 'todos',
@@ -4381,6 +4408,7 @@
     if(tab === 'cap-visao'){
       bindInfoIcons(document.getElementById('content'));
       bindAgendaCaptacaoEvents();
+      bindIndicadoresEvents();
     }
     if(tab === 'cap-indica'){
       bindInfoIcons(document.getElementById('content'));
@@ -5690,6 +5718,36 @@
     });
     return { novas: novas, acoes: acoes };
   }
+  /* Acumulado do ano (Jan ate o mes atual) — soma o que leadsStatsDoMes/parceriasStatsDoMes
+     ja calculam mes a mes, sem nenhuma regra nova. */
+  function monthsYTD(){
+    var now = new Date();
+    var months = [];
+    for(var m=0; m<=now.getMonth(); m++){ months.push(now.getFullYear()+'-'+String(m+1).padStart(2,'0')); }
+    return months;
+  }
+  function leadsStatsAcumulado(months){
+    var acc = { entraram:0, porOrigem:{}, conversas:0, converteram:0, semAvanco:0 };
+    months.forEach(function(mk){
+      var s = leadsStatsDoMes(mk);
+      acc.entraram += s.entraram;
+      acc.conversas += s.conversas;
+      acc.converteram += s.converteram;
+      acc.semAvanco += s.semAvanco;
+      Object.keys(s.porOrigem).forEach(function(k){ acc.porOrigem[k] = (acc.porOrigem[k]||0) + s.porOrigem[k]; });
+    });
+    acc.taxa = acc.entraram ? Math.round((acc.converteram/acc.entraram)*100) : null;
+    return acc;
+  }
+  function parceriasStatsAcumulado(months){
+    var acc = { novas:0, acoes:0 };
+    months.forEach(function(mk){
+      var s = parceriasStatsDoMes(mk);
+      acc.novas += s.novas;
+      acc.acoes += s.acoes;
+    });
+    return acc;
+  }
   function deltaLabelHtml(atual, anterior){
     var diff = atual - anterior;
     if(diff === 0) return '<span class="cell-muted">= vs '+anterior+' no mês anterior</span>';
@@ -5703,12 +5761,109 @@
     if(!chaves.length) return 'Nenhum lead novo esse mês.';
     return chaves.map(function(k){ return esc(k)+': '+porOrigem[k]; }).join(' · ');
   }
+  /* Grafico de barras mes-atual x mes-anterior — 1 cor so (--primary), duas opacidades
+     (cheia = mes atual, reduzida = anterior), igual ao truque ja usado no monthly-trend-fill
+     do Dashboard. Recebe os valores ja calculados (nunca recalcula nada aqui). */
+  function indComparisonChartHtml(mesAtualLabel, mesAntLabel, metricas){
+    var max = metricas.reduce(function(m,x){ return Math.max(m, x.atual||0, x.anterior||0); }, 1);
+    var linhas = metricas.map(function(m){
+      var wAtual = m.atual ? Math.max(Math.round((m.atual/max)*100), 4) : 0;
+      var wAnt = m.anterior ? Math.max(Math.round((m.anterior/max)*100), 4) : 0;
+      return ''+
+        '<div class="ind-cmp-metric">'+
+          '<div class="ind-cmp-metric-label">'+esc(m.label)+'</div>'+
+          '<div class="ind-cmp-bar-row" title="'+esc(mesAtualLabel)+': '+m.atual+'">'+
+            '<div class="ind-cmp-bar-track"><div class="ind-cmp-bar-fill" style="width:'+wAtual+'%;"></div></div>'+
+            '<div class="ind-cmp-bar-value">'+m.atual+'</div>'+
+          '</div>'+
+          '<div class="ind-cmp-bar-row" title="'+esc(mesAntLabel)+': '+m.anterior+'">'+
+            '<div class="ind-cmp-bar-track"><div class="ind-cmp-bar-fill previous" style="width:'+wAnt+'%;"></div></div>'+
+            '<div class="ind-cmp-bar-value">'+m.anterior+'</div>'+
+          '</div>'+
+        '</div>';
+    }).join('');
+    return ''+
+      '<div class="ind-chart-legend">'+
+        '<span><span class="ind-chart-legend-dot"></span>'+esc(mesAtualLabel)+'</span>'+
+        '<span><span class="ind-chart-legend-dot previous"></span>'+esc(mesAntLabel)+'</span>'+
+      '</div>'+
+      linhas;
+  }
+  /* Funil de conversao — usa direto entraram/conversas/converteram ja calculados em
+     leadsStatsDoMes (mesmos dados do card de Leads, mes atual, sem recalcular nada). */
+  function indFunnelDropHtml(de, para){
+    if(!de) return '<div class="ind-funnel-drop">—</div>';
+    var pct = Math.round((para/de)*100);
+    return '<div class="ind-funnel-drop">'+pct+'% da etapa anterior</div>';
+  }
+  function indFunnelHtml(entraram, conversas, converteram){
+    var stages = [
+      { label:'Entraram', value: entraram },
+      { label:'Conversas iniciadas', value: conversas },
+      { label:'Converteram', value: converteram }
+    ];
+    var max = Math.max(entraram, conversas, converteram, 1);
+    var shades = [1, .72, .46];
+    var html = stages.map(function(s, i){
+      var pct = s.value ? Math.max(Math.round((s.value/max)*100), 4) : 0;
+      return ''+
+        '<div class="ind-funnel-stage-label"><b>'+s.value+'</b> — '+esc(s.label)+'</div>'+
+        '<div class="ind-funnel-bar-wrap"><div class="ind-funnel-bar" style="width:'+pct+'%;opacity:'+shades[i]+';" title="'+esc(s.label)+': '+s.value+'"></div></div>'+
+        (i < stages.length-1 ? indFunnelDropHtml(stages[i].value, stages[i+1].value) : '');
+    }).join('');
+    return '<div class="ind-funnel">'+html+'</div>';
+  }
+  /* Visao "Ano": um mini-grafico por metrica, Jan ate o mes atual — mesma linguagem visual
+     do monthly-trend-fill/monthly-trend-col do Dashboard (Comparacao Mensal), mas sem o
+     clique de drill-down (que e especifico do Dashboard e nao se aplica aqui). */
+  function indYearTrendChartHtml(months, valueFn){
+    var points = months.map(function(k){ return { key:k, value:valueFn(k) }; });
+    var max = Math.max.apply(null, points.map(function(p){ return p.value||0; }).concat([1]));
+    var currentMonth = getCurrentMonthKey();
+    return '<div class="monthly-trend-chart">'+points.map(function(p){
+      var pct = p.value ? Math.max(Math.round((p.value/max)*100), 4) : 0;
+      var isCurrent = p.key === currentMonth;
+      return ''+
+        '<div class="monthly-trend-col" style="cursor:default;" title="'+esc(monthLabel(p.key))+': '+p.value+'">'+
+          '<div class="monthly-trend-value">'+p.value+'</div>'+
+          '<div class="monthly-trend-track"><div class="monthly-trend-fill trend-primary'+(isCurrent?' current':'')+'" style="height:'+pct+'%;"></div></div>'+
+          '<div class="monthly-trend-label">'+monthShortLabel(p.key)+'</div>'+
+        '</div>';
+    }).join('')+'</div>';
+  }
+  function indYearMetricsGridHtml(months, statsFn, metrics){
+    var statsByMonth = {};
+    months.forEach(function(mk){ statsByMonth[mk] = statsFn(mk); });
+    return '<div class="monthly-trend-grid">'+
+      metrics.map(function(m){
+        return '<div class="monthly-trend-panel">'+
+          '<div class="monthly-trend-title">'+esc(m.label)+'</div>'+
+          indYearTrendChartHtml(months, function(mk){ return statsByMonth[mk][m.key]; })+
+        '</div>';
+      }).join('')+
+    '</div>';
+  }
+  /* Seletor de mes/ano dos Indicadores e independente da competencia global (usada em
+     Leads/Pacientes) — decisao explicita do usuario pra nao misturar os dois filtros. */
+  function indicadoresToggleHtml(mesRef){
+    var view = state.indicadoresView;
+    return ''+
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px;">'+
+        '<div class="meta-type-toggle" style="margin:0;">'+
+          '<button type="button" class="meta-type-btn'+(view==='mes'?' active':'')+'" data-ind-view="mes">Mês a mês</button>'+
+          '<button type="button" class="meta-type-btn'+(view==='ano'?' active':'')+'" data-ind-view="ano">Ano</button>'+
+        '</div>'+
+        (view==='mes' ? '<select id="indicadoresMesSelect" class="filter-select">'+monthSelectOptions(mesRef)+'</select>' : '')+
+      '</div>';
+  }
   function captacaoIndicadoresHtml(){
-    var mesAtual = state.competencia;
+    if(!state.indicadoresMes) state.indicadoresMes = getCurrentMonthKey();
+    if(state.indicadoresView === 'ano') return captacaoIndicadoresAnoHtml();
+    var mesAtual = state.indicadoresMes;
     var mesAnt = addMonthsToKey(mesAtual, -1);
     var la = leadsStatsDoMes(mesAtual), lp = leadsStatsDoMes(mesAnt);
     var pa = parceriasStatsDoMes(mesAtual), pp = parceriasStatsDoMes(mesAnt);
-    return ''+
+    return indicadoresToggleHtml(mesAtual)+
     '<div class="quick-access-grid">'+
       '<div class="card" style="padding:18px;">'+
         '<div class="kpi-label">Leads — '+esc(monthLabel(mesAtual))+'</div>'+
@@ -5732,6 +5887,14 @@
             '<div class="cell-muted" style="font-size:12px;">Sem avanço — '+deltaLabelHtml(la.semAvanco, lp.semAvanco)+'</div>'+
           '</div>'+
         '</div>'+
+        '<div class="ind-chart-divider"></div>'+
+        '<div class="ind-chart-title">Comparação mês a mês</div>'+
+        indComparisonChartHtml(monthLabel(mesAtual), monthLabel(mesAnt), [
+          { label:'Entraram', atual:la.entraram, anterior:lp.entraram },
+          { label:'Conversas iniciadas', atual:la.conversas, anterior:lp.conversas },
+          { label:'Converteram', atual:la.converteram, anterior:lp.converteram },
+          { label:'Sem avanço', atual:la.semAvanco, anterior:lp.semAvanco }
+        ])+
       '</div>'+
       '<div class="card" style="padding:18px;">'+
         '<div class="kpi-label">Parcerias — '+esc(monthLabel(mesAtual))+'</div>'+
@@ -5746,8 +5909,113 @@
             '<div class="cell-muted" style="font-size:12px;">Ações de nutrição concluídas — '+deltaLabelHtml(pa.acoes, pp.acoes)+'</div>'+
           '</div>'+
         '</div>'+
+        '<div class="ind-chart-divider"></div>'+
+        '<div class="ind-chart-title">Comparação mês a mês</div>'+
+        indComparisonChartHtml(monthLabel(mesAtual), monthLabel(mesAnt), [
+          { label:'Novas parcerias', atual:pa.novas, anterior:pp.novas },
+          { label:'Ações de nutrição concluídas', atual:pa.acoes, anterior:pp.acoes }
+        ])+
       '</div>'+
+    '</div>'+
+    '<div class="card" style="padding:18px;margin-top:20px;">'+
+      '<div class="ind-chart-title">Funil de Conversão de Leads</div>'+
+      '<div class="ind-chart-sub">'+esc(monthLabel(mesAtual))+'</div>'+
+      indFunnelHtml(la.entraram, la.conversas, la.converteram)+
     '</div>';
+  }
+  /* Modo "Ano": Janeiro ate o mes atual, sem comparacao com periodo anterior (nao existe
+     ano anterior com dados nesse CRM ainda) — mesmos leadsStatsDoMes/parceriasStatsDoMes
+     por mes, so somados (leadsStatsAcumulado/parceriasStatsAcumulado). */
+  function captacaoIndicadoresAnoHtml(){
+    var months = monthsYTD();
+    var anoLabel = String(new Date().getFullYear());
+    var periodoLabel = monthLabel(months[0])+' a '+monthLabel(months[months.length-1]);
+    var la = leadsStatsAcumulado(months);
+    var pa = parceriasStatsAcumulado(months);
+    return indicadoresToggleHtml(null)+
+    '<div class="quick-access-grid">'+
+      '<div class="card" style="padding:18px;">'+
+        '<div class="kpi-label">Leads — '+esc(anoLabel)+' até agora</div>'+
+        '<div class="cell-muted" style="font-size:11.5px;margin-bottom:12px;">'+esc(periodoLabel)+'</div>'+
+        '<div style="margin-bottom:14px;">'+
+          '<div class="kpi-value" style="font-size:26px;">'+la.entraram+'</div>'+
+          '<div class="cell-muted" style="font-size:12px;">Entraram</div>'+
+          '<div class="cell-muted" style="font-size:11.5px;margin-top:4px;">'+origemBreakdownHtml(la.porOrigem)+'</div>'+
+        '</div>'+
+        '<div style="display:flex;gap:16px;flex-wrap:wrap;">'+
+          '<div style="flex:1 1 128px;min-width:128px;">'+
+            '<div class="kpi-value" style="font-size:22px;">'+la.conversas+'</div>'+
+            '<div class="cell-muted" style="font-size:12px;">Conversas iniciadas</div>'+
+          '</div>'+
+          '<div style="flex:1 1 128px;min-width:128px;">'+
+            '<div class="kpi-value" style="font-size:22px;">'+la.converteram+(la.taxa!==null?' <span class="cell-muted" style="font-size:13px;font-weight:600;">('+la.taxa+'%)</span>':'')+'</div>'+
+            '<div class="cell-muted" style="font-size:12px;">Converteram</div>'+
+          '</div>'+
+          '<div style="flex:1 1 128px;min-width:128px;">'+
+            '<div class="kpi-value" style="font-size:22px;">'+la.semAvanco+'</div>'+
+            '<div class="cell-muted" style="font-size:12px;">Sem avanço</div>'+
+          '</div>'+
+        '</div>'+
+      '</div>'+
+      '<div class="card" style="padding:18px;">'+
+        '<div class="kpi-label">Parcerias — '+esc(anoLabel)+' até agora</div>'+
+        '<div class="cell-muted" style="font-size:11.5px;margin-bottom:12px;">'+esc(periodoLabel)+'</div>'+
+        '<div style="display:flex;gap:16px;flex-wrap:wrap;">'+
+          '<div style="flex:1 1 128px;min-width:128px;">'+
+            '<div class="kpi-value" style="font-size:26px;">'+pa.novas+'</div>'+
+            '<div class="cell-muted" style="font-size:12px;">Novas parcerias</div>'+
+          '</div>'+
+          '<div style="flex:1 1 128px;min-width:128px;">'+
+            '<div class="kpi-value" style="font-size:26px;">'+pa.acoes+'</div>'+
+            '<div class="cell-muted" style="font-size:12px;">Ações de nutrição concluídas</div>'+
+          '</div>'+
+        '</div>'+
+      '</div>'+
+    '</div>'+
+    '<div class="card" style="padding:18px;margin-top:20px;">'+
+      '<div class="ind-chart-title">Leads por mês — '+esc(anoLabel)+'</div>'+
+      indYearMetricsGridHtml(months, leadsStatsDoMes, [
+        { key:'entraram', label:'Entraram' },
+        { key:'conversas', label:'Conversas iniciadas' },
+        { key:'converteram', label:'Converteram' },
+        { key:'semAvanco', label:'Sem avanço' }
+      ])+
+    '</div>'+
+    '<div class="card" style="padding:18px;margin-top:20px;">'+
+      '<div class="ind-chart-title">Parcerias por mês — '+esc(anoLabel)+'</div>'+
+      indYearMetricsGridHtml(months, parceriasStatsDoMes, [
+        { key:'novas', label:'Novas parcerias' },
+        { key:'acoes', label:'Ações de nutrição concluídas' }
+      ])+
+    '</div>'+
+    '<div class="card" style="padding:18px;margin-top:20px;">'+
+      '<div class="ind-chart-title">Funil de Conversão de Leads</div>'+
+      '<div class="ind-chart-sub">'+esc(anoLabel)+' até agora</div>'+
+      indFunnelHtml(la.entraram, la.conversas, la.converteram)+
+    '</div>';
+  }
+  function refreshCaptacaoIndicadores(){
+    var root = document.getElementById('captacaoIndicadoresRoot');
+    if(!root) return;
+    root.innerHTML = captacaoIndicadoresHtml();
+    bindIndicadoresEvents();
+  }
+  function bindIndicadoresEvents(){
+    var root = document.getElementById('captacaoIndicadoresRoot');
+    if(!root) return;
+    root.querySelectorAll('[data-ind-view]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        state.indicadoresView = this.getAttribute('data-ind-view');
+        refreshCaptacaoIndicadores();
+      });
+    });
+    var sel = document.getElementById('indicadoresMesSelect');
+    if(sel){
+      sel.addEventListener('change', function(){
+        state.indicadoresMes = this.value;
+        refreshCaptacaoIndicadores();
+      });
+    }
   }
   function captacaoVisaoTemplate(){
     return ''+
@@ -5763,7 +6031,7 @@
         '<h2 class="section-title">Indicadores</h2>'+
         '<button class="info-icon-btn" type="button" data-info-toggle="info-indicadores-cap">i</button>'+
       '</div>'+
-      '<div class="info-popover" id="info-indicadores-cap">Comparação entre o mês atual e o anterior. "Converteram"/"Sem avanço" contam no mês em que o lead fechou ou foi marcado sem avanço — não no mês em que entrou (pode ser um lead de um mês anterior).</div>'+
+      '<div class="info-popover" id="info-indicadores-cap">Por padrão compara o mês atual com o anterior — troque no seletor de mês pra ver outro período, ou use "Ano" pra ver Janeiro até agora, mês a mês. Esse filtro é só dos indicadores, não muda a competência de Leads/Pacientes. "Converteram"/"Sem avanço" contam no mês em que o lead fechou ou foi marcado sem avanço — não no mês em que entrou (pode ser um lead de um mês anterior).</div>'+
       '<div id="captacaoIndicadoresRoot">'+captacaoIndicadoresHtml()+'</div>';
   }
 
