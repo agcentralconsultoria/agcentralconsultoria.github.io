@@ -6568,11 +6568,17 @@
       return '<div><div class="mini-label">Fibras (g)</div><input type="number" min="0" step="1" data-'+attrPrefix+'-macro="fibras" data-'+attrPrefix+'-id="'+fichaId+'"'+vAttr+' value="'+esc(String(val))+'" placeholder="0"></div>';
     })();
   }
+  /* Id estavel do painel "por kg / distribuicao" — atualizado sozinho quando um macro
+     muda (ver bindDietaFichaFieldEvents), sem re-renderizar a lista inteira. Precisa
+     incluir vIdx pra nao colidir entre as 2 variacoes de uma dieta em ciclo. */
+  function macroPreviewId(attrPrefix, fichaId, vIdx){
+    return attrPrefix+'-macro-preview-'+fichaId+'-'+(vIdx===null||vIdx===undefined?'x':vIdx);
+  }
   function macroColumnsHtml(source, attrPrefix, fichaId, vIdx, pesoAtual){
     return '<div class="macro-columns">'+
       '<div class="macro-col"><div class="mini-label" style="text-align:left;">Nutrientes do Cardápio</div>'+
         '<div class="volume-grupo-grid" style="grid-template-columns:1fr;">'+macroInputsHtml(source, attrPrefix, fichaId, vIdx)+'</div></div>'+
-      '<div class="macro-col">'+macroGkgHtml(source, pesoAtual)+'<div style="margin-top:14px;">'+macroDistributionHtml(source)+'</div></div>'+
+      '<div class="macro-col" id="'+macroPreviewId(attrPrefix, fichaId, vIdx)+'">'+macroGkgHtml(source, pesoAtual)+'<div style="margin-top:14px;">'+macroDistributionHtml(source)+'</div></div>'+
     '</div>';
   }
   function diasSemanaPickerHtml(v, attrPrefix, fichaId, vIdx){
@@ -6665,20 +6671,37 @@
     }).join('');
     return toggle + blocos + cicloDiasAvisoHtml(f) + livresFieldsHtml(f, attrPrefix) + dietaTotalSemanaHtml(f);
   }
+  /* Conteudo (sem o <button>) do cabecalho de uma ficha — isolado pra poder ser
+     atualizado sozinho (ver refreshFichaHeaderInPlace), sem precisar re-renderizar a
+     lista inteira sempre que dataPassado/dataVencimento mudam. */
+  function fichaHeaderInnerHtml(f, isCurrent, isOpen, kind){
+    var statusBadge = kind === 'dieta' ? '' : (f.dataVencimento ? prazoBadge(f.dataVencimento) : '<span class="badge badge-gray">Sem vencimento</span>');
+    var diasPassado = daysBetween(f.dataPassado, todayISODate());
+    var summaryText = 'Passado ' + formatDate(f.dataPassado) + (kind !== 'dieta' && f.dataVencimento ? (' · vence ' + formatDate(f.dataVencimento)) : '');
+    var tempoBadge = kind !== 'dieta' ? ' <span class="badge '+fichaTreinoTempoClass(diasPassado)+'">'+esc(elapsedWeeksText(diasPassado))+'</span>' : '';
+    return '<span class="ficha-treino-summary">'+esc(summaryText)+'</span>'+tempoBadge+
+      '<span class="badge '+(isCurrent?'badge-info':'badge-gray')+'">'+(isCurrent?'Atual':'Substituída')+'</span>'+
+      statusBadge+
+      '<span class="ficha-treino-arrow">'+(isOpen?'▴':'▾')+'</span>';
+  }
+  /* Atualiza so o texto/badges do cabecalho de uma ficha (chamado quando
+     dataPassado/dataVencimento mudam), sem re-renderizar a lista inteira — evitava que
+     o campo em que o usuario ia clicar em seguida (ex: Volume por grupo muscular, logo
+     abaixo) fosse destruido e recriado no meio do clique, exigindo clicar duas vezes. */
+  function refreshFichaHeaderInPlace(attrPrefix, list, openMap, fid, kind){
+    var el = document.getElementById(attrPrefix+'-hdr-'+fid);
+    if(!el) return;
+    var idx = list.findIndex(function(x){ return x.id === fid; });
+    if(idx === -1) return;
+    el.innerHTML = fichaHeaderInnerHtml(list[idx], idx === 0, !!openMap[fid], kind);
+  }
   function fichaItemsHtml(list, openMap, attrPrefix, kind, pesoAtual){
     var items = list.map(function(f, idx){
       var isCurrent = idx === 0;
       var isOpen = !!openMap[f.id];
-      var statusBadge = kind === 'dieta' ? '' : (f.dataVencimento ? prazoBadge(f.dataVencimento) : '<span class="badge badge-gray">Sem vencimento</span>');
-      var diasPassado = daysBetween(f.dataPassado, todayISODate());
-      var summaryText = 'Passado ' + formatDate(f.dataPassado) + (kind !== 'dieta' && f.dataVencimento ? (' · vence ' + formatDate(f.dataVencimento)) : '');
-      var tempoBadge = kind !== 'dieta' ? ' <span class="badge '+fichaTreinoTempoClass(diasPassado)+'">'+esc(elapsedWeeksText(diasPassado))+'</span>' : '';
       var header = ''+
-        '<button type="button" class="ficha-treino-header" data-'+attrPrefix+'-toggle="'+f.id+'">'+
-          '<span class="ficha-treino-summary">'+esc(summaryText)+'</span>'+tempoBadge+
-          '<span class="badge '+(isCurrent?'badge-info':'badge-gray')+'">'+(isCurrent?'Atual':'Substituída')+'</span>'+
-          statusBadge+
-          '<span class="ficha-treino-arrow">'+(isOpen?'▴':'▾')+'</span>'+
+        '<button type="button" class="ficha-treino-header" id="'+attrPrefix+'-hdr-'+f.id+'" data-'+attrPrefix+'-toggle="'+f.id+'">'+
+          fichaHeaderInnerHtml(f, isCurrent, isOpen, kind)+
         '</button>';
       var extraFieldsHtml = '';
       if(isOpen){
@@ -7174,7 +7197,10 @@
         var field = this.getAttribute('data-ficha-draft-field');
         var f = state.formDraftFichas.filter(function(x){ return x.id === fid; })[0];
         if(f){ f[field] = this.value; }
-        if(field !== 'expectativa') refreshFichaTreinoDraftList();
+        // so o cabecalho depende de dataPassado/dataVencimento — atualiza so ele no
+        // lugar, sem re-renderizar a lista inteira (o que destruia e recriava o campo
+        // de Volume por grupo muscular logo abaixo bem no meio do proximo clique).
+        if(field === 'dataPassado' || field === 'dataVencimento') refreshFichaHeaderInPlace('ficha-draft', state.formDraftFichas, state.formDraftFichaOpen, fid, 'treino');
       });
     });
     root.querySelectorAll('[data-ficha-draft-grupo]').forEach(function(el){
@@ -7225,7 +7251,7 @@
   /* Liga os campos de macro / tipo / dias da ficha de dieta. Serve pros dois caminhos:
      o perfil do paciente (grava direto no paciente) e o formulario de cadastro/edicao
      (grava no rascunho). O que muda entre eles e so o getFicha e o onChange. */
-  function bindDietaFichaFieldEvents(root, attrPrefix, getFicha, onChange){
+  function bindDietaFichaFieldEvents(root, attrPrefix, getFicha, onChange, pesoAtual, persist){
     function fichaFrom(el){
       return getFicha(parseInt(el.getAttribute('data-'+attrPrefix+'-id'),10));
     }
@@ -7236,9 +7262,16 @@
         var key = this.getAttribute('data-'+attrPrefix+'-macro');
         var vRaw = this.getAttribute('data-'+attrPrefix+'-var');
         var val = this.value === '' ? '' : parseFloat(this.value);
-        if(vRaw === null){ f[key] = val; }
-        else { ensureDietaVariacoes(f)[parseInt(vRaw,10)][key] = val; }
-        onChange();
+        var vIdx = vRaw === null ? null : parseInt(vRaw,10);
+        var source = vIdx === null ? f : ensureDietaVariacoes(f)[vIdx];
+        source[key] = val;
+        // so atualiza o paineizinho "por kg / distribuicao" no lugar, sem re-renderizar
+        // a lista inteira — do contrario o campo em que o usuario for clicar em seguida
+        // (o proximo macro, ou o Volume por grupo muscular de outra ficha) era destruido
+        // e recriado no meio do clique, exigindo clicar duas vezes pra focar.
+        var previewEl = document.getElementById(macroPreviewId(attrPrefix, f.id, vIdx));
+        if(previewEl) previewEl.innerHTML = macroGkgHtml(source, pesoAtual)+'<div style="margin-top:14px;">'+macroDistributionHtml(source)+'</div>';
+        if(persist) persist();
       });
     });
     root.querySelectorAll('[data-'+attrPrefix+'-tipo]').forEach(function(btn){
@@ -7325,6 +7358,8 @@
     }, function(){
       savePatients();
       refreshFichaDietaList();
+    }, latestPesoAtual(getPatient(state.activeId)), function(){
+      savePatients();
     });
     root.querySelectorAll('[data-ficha-dieta-remove]').forEach(function(btn){
       btn.addEventListener('click', function(){
@@ -7403,14 +7438,16 @@
         var field = this.getAttribute('data-ficha-dieta-draft-field');
         var f = state.formDraftFichasDieta.filter(function(x){ return x.id === fid; })[0];
         if(f){ f[field] = this.value; }
-        if(field !== 'expectativa') refreshFichaDietaDraftList();
+        // so o cabecalho depende de dataPassado — atualiza so ele no lugar, sem
+        // re-renderizar a lista inteira (ver fichaHeaderInPlace).
+        if(field === 'dataPassado') refreshFichaHeaderInPlace('ficha-dieta-draft', state.formDraftFichasDieta, state.formDraftFichaDietaOpen, fid, 'dieta');
       });
     });
     bindDietaFichaFieldEvents(root, 'ficha-dieta-draft', function(fid){
       return state.formDraftFichasDieta.filter(function(x){ return x.id === fid; })[0] || null;
     }, function(){
       refreshFichaDietaDraftList();
-    });
+    }, state.modal === 'edit' ? latestPesoAtual(getPatient(state.activeId)) : null, function(){});
     root.querySelectorAll('[data-ficha-dieta-draft-remove]').forEach(function(btn){
       btn.addEventListener('click', function(){
         if(confirm('Remover essa ficha de dieta? Essa ação não pode ser desfeita.')){
