@@ -553,6 +553,23 @@
   .jornada-cal-cell.readonly-cal-cell:hover{outline:none;}
   .jornada-cal-dot{position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--success);}
   .jornada-cal-cell.selected .jornada-cal-dot{background:var(--white);}
+  /* Calendario de mes da Comunidade — celulas maiores que o jornada-cal-cell (que e feito
+     pra um popover pequeno), com espaco pra bolinhas de cor por item do dia. */
+  .com-cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-size:13px;font-weight:700;color:var(--secondary);}
+  .com-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+  .com-cal-wd{font-size:10px;text-align:center;color:var(--text-muted);font-weight:700;padding:2px 0;}
+  .com-cal-cell{
+    position:relative;aspect-ratio:1;border:1px solid var(--border);border-radius:8px;background:var(--white);
+    cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+    padding:4px 2px;gap:2px;
+  }
+  .com-cal-cell.empty{border:none;cursor:default;background:transparent;}
+  .com-cal-cell.today{outline:1.5px solid var(--primary);outline-offset:-1.5px;}
+  .com-cal-cell.selected{background:var(--primary-light);border-color:var(--primary);}
+  .com-cal-cell:not(.empty):hover{border-color:var(--primary);}
+  .com-cal-daynum{font-size:12px;font-weight:600;color:var(--text);}
+  .com-cal-dots{display:flex;gap:2px;flex-wrap:wrap;justify-content:center;}
+  .com-cal-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
   .jornada-task-obs{
     width:100%;margin-top:6px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;
     font-size:12.5px;font-family:inherit;color:var(--text);background:var(--white);
@@ -1339,6 +1356,13 @@
     leadModeloAberto: {},      // modelos expandidos no editor
     agendaCollapsedPessoas: {},
     agendaMostrarProximos: false,
+    comunidadeView: 'lista',
+    comunidadeFiltroCanal: 'todos',
+    comunidadeMostrarConcluidos: false,
+    comunidadeCalMes: null,
+    comunidadeCalSelecionado: null,
+    activeComunidadeId: null,
+    comunidadePrefillData: null,
     leadSearch: '',
     leadTemperaturaFilter: 'todos',
     leadEtiquetaFilter: 'todos',
@@ -4339,6 +4363,7 @@
     if(tab === 'cap-parcerias') return parceriasTemplate();
     if(tab === 'cap-visao') return captacaoVisaoTemplate();
     if(tab === 'cap-indica') return indicacoesTemplate();
+    if(tab === 'cap-comunidade') return comunidadeTemplate();
     var info = CAPTACAO_EM_BREVE[tab] || CAPTACAO_EM_BREVE['cap-visao'];
     return ''+
       '<h1 class="page-title">'+esc(info.titulo)+'</h1>'+
@@ -4360,6 +4385,10 @@
     if(tab === 'cap-indica'){
       bindInfoIcons(document.getElementById('content'));
       bindIndicacoesEvents();
+    }
+    if(tab === 'cap-comunidade'){
+      bindInfoIcons(document.getElementById('content'));
+      bindComunidadeEvents();
     }
   }
 
@@ -5105,6 +5134,341 @@
      conclui na origem porque e o MESMO registro, nao uma copia. Leads e Parcerias ja
      tem jornada — quando Indicacoes e Comunidade tiverem tambem, e so acrescentar
      nesta funcao e o resto da tela funciona sozinho. */
+  /* ---------- Comunidade: cronograma de conteudos/acoes do grupo de WhatsApp e do Instagram ----------
+     Diferente de Leads/Parcerias, aqui nao ha "uma pessoa = um registro" nem motor de jornada —
+     e so uma agenda de itens datados, cadastrados um a um (sem recorrencia automatica). Cada item
+     tem canal (whatsapp/instagram) e um tipo que muda de acordo com o canal. Itens pendentes com
+     data entram tambem na Agenda de Captacao (ver agendaCaptacaoItens mais abaixo). */
+  var COMUNIDADE_CANAIS = [
+    { key:'whatsapp',  label:'WhatsApp',  ico:'💬', cor:'#25D366' },
+    { key:'instagram', label:'Instagram', ico:'📷', cor:'#DD2A7B' }
+  ];
+  var COMUNIDADE_TIPOS = {
+    whatsapp: [
+      { key:'conteudo',   label:'Conteúdo/Post', ico:'📝' },
+      { key:'desafio',    label:'Desafio interno', ico:'🏆' },
+      { key:'presencial', label:'Ação presencial', ico:'🤝' }
+    ],
+    instagram: [
+      { key:'reels',     label:'Reels', ico:'🎬' },
+      { key:'carrossel', label:'Carrossel', ico:'🖼️' }
+    ]
+  };
+  function comunidadeCanalInfo(key){
+    return COMUNIDADE_CANAIS.filter(function(c){ return c.key === key; })[0] || COMUNIDADE_CANAIS[0];
+  }
+  function comunidadeTipoInfo(canal, tipoKey){
+    var lista = COMUNIDADE_TIPOS[canal] || [];
+    return lista.filter(function(t){ return t.key === tipoKey; })[0] || lista[0];
+  }
+  function nextComunidadeId(){
+    if(!state.captacao || !state.captacao.comunidade.length) return 1;
+    return state.captacao.comunidade.reduce(function(m,it){ return Math.max(m, it.id||0); }, 0) + 1;
+  }
+  function getComunidadeItem(id){
+    if(!state.captacao) return null;
+    return state.captacao.comunidade.filter(function(it){ return it.id === id; })[0] || null;
+  }
+  function comunidadeItensFiltrados(){
+    var itens = (state.captacao && state.captacao.comunidade) ? state.captacao.comunidade.slice() : [];
+    if(state.comunidadeFiltroCanal !== 'todos'){
+      itens = itens.filter(function(it){ return it.canal === state.comunidadeFiltroCanal; });
+    }
+    return itens;
+  }
+  function comunidadeItemHtml(it){
+    var canal = comunidadeCanalInfo(it.canal);
+    var tipo = comunidadeTipoInfo(it.canal, it.tipo);
+    var diff = diasParaVencer(it.data);
+    var quando = it.concluido ? 'Concluído'
+               : diff === null ? ''
+               : diff < 0 ? 'atrasado há '+Math.abs(diff)+'d'
+               : diff === 0 ? 'hoje' : 'em '+diff+'d';
+    return ''+
+      '<div class="agenda-item">'+
+        '<input type="checkbox" data-com-done="'+it.id+'" '+(it.concluido?'checked':'')+' title="Marcar como feito">'+
+        '<div class="agenda-item-body" style="'+(it.concluido?'opacity:.6;text-decoration:line-through;':'')+'">'+
+          '<div class="agenda-item-nome">'+canal.ico+' '+esc(tipo ? tipo.label : '')+(it.descricao?' — '+esc(it.descricao):'')+'</div>'+
+          '<div class="agenda-item-meta"><span class="cell-muted">'+formatDate(it.data)+(quando?' · '+esc(quando):'')+'</span></div>'+
+        '</div>'+
+        '<div class="agenda-item-acoes">'+
+          '<button type="button" class="lead-link-btn" data-com-editar="'+it.id+'" title="Editar">✏️</button>'+
+          '<button type="button" class="lead-link-btn" data-com-excluir="'+it.id+'" title="Excluir">🗑️</button>'+
+        '</div>'+
+      '</div>';
+  }
+  function comunidadeListaHtml(){
+    var todos = comunidadeItensFiltrados();
+    var pendentes = todos.filter(function(it){ return !it.concluido; });
+    var concluidos = todos.filter(function(it){ return it.concluido; })
+      .sort(function(a,b){ return (b.data||'').localeCompare(a.data||''); });
+    var filtroBtns = [{key:'todos',label:'Todos',ico:''}].concat(COMUNIDADE_CANAIS).map(function(f){
+      return '<button type="button" class="meta-type-btn'+(state.comunidadeFiltroCanal===f.key?' active':'')+'" data-com-filtro="'+f.key+'">'+(f.ico?f.ico+' ':'')+esc(f.label)+'</button>';
+    }).join('');
+    var html = '<div class="meta-type-toggle">'+filtroBtns+'</div>';
+    if(!pendentes.length){
+      html += '<div class="empty-state">Nada pendente'+(state.comunidadeFiltroCanal!=='todos'?' nesse filtro':'')+'. Adicione um item ao cronograma pra começar. 🎉</div>';
+    } else {
+      pendentes.forEach(function(it){ it.diff = diasParaVencer(it.data); });
+      html += AGENDA_FAIXAS.map(function(faixa){
+        var daFaixa = pendentes.filter(function(it){ return faixa.teste(it.diff); }).sort(function(a,b){ return a.diff-b.diff; });
+        if(!daFaixa.length) return '';
+        return ''+
+          '<div class="agenda-faixa">'+
+            '<div class="agenda-faixa-titulo">'+
+              '<span class="badge '+faixa.cls+'">'+esc(faixa.label)+'</span>'+
+              '<span class="cell-muted" style="font-size:12.5px;">'+daFaixa.length+' '+(daFaixa.length===1?'item':'itens')+'</span>'+
+            '</div>'+
+            daFaixa.map(comunidadeItemHtml).join('')+
+          '</div>';
+      }).join('');
+    }
+    html += '<button type="button" class="btn-icon" id="comToggleConcluidosBtn" style="width:100%;margin-top:14px;">'+
+      (state.comunidadeMostrarConcluidos ? 'Ocultar concluídos' : 'Mostrar concluídos ('+concluidos.length+')')+'</button>';
+    if(state.comunidadeMostrarConcluidos && concluidos.length){
+      html += '<div class="agenda-faixa" style="margin-top:10px;">'+concluidos.map(comunidadeItemHtml).join('')+'</div>';
+    }
+    return html;
+  }
+  function comunidadeItensPorDia(mesKey){
+    var mapa = {};
+    comunidadeItensFiltrados().forEach(function(it){
+      if(!it.data || it.data.slice(0,7) !== mesKey) return;
+      if(!mapa[it.data]) mapa[it.data] = [];
+      mapa[it.data].push(it);
+    });
+    return mapa;
+  }
+  function comunidadeDiaPainelHtml(dateStr, itens){
+    itens = itens.slice().sort(function(a,b){ return (a.canal||'').localeCompare(b.canal||''); });
+    return ''+
+      '<div class="card" style="margin-top:12px;padding:14px;">'+
+        '<div class="section-header-row" style="margin-bottom:8px;">'+
+          '<h3 class="section-title" style="font-size:14px;">'+formatDate(dateStr)+'</h3>'+
+          '<button type="button" class="btn-icon" data-com-add-dia="'+dateStr+'">+ Adicionar</button>'+
+        '</div>'+
+        (itens.length ? itens.map(comunidadeItemHtml).join('') : '<div class="empty-state" style="padding:14px;">Nada cadastrado nesse dia.</div>')+
+      '</div>';
+  }
+  function comunidadeCalendarioHtml(){
+    var mesKey = state.comunidadeCalMes || getCurrentMonthKey();
+    var parsed = parseMonthKey(mesKey);
+    var year = parsed.year, month = parsed.month;
+    var daysInMonth = new Date(year, month+1, 0).getDate();
+    var startWeekday = new Date(year, month, 1).getDay();
+    var todayIso = todayISODate();
+    var porDia = comunidadeItensPorDia(mesKey);
+    var weekdayHeaders = ['D','S','T','Q','Q','S','S'].map(function(w){ return '<span class="com-cal-wd">'+w+'</span>'; }).join('');
+    var cells = '';
+    for(var i=0;i<startWeekday;i++){ cells += '<span class="com-cal-cell empty"></span>'; }
+    for(var day=1; day<=daysInMonth; day++){
+      var dateStr = year+'-'+String(month+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+      var itensDia = porDia[dateStr] || [];
+      var isToday = dateStr === todayIso;
+      var isSelected = dateStr === state.comunidadeCalSelecionado;
+      var dots = itensDia.slice(0,4).map(function(it){
+        var cor = comunidadeCanalInfo(it.canal).cor;
+        return '<span class="com-cal-dot" style="background:'+cor+(it.concluido?';opacity:.35':'')+'"></span>';
+      }).join('');
+      cells += '<button type="button" class="com-cal-cell'+(isToday?' today':'')+(isSelected?' selected':'')+'" data-com-cal-dia="'+dateStr+'">'+
+        '<span class="com-cal-daynum">'+day+'</span>'+
+        (dots ? '<span class="com-cal-dots">'+dots+'</span>' : '')+
+      '</button>';
+    }
+    var painelDia = state.comunidadeCalSelecionado ? comunidadeDiaPainelHtml(state.comunidadeCalSelecionado, porDia[state.comunidadeCalSelecionado]||[]) : '';
+    return ''+
+      '<div class="com-cal-header">'+
+        '<button type="button" class="jornada-cal-nav" data-com-cal-nav="prev">‹</button>'+
+        '<span>'+monthLabel(mesKey)+'</span>'+
+        '<button type="button" class="jornada-cal-nav" data-com-cal-nav="next">›</button>'+
+      '</div>'+
+      '<div class="com-cal-grid">'+weekdayHeaders+cells+'</div>'+
+      '<div id="comCalPainel">'+painelDia+'</div>';
+  }
+  function comunidadeTemplate(){
+    if(!state.comunidadeCalMes) state.comunidadeCalMes = getCurrentMonthKey();
+    return ''+
+      '<div class="profile-top" style="margin-bottom:4px;">'+
+        '<div><h1 class="page-title" style="margin-bottom:2px;">Comunidade</h1>'+
+        '<p class="page-sub" style="margin:0;">Captação · cronograma de conteúdos e ações do grupo de WhatsApp e do Instagram</p></div>'+
+        '<button class="btn btn-primary" id="comNovoBtn">+ Novo item</button>'+
+      '</div>'+
+      '<div class="section-header-row" style="margin-top:18px;">'+
+        '<h2 class="section-title">Cronograma</h2>'+
+        '<div class="meta-type-toggle" style="margin:0;">'+
+          '<button type="button" class="meta-type-btn'+(state.comunidadeView==='lista'?' active':'')+'" data-com-view="lista">Lista</button>'+
+          '<button type="button" class="meta-type-btn'+(state.comunidadeView==='calendario'?' active':'')+'" data-com-view="calendario">Calendário</button>'+
+        '</div>'+
+      '</div>'+
+      '<div id="comunidadeRoot">'+(state.comunidadeView==='calendario' ? comunidadeCalendarioHtml() : comunidadeListaHtml())+'</div>';
+  }
+  function abrirComunidadeItem(id, prefillData){
+    state.activeComunidadeId = id || null;
+    state.comunidadePrefillData = prefillData || null;
+    state.modal = 'comunidade';
+    renderModal();
+  }
+  function comunidadeModalHtml(){
+    var editing = state.activeComunidadeId ? getComunidadeItem(state.activeComunidadeId) : null;
+    var canal = editing ? editing.canal : 'whatsapp';
+    function tipoOptsHtml(canalKey, selectedTipo){
+      return (COMUNIDADE_TIPOS[canalKey]||[]).map(function(t){
+        return '<option value="'+t.key+'"'+(t.key===selectedTipo?' selected':'')+'>'+t.ico+' '+esc(t.label)+'</option>';
+      }).join('');
+    }
+    var canalBtns = COMUNIDADE_CANAIS.map(function(c){
+      return '<button type="button" class="meta-type-btn'+(canal===c.key?' active':'')+'" data-com-modal-canal="'+c.key+'">'+c.ico+' '+esc(c.label)+'</button>';
+    }).join('');
+    return ''+
+    '<div class="modal">'+
+      '<div class="modal-header"><h2>'+(editing?'Editar item':'Novo item')+'</h2>'+
+        '<button class="modal-close" id="modalCloseBtn">&times;</button></div>'+
+      '<div class="modal-body">'+
+        '<div class="form-grid">'+
+          '<div class="form-group full"><label>Canal</label>'+
+            '<div class="meta-type-toggle" id="comModalCanalToggle">'+canalBtns+'</div>'+
+          '</div>'+
+          '<div class="form-group full"><label>Tipo</label>'+
+            '<select id="com_tipo" class="filter-select" style="width:100%;">'+tipoOptsHtml(canal, editing?editing.tipo:null)+'</select>'+
+          '</div>'+
+          '<div class="form-group"><label>Data</label><input type="date" id="com_data" value="'+esc(editing?editing.data:(state.comunidadePrefillData||todayISODate()))+'"></div>'+
+          '<div class="form-group full"><label>Descrição</label><textarea id="com_descricao" placeholder="O que postar ou fazer">'+esc(editing?editing.descricao:'')+'</textarea></div>'+
+        '</div>'+
+      '</div>'+
+      '<div class="modal-footer">'+
+        (editing ? '<button class="btn btn-danger" id="comExcluirBtn" style="margin-right:auto;">Excluir</button>' : '')+
+        '<button class="btn btn-secondary" id="comCancelBtn">Cancelar</button>'+
+        '<button class="btn btn-primary" id="comSalvarBtn">Salvar</button>'+
+      '</div>'+
+    '</div>';
+  }
+  function bindComunidadeModalEvents(){
+    var editing = state.activeComunidadeId ? getComunidadeItem(state.activeComunidadeId) : null;
+    var canalAtual = editing ? editing.canal : 'whatsapp';
+    function atualizarTipos(){
+      document.getElementById('com_tipo').innerHTML = (COMUNIDADE_TIPOS[canalAtual]||[]).map(function(t){
+        return '<option value="'+t.key+'">'+t.ico+' '+esc(t.label)+'</option>';
+      }).join('');
+    }
+    document.querySelectorAll('[data-com-modal-canal]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        canalAtual = this.getAttribute('data-com-modal-canal');
+        document.querySelectorAll('[data-com-modal-canal]').forEach(function(b){
+          b.classList.toggle('active', b.getAttribute('data-com-modal-canal') === canalAtual);
+        });
+        atualizarTipos();
+      });
+    });
+    document.getElementById('comCancelBtn').addEventListener('click', function(){ closeModal(); });
+    var delBtn = document.getElementById('comExcluirBtn');
+    if(delBtn){
+      delBtn.addEventListener('click', function(){
+        if(!confirm('Excluir este item do cronograma?')) return;
+        state.captacao.comunidade = state.captacao.comunidade.filter(function(it){ return it.id !== state.activeComunidadeId; });
+        saveCaptacao();
+        closeModal();
+        render();
+        showToast('Item excluído.', 'success');
+      });
+    }
+    document.getElementById('comSalvarBtn').addEventListener('click', function(){
+      var data = document.getElementById('com_data').value;
+      if(!data){ alert('Informe a data.'); return; }
+      var tipo = document.getElementById('com_tipo').value;
+      var descricao = document.getElementById('com_descricao').value.trim();
+      if(state.activeComunidadeId){
+        var it = getComunidadeItem(state.activeComunidadeId);
+        it.canal = canalAtual; it.tipo = tipo; it.data = data; it.descricao = descricao;
+      } else {
+        state.captacao.comunidade.push({
+          id: nextComunidadeId(), canal: canalAtual, tipo: tipo, data: data,
+          descricao: descricao, concluido: false, dataConclusao: null
+        });
+      }
+      saveCaptacao();
+      closeModal();
+      render();
+      showToast('Cronograma atualizado.', 'success');
+    });
+  }
+  /* Wiring dos botoes de acao de um item de Comunidade (concluir/editar/excluir), reaproveitado
+     tanto na propria aba Comunidade quanto no bloco de Comunidade dentro da Agenda de Captacao —
+     so muda o "onChange" (refresh completo numa, refresh so do root da agenda na outra). */
+  function bindComunidadeItemActionsIn(root, onChange){
+    if(!root) return;
+    root.querySelectorAll('[data-com-done]').forEach(function(cb){
+      cb.addEventListener('change', function(){
+        var id = parseInt(this.getAttribute('data-com-done'),10);
+        var it = getComunidadeItem(id);
+        if(!it) return;
+        it.concluido = this.checked;
+        it.dataConclusao = this.checked ? todayISODate() : null;
+        saveCaptacao();
+        onChange();
+        showToast(this.checked ? 'Item concluído.' : 'Item reaberto.', 'success');
+      });
+    });
+    root.querySelectorAll('[data-com-editar]').forEach(function(btn){
+      btn.addEventListener('click', function(){ abrirComunidadeItem(parseInt(this.getAttribute('data-com-editar'),10), null); });
+    });
+    root.querySelectorAll('[data-com-excluir]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var id = parseInt(this.getAttribute('data-com-excluir'),10);
+        if(!confirm('Excluir este item do cronograma?')) return;
+        state.captacao.comunidade = state.captacao.comunidade.filter(function(it){ return it.id !== id; });
+        saveCaptacao();
+        onChange();
+        showToast('Item excluído.', 'success');
+      });
+    });
+  }
+  function bindComunidadeEvents(){
+    var content = document.getElementById('content');
+    if(!content) return;
+    var novoBtn = document.getElementById('comNovoBtn');
+    if(novoBtn) novoBtn.addEventListener('click', function(){ abrirComunidadeItem(null, null); });
+    content.querySelectorAll('[data-com-view]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        state.comunidadeView = this.getAttribute('data-com-view');
+        render();
+      });
+    });
+    content.querySelectorAll('[data-com-filtro]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        state.comunidadeFiltroCanal = this.getAttribute('data-com-filtro');
+        render();
+      });
+    });
+    bindComunidadeItemActionsIn(content, render);
+    var toggleConcBtn = document.getElementById('comToggleConcluidosBtn');
+    if(toggleConcBtn){
+      toggleConcBtn.addEventListener('click', function(){
+        state.comunidadeMostrarConcluidos = !state.comunidadeMostrarConcluidos;
+        render();
+      });
+    }
+    content.querySelectorAll('[data-com-cal-nav]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var dir = this.getAttribute('data-com-cal-nav');
+        var parsed = parseMonthKey(state.comunidadeCalMes || getCurrentMonthKey());
+        var d = new Date(parsed.year, parsed.month + (dir==='next'?1:-1), 1);
+        state.comunidadeCalMes = monthKeyOf(d);
+        render();
+      });
+    });
+    content.querySelectorAll('[data-com-cal-dia]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var dia = this.getAttribute('data-com-cal-dia');
+        state.comunidadeCalSelecionado = state.comunidadeCalSelecionado === dia ? null : dia;
+        render();
+      });
+    });
+    content.querySelectorAll('[data-com-add-dia]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        abrirComunidadeItem(null, this.getAttribute('data-com-add-dia'));
+      });
+    });
+  }
   function agendaCaptacaoItens(){
     var itens = [];
     if(!state.captacao) return itens;
@@ -5182,7 +5546,11 @@
   }
   function agendaCaptacaoHtml(){
     var todos = agendaCaptacaoItens();
-    if(!todos.length){
+    var todosComunidade = (state.captacao && state.captacao.comunidade)
+      ? state.captacao.comunidade.filter(function(it){ return !it.concluido && it.data; })
+      : [];
+    todosComunidade.forEach(function(it){ it.diff = diasParaVencer(it.data); });
+    if(!todos.length && !todosComunidade.length){
       return '<div class="empty-state">Nada pendente na captação. Aplique uma jornada num lead pra começar. 🎉</div>';
     }
     var blocos = AGENDA_FAIXAS.map(function(faixa){
@@ -5207,15 +5575,29 @@
           grupos+
         '</div>';
     }).join('');
-    var proximosQtd = todos.filter(function(it){ return it.diff > 7; }).length;
+    var blocosComunidade = AGENDA_FAIXAS.map(function(faixa){
+      if(faixa.key === 'proximos' && !state.agendaMostrarProximos) return '';
+      var daFaixa = todosComunidade.filter(function(it){ return faixa.teste(it.diff); }).sort(function(a,b){ return a.diff-b.diff; });
+      if(!daFaixa.length) return '';
+      return ''+
+        '<div class="agenda-faixa">'+
+          '<div class="agenda-faixa-titulo">'+
+            '<span class="badge '+faixa.cls+'">'+esc(faixa.label)+'</span>'+
+            '<span class="cell-muted" style="font-size:12.5px;">'+daFaixa.length+' '+(daFaixa.length===1?'item':'itens')+' de Comunidade</span>'+
+          '</div>'+
+          daFaixa.map(comunidadeItemHtml).join('')+
+        '</div>';
+    }).join('');
+    var proximosQtd = todos.filter(function(it){ return it.diff > 7; }).length + todosComunidade.filter(function(it){ return it.diff > 7; }).length;
     var botaoProximos = proximosQtd
       ? '<button type="button" class="btn-icon" id="agendaProximosBtn" style="width:100%;margin-top:6px;">'+
         (state.agendaMostrarProximos ? 'Ocultar os '+proximosQtd+' de mais pra frente' : 'Mostrar '+proximosQtd+' de mais pra frente')+'</button>'
       : '';
-    if(!blocos && !state.agendaMostrarProximos && proximosQtd){
-      blocos = '<div class="empty-state" style="padding:20px;">Nada atrasado nem pra essa semana. 🎉</div>';
+    var conteudo = blocos + blocosComunidade;
+    if(!conteudo && !state.agendaMostrarProximos && proximosQtd){
+      conteudo = '<div class="empty-state" style="padding:20px;">Nada atrasado nem pra essa semana. 🎉</div>';
     }
-    return blocos + botaoProximos;
+    return conteudo + botaoProximos;
   }
   function refreshAgendaCaptacao(){
     var root = document.getElementById('agendaCaptacaoRoot');
@@ -5275,6 +5657,7 @@
         refreshAgendaCaptacao();
       });
     }
+    bindComunidadeItemActionsIn(root, refreshAgendaCaptacao);
   }
   function captacaoVisaoTemplate(){
     return ''+
@@ -9418,6 +9801,8 @@
       if(!html){ closeModal(); return; }
     } else if(state.modal === 'indicacao'){
       html = indicacaoModalHtml();
+    } else if(state.modal === 'comunidade'){
+      html = comunidadeModalHtml();
     }
     root.innerHTML = '<div class="modal-overlay" id="modalOverlay">'+html+'</div>';
 
@@ -9660,6 +10045,9 @@
     }
     if(state.modal === 'indicacao'){
       bindIndicacaoModalEvents();
+    }
+    if(state.modal === 'comunidade'){
+      bindComunidadeModalEvents();
     }
     if(state.modal === 'settings'){
       document.querySelectorAll('[data-settings-tab]').forEach(function(btn){
