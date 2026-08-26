@@ -5659,6 +5659,96 @@
     }
     bindComunidadeItemActionsIn(root, refreshAgendaCaptacao);
   }
+  /* ---------- Indicadores da Visao Geral (Leads e Parcerias, mes atual x anterior) ----------
+     Usa state.competencia como "mes atual" (mesmo campo de referencia compartilhado com as
+     outras abas), sem seletor proprio. Confirmado com o usuario: convertidos/sem-avanco contam
+     no mes em que FECHARAM (dataFinalizado), nao no mes em que entraram — cohorts diferentes,
+     de proposito. */
+  function leadsStatsDoMes(monthKey){
+    var leads = (state.captacao ? state.captacao.leads : []);
+    var entraram = leads.filter(function(l){ return (l.criadoEm||'').slice(0,7) === monthKey; });
+    var porOrigem = {};
+    entraram.forEach(function(l){
+      var o = l.origem || 'Outro';
+      porOrigem[o] = (porOrigem[o]||0) + 1;
+    });
+    var conversas = leads.filter(function(l){ return (l.dataConversa||'').slice(0,7) === monthKey; }).length;
+    var converteram = leads.filter(function(l){ return l.etapa === 'fechado' && (l.dataFinalizado||'').slice(0,7) === monthKey; }).length;
+    var semAvanco = leads.filter(function(l){ return l.etapa === 'sem-avanco' && (l.dataFinalizado||'').slice(0,7) === monthKey; }).length;
+    var taxa = entraram.length ? Math.round((converteram/entraram.length)*100) : null;
+    return { entraram: entraram.length, porOrigem: porOrigem, conversas: conversas, converteram: converteram, semAvanco: semAvanco, taxa: taxa };
+  }
+  function parceriasStatsDoMes(monthKey){
+    var parcerias = (state.captacao ? state.captacao.parcerias : []);
+    var novas = parcerias.filter(function(pa){ return (pa.criadoEm||'').slice(0,7) === monthKey; }).length;
+    var acoes = 0;
+    parcerias.forEach(function(pa){
+      if(!pa.jornada || !Array.isArray(pa.jornada.tarefas)) return;
+      pa.jornada.tarefas.forEach(function(t){
+        if(t.concluido && (t.dataConclusao||'').slice(0,7) === monthKey) acoes++;
+      });
+    });
+    return { novas: novas, acoes: acoes };
+  }
+  function deltaLabelHtml(atual, anterior){
+    var diff = atual - anterior;
+    if(diff === 0) return '<span class="cell-muted">= vs '+anterior+' no mês anterior</span>';
+    var seta = diff > 0 ? '▲' : '▼';
+    var cor = diff > 0 ? 'var(--success)' : 'var(--danger)';
+    return '<span style="color:'+cor+';font-weight:600;">'+seta+' '+Math.abs(diff)+'</span> <span class="cell-muted">vs '+anterior+' no mês anterior</span>';
+  }
+  function origemBreakdownHtml(porOrigem){
+    var chaves = Object.keys(porOrigem).filter(function(k){ return porOrigem[k]>0; })
+      .sort(function(a,b){ return porOrigem[b]-porOrigem[a]; });
+    if(!chaves.length) return 'Nenhum lead novo esse mês.';
+    return chaves.map(function(k){ return esc(k)+': '+porOrigem[k]; }).join(' · ');
+  }
+  function captacaoIndicadoresHtml(){
+    var mesAtual = state.competencia;
+    var mesAnt = addMonthsToKey(mesAtual, -1);
+    var la = leadsStatsDoMes(mesAtual), lp = leadsStatsDoMes(mesAnt);
+    var pa = parceriasStatsDoMes(mesAtual), pp = parceriasStatsDoMes(mesAnt);
+    return ''+
+    '<div class="quick-access-grid">'+
+      '<div class="card" style="padding:18px;">'+
+        '<div class="kpi-label">Leads — '+esc(monthLabel(mesAtual))+'</div>'+
+        '<div class="cell-muted" style="font-size:11.5px;margin-bottom:12px;">vs '+esc(monthLabel(mesAnt))+'</div>'+
+        '<div style="margin-bottom:14px;">'+
+          '<div class="kpi-value" style="font-size:26px;">'+la.entraram+'</div>'+
+          '<div class="cell-muted" style="font-size:12px;">Entraram — '+deltaLabelHtml(la.entraram, lp.entraram)+'</div>'+
+          '<div class="cell-muted" style="font-size:11.5px;margin-top:4px;">'+origemBreakdownHtml(la.porOrigem)+'</div>'+
+        '</div>'+
+        '<div style="display:flex;gap:16px;flex-wrap:wrap;">'+
+          '<div style="flex:1 1 128px;min-width:128px;">'+
+            '<div class="kpi-value" style="font-size:22px;">'+la.conversas+'</div>'+
+            '<div class="cell-muted" style="font-size:12px;">Conversas iniciadas — '+deltaLabelHtml(la.conversas, lp.conversas)+'</div>'+
+          '</div>'+
+          '<div style="flex:1 1 128px;min-width:128px;">'+
+            '<div class="kpi-value" style="font-size:22px;">'+la.converteram+(la.taxa!==null?' <span class="cell-muted" style="font-size:13px;font-weight:600;">('+la.taxa+'%)</span>':'')+'</div>'+
+            '<div class="cell-muted" style="font-size:12px;">Converteram — '+deltaLabelHtml(la.converteram, lp.converteram)+'</div>'+
+          '</div>'+
+          '<div style="flex:1 1 128px;min-width:128px;">'+
+            '<div class="kpi-value" style="font-size:22px;">'+la.semAvanco+'</div>'+
+            '<div class="cell-muted" style="font-size:12px;">Sem avanço — '+deltaLabelHtml(la.semAvanco, lp.semAvanco)+'</div>'+
+          '</div>'+
+        '</div>'+
+      '</div>'+
+      '<div class="card" style="padding:18px;">'+
+        '<div class="kpi-label">Parcerias — '+esc(monthLabel(mesAtual))+'</div>'+
+        '<div class="cell-muted" style="font-size:11.5px;margin-bottom:12px;">vs '+esc(monthLabel(mesAnt))+'</div>'+
+        '<div style="display:flex;gap:16px;flex-wrap:wrap;">'+
+          '<div style="flex:1 1 128px;min-width:128px;">'+
+            '<div class="kpi-value" style="font-size:26px;">'+pa.novas+'</div>'+
+            '<div class="cell-muted" style="font-size:12px;">Novas parcerias — '+deltaLabelHtml(pa.novas, pp.novas)+'</div>'+
+          '</div>'+
+          '<div style="flex:1 1 128px;min-width:128px;">'+
+            '<div class="kpi-value" style="font-size:26px;">'+pa.acoes+'</div>'+
+            '<div class="cell-muted" style="font-size:12px;">Ações de nutrição concluídas — '+deltaLabelHtml(pa.acoes, pp.acoes)+'</div>'+
+          '</div>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }
   function captacaoVisaoTemplate(){
     return ''+
       '<h1 class="page-title">Visão Geral</h1>'+
@@ -5669,12 +5759,12 @@
       '</div>'+
       '<div class="info-popover" id="info-agenda-cap">Tudo que precisa de ação pra movimentar a captação, de todas as áreas juntas, agrupado por pessoa. Não se cadastra nada aqui — são as mesmas tarefas das jornadas, então marcar como feita aqui marca na origem também.</div>'+
       '<div class="card" style="padding:16px;margin-bottom:32px;" id="agendaCaptacaoRoot">'+agendaCaptacaoHtml()+'</div>'+
-      '<div class="card" style="padding:18px;">'+
-        '<div class="cell-muted" style="font-size:13px;line-height:1.6;">'+
-          '<b style="color:var(--text);">Indicadores em breve.</b><br>'+
-          'Leads novos, conversas iniciadas, taxa de conversão, indicações e parcerias — com comparação entre o mês atual e o anterior. Entram quando as outras áreas da Captação estiverem prontas, pra os números já nascerem completos.'+
-        '</div>'+
-      '</div>';
+      '<div class="section-header-row">'+
+        '<h2 class="section-title">Indicadores</h2>'+
+        '<button class="info-icon-btn" type="button" data-info-toggle="info-indicadores-cap">i</button>'+
+      '</div>'+
+      '<div class="info-popover" id="info-indicadores-cap">Comparação entre o mês atual e o anterior. "Converteram"/"Sem avanço" contam no mês em que o lead fechou ou foi marcado sem avanço — não no mês em que entrou (pode ser um lead de um mês anterior).</div>'+
+      '<div id="captacaoIndicadoresRoot">'+captacaoIndicadoresHtml()+'</div>';
   }
 
   /* ---------- Editor de Modelos de Jornada de Lead ----------
@@ -5875,6 +5965,11 @@
           '<div class="form-group"><label>Origem</label><select id="l_origem" class="filter-select" style="width:100%;">'+origemOpts+'</select></div>'+
           '<div class="form-group"><label>Indicado por</label><input type="text" id="l_indicadoPor" value="'+esc(l.indicadoPor||'')+'" placeholder="Quem indicou (se veio de indicação)"></div>'+
           '<div class="form-group"><label>Etapa do funil</label><select id="l_etapa" class="filter-select" style="width:100%;">'+etapaOpts+'</select></div>'+
+          '<div class="form-group"><label>Data de entrada</label><input type="date" id="l_criadoEm" value="'+esc(l.criadoEm||todayISODate())+'"></div>'+
+          '<div class="form-group"><label>Entrou em conversa</label><input type="date" id="l_dataConversa" value="'+esc(l.dataConversa||'')+'">'+
+            '<div class="mini-label" style="text-align:left;margin-top:4px;">Preenche sozinho quando a etapa sai de "Novo" — edite se for um lead antigo.</div></div>'+
+          '<div class="form-group"><label>Data de fechamento/finalização</label><input type="date" id="l_dataFinalizado" value="'+esc(l.dataFinalizado||'')+'">'+
+            '<div class="mini-label" style="text-align:left;margin-top:4px;">Preenche sozinho quando a etapa vira Fechado ou Sem avanço — edite se for um lead antigo.</div></div>'+
           '<div class="form-group"><label>Temperatura</label><div class="meta-type-toggle" id="leadTempToggle">'+tempBtns+'</div></div>'+
           '<div class="form-group full"><label>Etiquetas</label><div class="etiqueta-picker" id="leadEtiquetaPicker">'+etiquetaBtns+'</div>'+
             '<div style="display:flex;gap:8px;margin-top:8px;">'+
@@ -6086,6 +6181,19 @@
         });
       });
     }
+    var etapaSelect = document.getElementById('l_etapa');
+    if(etapaSelect){
+      etapaSelect.addEventListener('change', function(){
+        var conversaInput = document.getElementById('l_dataConversa');
+        var finalizadoInput = document.getElementById('l_dataFinalizado');
+        if(this.value !== 'novo' && conversaInput && !conversaInput.value){
+          conversaInput.value = todayISODate();
+        }
+        if(etapaEhFinal(this.value) && finalizadoInput && !finalizadoInput.value){
+          finalizadoInput.value = todayISODate();
+        }
+      });
+    }
     function bindEtiquetas(){
       var picker = document.getElementById('leadEtiquetaPicker');
       if(!picker) return;
@@ -6146,6 +6254,7 @@
       var nome = document.getElementById('l_nome').value.trim();
       if(!nome){ alert('O campo Nome é obrigatório.'); return; }
       var etapaNova = document.getElementById('l_etapa').value;
+      var dataFinalizadoInput = document.getElementById('l_dataFinalizado').value || null;
       var dados = {
         nome: nome,
         whatsapp: document.getElementById('l_whatsapp').value.trim(),
@@ -6153,6 +6262,8 @@
         origem: document.getElementById('l_origem').value,
         indicadoPor: document.getElementById('l_indicadoPor').value.trim(),
         observacoes: document.getElementById('l_observacoes').value.trim(),
+        criadoEm: document.getElementById('l_criadoEm').value || todayISODate(),
+        dataConversa: document.getElementById('l_dataConversa').value || null,
         temperatura: draft.temperatura,
         etiquetas: draft.etiquetas
       };
@@ -6160,21 +6271,27 @@
       if(novo){
         lead = Object.assign({
           id: nextLeadId(), etapa: etapaNova, ordem: 0,
-          criadoEm: todayISODate(), mesFinalizado: null, pacienteId: null
+          mesFinalizado: null, dataFinalizado: null, pacienteId: null
         }, dados);
-        if(etapaEhFinal(etapaNova)){ lead.mesFinalizado = state.competencia; lead.dataFinalizado = todayISODate(); }
+        if(etapaEhFinal(etapaNova)){
+          lead.dataFinalizado = dataFinalizadoInput || todayISODate();
+          lead.mesFinalizado = lead.dataFinalizado.slice(0,7);
+        }
         state.captacao.leads.push(lead);
         fechouAgora = etapaNova === 'fechado';
       } else {
         lead = getLead(state.leadEditId);
         var etapaAntiga = lead.etapa;
         Object.assign(lead, dados);
-        if(etapaNova !== etapaAntiga){
-          lead.etapa = etapaNova;
-          if(etapaEhFinal(etapaNova)){ lead.mesFinalizado = state.competencia; lead.dataFinalizado = todayISODate(); }
-          else { lead.mesFinalizado = null; lead.dataFinalizado = null; }
-          fechouAgora = etapaNova === 'fechado';
+        lead.etapa = etapaNova;
+        if(etapaEhFinal(etapaNova)){
+          lead.dataFinalizado = dataFinalizadoInput || lead.dataFinalizado || todayISODate();
+          lead.mesFinalizado = lead.dataFinalizado.slice(0,7);
+        } else {
+          lead.dataFinalizado = null;
+          lead.mesFinalizado = null;
         }
+        fechouAgora = etapaNova === 'fechado' && etapaNova !== etapaAntiga;
       }
       saveCaptacao();
       var conversao = fechouAgora ? converterIndicacaoDoLead(lead.id) : null;
