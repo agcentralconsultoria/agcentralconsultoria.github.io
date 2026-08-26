@@ -7795,6 +7795,29 @@
     if(overviewNomeSortTh) overviewNomeSortTh.addEventListener('click', toggleOverviewSort);
     var overviewNomeSortBtn = document.getElementById('overviewNomeSortBtn');
     if(overviewNomeSortBtn) overviewNomeSortBtn.addEventListener('click', toggleOverviewSort);
+    function savePesoAdd(addPid){
+      var addDate = document.getElementById('pesoAddDate').value;
+      var addValue = parseFloat(document.getElementById('pesoAddValue').value);
+      if(!addDate || isNaN(addValue)){
+        showToast('Preencha data e peso.', 'danger');
+        return;
+      }
+      var addMonthKey = addDate.slice(0,7);
+      var addWeekIndex = nextFreePesoSlot(getPatient(addPid), addMonthKey);
+      updatePesoEntry(addPid, addMonthKey, addWeekIndex, addValue, addDate);
+      state.pesoEditingKey = null;
+      state.pesoHistoryPage[addPid] = 0;
+      refreshOverviewTable();
+      showToast('Peso registrado.', 'success');
+    }
+    // Enter no campo de data ou de peso do "+ Registrar peso" salva igual ao botao.
+    content.addEventListener('keydown', function(e){
+      if(e.key !== 'Enter') return;
+      if(!e.target.closest('#pesoAddDate') && !e.target.closest('#pesoAddValue')) return;
+      if(!state.pesoEditingKey || state.pesoEditingKey.indexOf('add|') !== 0) return;
+      e.preventDefault();
+      savePesoAdd(parseInt(state.pesoEditingKey.slice(4),10));
+    });
     content.addEventListener('click', function(e){
       var weekEditBtn = e.target.closest('[data-week-edit]');
       if(weekEditBtn){
@@ -7817,20 +7840,7 @@
       }
       var pesoAddSave = e.target.closest('[data-peso-add-save]');
       if(pesoAddSave){
-        var addPid = parseInt(pesoAddSave.getAttribute('data-peso-add-save'),10);
-        var addDate = document.getElementById('pesoAddDate').value;
-        var addValue = parseFloat(document.getElementById('pesoAddValue').value);
-        if(!addDate || isNaN(addValue)){
-          showToast('Preencha data e peso.', 'danger');
-          return;
-        }
-        var addMonthKey = addDate.slice(0,7);
-        var addWeekIndex = nextFreePesoSlot(getPatient(addPid), addMonthKey);
-        updatePesoEntry(addPid, addMonthKey, addWeekIndex, addValue, addDate);
-        state.pesoEditingKey = null;
-        state.pesoHistoryPage[addPid] = 0;
-        refreshOverviewTable();
-        showToast('Peso registrado.', 'success');
+        savePesoAdd(parseInt(pesoAddSave.getAttribute('data-peso-add-save'),10));
         return;
       }
       var pesoDeleteBtn = e.target.closest('[data-peso-delete]');
