@@ -7535,11 +7535,24 @@
       '</tr>';
     }).join('');
   }
+  /* Sem acento e sem diferenca de maiusc./minusc., pra comparar nomes na busca. */
+  function normalizeNomeBusca(str){
+    return String(str||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+  }
+  /* Busca por nome flexivel: cada palavra digitada precisa aparecer em algum lugar do
+     nome (nao precisa ser a frase inteira, nem na mesma ordem do cadastro) — assim
+     "silva maria" acha "Maria da Silva", e buscar so o sobrenome tambem funciona. */
+  function nomeMatchesBusca(nome, termo){
+    var tokens = normalizeNomeBusca(termo).trim().split(/\s+/).filter(Boolean);
+    if(!tokens.length) return true;
+    var nomeNorm = normalizeNomeBusca(nome);
+    return tokens.every(function(t){ return nomeNorm.indexOf(t) !== -1; });
+  }
   function overviewFilteredPatients(monthKey){
-    var term = state.overviewNomeFilter.trim().toLowerCase();
+    var term = state.overviewNomeFilter;
     var list = state.patients.filter(function(p){
       if(renovacaoStatus(p) === 'Vencido') return false;
-      if(term && p.nome.toLowerCase().indexOf(term) === -1) return false;
+      if(!nomeMatchesBusca(p.nome, term)) return false;
       if(state.overviewConsultaFilter !== 'todos' && consultaStatus(p) !== state.overviewConsultaFilter) return false;
       return true;
     });
