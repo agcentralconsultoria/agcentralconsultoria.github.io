@@ -1482,7 +1482,17 @@
     jornadaResumoSortDir: 'asc',
     jornadaResumoTipoFilter: 'todos',
     jornadaResumoModeloFilter: 'todos',
-    jornadaResumoSearch: ''
+    jornadaResumoSearch: '',
+    financeiro: null,
+    financeiroMes: null,          // seletor de mes proprio do Financeiro, independente da competencia global
+    financeiroView: 'mes',        // 'mes' | 'ano'
+    financeiroEditId: null,       // id do lancamento aberto no modal (null = novo)
+    financeiroTipoNovo: 'entrada',// tipo pre-selecionado ao abrir "+ Novo Lancamento"
+    financeiroTipoFiltro: 'todos',
+    financeiroCategoriaFiltro: 'todos',
+    financeiroFormaFiltro: 'todos',
+    financeiroSearch: '',
+    financeiroTableCollapsed: false
   };
 
   function showToast(msg, type){
@@ -1501,6 +1511,10 @@
     });
   }
   function clamp(n,min,max){ n = isNaN(n)?0:n; return Math.min(max, Math.max(min,n)); }
+  function formatMoney(v){
+    var n = Number(v)||0;
+    return n.toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+  }
   function whatsappDigits(tel){
     var raw = String(tel||'');
     var hasPlus = raw.trim().charAt(0) === '+';
@@ -4134,12 +4148,13 @@
     attachAppEvents();
   }
   function loadAllDataAndRender(){
-    Promise.all([loadPatientsAsync(), loadJornadaTemplatesAsync(), loadGrupoMuscularListAsync(), loadCaptacaoAsync(), loadCaptacaoTemplatesAsync()]).then(function(results){
+    Promise.all([loadPatientsAsync(), loadJornadaTemplatesAsync(), loadGrupoMuscularListAsync(), loadCaptacaoAsync(), loadCaptacaoTemplatesAsync(), loadFinanceiroAsync()]).then(function(results){
       state.patients = results[0];
       state.jornadaTemplates = results[1];
       state.grupoMuscularList = results[2];
       state.captacao = results[3];
       state.captacaoTemplates = results[4];
+      state.financeiro = results[5];
       state.booting = false;
       render();
     }).catch(function(err){
@@ -4279,6 +4294,7 @@
           '<span class="side-ico">🚀</span><span class="side-label">Captação</span>'+
           '<span class="side-caret">'+(capAberto?'▾':'▸')+'</span></button>'+
         (capAberto ? '<div class="side-sub">'+subs+'</div>' : '')+
+        sideItemHtml('financeiro','💰','Financeiro')+
       '</nav>'+
       '<div class="sidebar-foot">'+
         '<button class="side-item" id="settingsBtn" title="Configurações">'+
@@ -4293,6 +4309,7 @@
     if(state.tab === 'pacientes') return pacientesTemplate();
     if(state.tab === 'jornada') return jornadaTabTemplate();
     if(isCaptacaoTab(state.tab)) return captacaoTemplate(state.tab);
+    if(state.tab === 'financeiro') return financeiroTemplate();
     return dashboardTemplate();
   }
   function appTemplate(){
@@ -4374,6 +4391,8 @@
       attachJornadaEvents();
     } else if(isCaptacaoTab(state.tab)){
       attachCaptacaoEvents(state.tab);
+    } else if(state.tab === 'financeiro'){
+      attachFinanceiroEvents();
     }
   }
 
@@ -5753,12 +5772,19 @@
     });
     return acc;
   }
-  function deltaLabelHtml(atual, anterior){
+  /* opts.formatFn: formata os numeros exibidos (padrao = so o numero, como sempre foi).
+     opts.invertido: quando subir e RUIM (ex: saidas/despesas) — inverte a cor sem mexer
+     na direcao da seta, que continua mostrando se o numero subiu ou desceu de verdade. */
+  function deltaLabelHtml(atual, anterior, opts){
+    opts = opts || {};
+    var formatFn = opts.formatFn || function(v){ return String(v); };
     var diff = atual - anterior;
-    if(diff === 0) return '<span class="cell-muted">= vs '+anterior+' no mês anterior</span>';
-    var seta = diff > 0 ? '▲' : '▼';
-    var cor = diff > 0 ? 'var(--success)' : 'var(--danger)';
-    return '<span style="color:'+cor+';font-weight:600;">'+seta+' '+Math.abs(diff)+'</span> <span class="cell-muted">vs '+anterior+' no mês anterior</span>';
+    if(diff === 0) return '<span class="cell-muted">= vs '+formatFn(anterior)+' no mês anterior</span>';
+    var subiu = diff > 0;
+    var bom = opts.invertido ? !subiu : subiu;
+    var seta = subiu ? '▲' : '▼';
+    var cor = bom ? 'var(--success)' : 'var(--danger)';
+    return '<span style="color:'+cor+';font-weight:600;">'+seta+' '+formatFn(Math.abs(diff))+'</span> <span class="cell-muted">vs '+formatFn(anterior)+' no mês anterior</span>';
   }
   function origemBreakdownHtml(porOrigem){
     var chaves = Object.keys(porOrigem).filter(function(k){ return porOrigem[k]>0; })
@@ -5769,7 +5795,8 @@
   /* Grafico de barras mes-atual x mes-anterior — 1 cor so (--primary), duas opacidades
      (cheia = mes atual, reduzida = anterior), igual ao truque ja usado no monthly-trend-fill
      do Dashboard. Recebe os valores ja calculados (nunca recalcula nada aqui). */
-  function indComparisonChartHtml(mesAtualLabel, mesAntLabel, metricas){
+  function indComparisonChartHtml(mesAtualLabel, mesAntLabel, metricas, formatFn){
+    formatFn = formatFn || function(v){ return String(v); };
     var max = metricas.reduce(function(m,x){ return Math.max(m, x.atual||0, x.anterior||0); }, 1);
     var linhas = metricas.map(function(m){
       var wAtual = m.atual ? Math.max(Math.round((m.atual/max)*100), 4) : 0;
@@ -5777,13 +5804,13 @@
       return ''+
         '<div class="ind-cmp-metric">'+
           '<div class="ind-cmp-metric-label">'+esc(m.label)+'</div>'+
-          '<div class="ind-cmp-bar-row" title="'+esc(mesAtualLabel)+': '+m.atual+'">'+
+          '<div class="ind-cmp-bar-row" title="'+esc(mesAtualLabel)+': '+formatFn(m.atual)+'">'+
             '<div class="ind-cmp-bar-track"><div class="ind-cmp-bar-fill" style="width:'+wAtual+'%;"></div></div>'+
-            '<div class="ind-cmp-bar-value">'+m.atual+'</div>'+
+            '<div class="ind-cmp-bar-value">'+formatFn(m.atual)+'</div>'+
           '</div>'+
-          '<div class="ind-cmp-bar-row" title="'+esc(mesAntLabel)+': '+m.anterior+'">'+
+          '<div class="ind-cmp-bar-row" title="'+esc(mesAntLabel)+': '+formatFn(m.anterior)+'">'+
             '<div class="ind-cmp-bar-track"><div class="ind-cmp-bar-fill previous" style="width:'+wAnt+'%;"></div></div>'+
-            '<div class="ind-cmp-bar-value">'+m.anterior+'</div>'+
+            '<div class="ind-cmp-bar-value">'+formatFn(m.anterior)+'</div>'+
           '</div>'+
         '</div>';
     }).join('');
@@ -5821,7 +5848,8 @@
   /* Visao "Ano": um mini-grafico por metrica, Jan ate o mes atual — mesma linguagem visual
      do monthly-trend-fill/monthly-trend-col do Dashboard (Comparacao Mensal), mas sem o
      clique de drill-down (que e especifico do Dashboard e nao se aplica aqui). */
-  function indYearTrendChartHtml(months, valueFn){
+  function indYearTrendChartHtml(months, valueFn, formatFn){
+    formatFn = formatFn || function(v){ return String(v); };
     var points = months.map(function(k){ return { key:k, value:valueFn(k) }; });
     var max = Math.max.apply(null, points.map(function(p){ return p.value||0; }).concat([1]));
     var currentMonth = getCurrentMonthKey();
@@ -5829,21 +5857,21 @@
       var pct = p.value ? Math.max(Math.round((p.value/max)*100), 4) : 0;
       var isCurrent = p.key === currentMonth;
       return ''+
-        '<div class="monthly-trend-col" style="cursor:default;" title="'+esc(monthLabel(p.key))+': '+p.value+'">'+
-          '<div class="monthly-trend-value">'+p.value+'</div>'+
+        '<div class="monthly-trend-col" style="cursor:default;" title="'+esc(monthLabel(p.key))+': '+formatFn(p.value)+'">'+
+          '<div class="monthly-trend-value">'+formatFn(p.value)+'</div>'+
           '<div class="monthly-trend-track"><div class="monthly-trend-fill trend-primary'+(isCurrent?' current':'')+'" style="height:'+pct+'%;"></div></div>'+
           '<div class="monthly-trend-label">'+monthShortLabel(p.key)+'</div>'+
         '</div>';
     }).join('')+'</div>';
   }
-  function indYearMetricsGridHtml(months, statsFn, metrics){
+  function indYearMetricsGridHtml(months, statsFn, metrics, formatFn){
     var statsByMonth = {};
     months.forEach(function(mk){ statsByMonth[mk] = statsFn(mk); });
     return '<div class="monthly-trend-grid">'+
       metrics.map(function(m){
         return '<div class="monthly-trend-panel">'+
           '<div class="monthly-trend-title">'+esc(m.label)+'</div>'+
-          indYearTrendChartHtml(months, function(mk){ return statsByMonth[mk][m.key]; })+
+          indYearTrendChartHtml(months, function(mk){ return statsByMonth[mk][m.key]; }, formatFn)+
         '</div>';
       }).join('')+
     '</div>';
@@ -9587,6 +9615,529 @@
     }
   }
 
+  /* ================= FINANCEIRO ================= */
+  /* Entrada/Saida sao os mesmos conceitos de Receita/Despesa, so com outro nome — um
+     unico campo `tipo`. Cada Entrada guarda valor bruto e valor liquido separados:
+     bruto = valor cheio (o que o paciente pagou), liquido = o que realmente sobra depois
+     de descontar taxa de cartao quando for o caso. Decisao do usuario: sem % automatica
+     de taxa (varia por maquina/bandeira/parcelas) — ele digita os dois valores na mao.
+     Saida so tem um valor (nao existe "liquido de despesa"). Mesmo padrao de
+     armazenamento do resto do CRM: um doc no Firestore, vazio/normalize/load/save. */
+  var FINANCEIRO_FORMAS_PAGTO = ['Pix','Cartão','Dinheiro','Transferência'];
+  var FINANCEIRO_CATEGORIAS_ENTRADA_PADRAO = ['Mensalidade','Consulta avulsa','Outro'];
+  var FINANCEIRO_CATEGORIAS_SAIDA_PADRAO = ['Aluguel','Marketing','Equipamento','Assinaturas/Software','Impostos','Outro'];
+  function financeiroVazio(){
+    return {
+      lancamentos: [],
+      categoriasEntrada: FINANCEIRO_CATEGORIAS_ENTRADA_PADRAO.slice(),
+      categoriasSaida: FINANCEIRO_CATEGORIAS_SAIDA_PADRAO.slice()
+    };
+  }
+  function normalizeFinanceiro(raw){
+    var f = financeiroVazio();
+    if(!raw || typeof raw !== 'object') return f;
+    if(Array.isArray(raw.lancamentos)) f.lancamentos = raw.lancamentos;
+    if(Array.isArray(raw.categoriasEntrada) && raw.categoriasEntrada.length) f.categoriasEntrada = raw.categoriasEntrada;
+    if(Array.isArray(raw.categoriasSaida) && raw.categoriasSaida.length) f.categoriasSaida = raw.categoriasSaida;
+    f.lancamentos.forEach(function(l){
+      if(l.valorBruto === undefined || l.valorBruto === null) l.valorBruto = 0;
+      if(l.valorLiquido === undefined || l.valorLiquido === null) l.valorLiquido = l.valorBruto;
+      if(!l.categoria) l.categoria = '';
+      if(!l.formaPagamento) l.formaPagamento = '';
+      if(l.pacienteId === undefined) l.pacienteId = null;
+      if(!l.descricao) l.descricao = '';
+    });
+    return f;
+  }
+  function loadFinanceiroAsync(){
+    return mfa.getDoc(mfa.doc(mfa.db, 'crmData', 'financeiro')).then(function(snap){
+      if(snap.exists() && snap.data().data) return normalizeFinanceiro(snap.data().data);
+      var vazio = financeiroVazio();
+      return mfa.setDoc(mfa.doc(mfa.db, 'crmData', 'financeiro'), { data: vazio }).then(function(){ return vazio; });
+    });
+  }
+  function saveFinanceiro(){
+    mfa.setDoc(mfa.doc(mfa.db, 'crmData', 'financeiro'), { data: state.financeiro }).catch(function(err){
+      showToast('Erro ao salvar financeiro: ' + err.message, 'danger');
+    });
+  }
+  function nextFinanceiroId(){
+    if(!state.financeiro.lancamentos.length) return 1;
+    return state.financeiro.lancamentos.reduce(function(m,l){ return Math.max(m, l.id||0); }, 0) + 1;
+  }
+  function getLancamento(id){
+    if(!state.financeiro) return null;
+    return state.financeiro.lancamentos.filter(function(l){ return l.id === id; })[0] || null;
+  }
+
+  /* ---- calculos do mes (reaproveitados por Mes-a-mes e por Ano, nunca duplicados) ---- */
+  function financeiroStatsDoMes(monthKey){
+    var lancs = (state.financeiro ? state.financeiro.lancamentos : []).filter(function(l){ return (l.data||'').slice(0,7) === monthKey; });
+    var entradas = lancs.filter(function(l){ return l.tipo === 'entrada'; });
+    var saidas = lancs.filter(function(l){ return l.tipo === 'saida'; });
+    var entradasBruto = entradas.reduce(function(s,l){ return s + (Number(l.valorBruto)||0); }, 0);
+    var entradasLiquido = entradas.reduce(function(s,l){ return s + (Number(l.valorLiquido)||0); }, 0);
+    var saidasTotal = saidas.reduce(function(s,l){ return s + (Number(l.valorBruto)||0); }, 0);
+    var porCategoriaSaida = {};
+    saidas.forEach(function(l){
+      var c = l.categoria || 'Outro';
+      porCategoriaSaida[c] = (porCategoriaSaida[c]||0) + (Number(l.valorBruto)||0);
+    });
+    return {
+      entradasBruto: entradasBruto, entradasLiquido: entradasLiquido, saidasTotal: saidasTotal,
+      liquidoMes: entradasLiquido - saidasTotal,
+      qtdEntradas: entradas.length, qtdSaidas: saidas.length,
+      porCategoriaSaida: porCategoriaSaida
+    };
+  }
+  function financeiroStatsAcumulado(months){
+    var acc = { entradasBruto:0, entradasLiquido:0, saidasTotal:0, qtdEntradas:0, qtdSaidas:0, porCategoriaSaida:{} };
+    months.forEach(function(mk){
+      var s = financeiroStatsDoMes(mk);
+      acc.entradasBruto += s.entradasBruto;
+      acc.entradasLiquido += s.entradasLiquido;
+      acc.saidasTotal += s.saidasTotal;
+      acc.qtdEntradas += s.qtdEntradas;
+      acc.qtdSaidas += s.qtdSaidas;
+      Object.keys(s.porCategoriaSaida).forEach(function(k){ acc.porCategoriaSaida[k] = (acc.porCategoriaSaida[k]||0) + s.porCategoriaSaida[k]; });
+    });
+    acc.liquidoMes = acc.entradasLiquido - acc.saidasTotal;
+    return acc;
+  }
+  function financeiroLancamentosFiltrados(monthKey){
+    if(!state.financeiro) return [];
+    var termo = state.financeiroSearch.trim().toLowerCase();
+    return state.financeiro.lancamentos.filter(function(l){
+      if((l.data||'').slice(0,7) !== monthKey) return false;
+      if(state.financeiroTipoFiltro !== 'todos' && l.tipo !== state.financeiroTipoFiltro) return false;
+      if(state.financeiroCategoriaFiltro !== 'todos' && l.categoria !== state.financeiroCategoriaFiltro) return false;
+      if(state.financeiroFormaFiltro !== 'todos' && l.formaPagamento !== state.financeiroFormaFiltro) return false;
+      if(termo && (l.descricao||'').toLowerCase().indexOf(termo) === -1) return false;
+      return true;
+    }).sort(function(a,b){ return (b.data||'').localeCompare(a.data||'') || (b.id - a.id); });
+  }
+  /* Barras de saida por categoria — mesmo visual do ind-cmp-bar (Indicadores de Captacao),
+     so que com dinheiro formatado em vez de contagem. */
+  function financeiroCategoriaChartHtml(porCategoria){
+    var chaves = Object.keys(porCategoria).filter(function(k){ return porCategoria[k] > 0; })
+      .sort(function(a,b){ return porCategoria[b] - porCategoria[a]; });
+    if(!chaves.length) return '<div class="cell-muted" style="font-size:12.5px;">Nenhuma saída categorizada esse mês.</div>';
+    var max = chaves.reduce(function(m,k){ return Math.max(m, porCategoria[k]); }, 1);
+    return chaves.map(function(k){
+      var pct = Math.max(Math.round((porCategoria[k]/max)*100), 4);
+      return ''+
+        '<div class="ind-cmp-metric">'+
+          '<div class="ind-cmp-metric-label">'+esc(k)+'</div>'+
+          '<div class="ind-cmp-bar-row" title="'+esc(k)+': '+formatMoney(porCategoria[k])+'">'+
+            '<div class="ind-cmp-bar-track"><div class="ind-cmp-bar-fill" style="width:'+pct+'%;"></div></div>'+
+            '<div class="ind-cmp-bar-value" style="min-width:auto;">'+formatMoney(porCategoria[k])+'</div>'+
+          '</div>'+
+        '</div>';
+    }).join('');
+  }
+  /* Seletor de mes/ano do Financeiro e independente da competencia global (mesma decisao
+     ja tomada pros Indicadores de Captacao) — trocar o mes aqui nao mexe em mais nada. */
+  function financeiroToggleHtml(mesRef){
+    var view = state.financeiroView;
+    return ''+
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px;">'+
+        '<div class="meta-type-toggle" style="margin:0;">'+
+          '<button type="button" class="meta-type-btn'+(view==='mes'?' active':'')+'" data-fin-view="mes">Mês a mês</button>'+
+          '<button type="button" class="meta-type-btn'+(view==='ano'?' active':'')+'" data-fin-view="ano">Ano</button>'+
+        '</div>'+
+        (view==='mes' ? '<select id="financeiroMesSelect" class="filter-select">'+monthSelectOptions(mesRef)+'</select>' : '')+
+      '</div>';
+  }
+  function financeiroIndicadoresHtml(){
+    if(!state.financeiroMes) state.financeiroMes = getCurrentMonthKey();
+    if(state.financeiroView === 'ano') return financeiroIndicadoresAnoHtml();
+    var mesAtual = state.financeiroMes;
+    var mesAnt = addMonthsToKey(mesAtual, -1);
+    var a = financeiroStatsDoMes(mesAtual), p = financeiroStatsDoMes(mesAnt);
+    return financeiroToggleHtml(mesAtual)+
+    '<div class="quick-access-grid">'+
+      '<div class="card" style="padding:18px;">'+
+        '<div class="kpi-label">Entradas — '+esc(monthLabel(mesAtual))+'</div>'+
+        '<div class="cell-muted" style="font-size:11.5px;margin-bottom:12px;">vs '+esc(monthLabel(mesAnt))+'</div>'+
+        '<div style="margin-bottom:14px;">'+
+          '<div class="kpi-value" style="font-size:23px;">'+formatMoney(a.entradasBruto)+'</div>'+
+          '<div class="cell-muted" style="font-size:12px;">Bruto — '+deltaLabelHtml(a.entradasBruto, p.entradasBruto, {formatFn:formatMoney})+'</div>'+
+        '</div>'+
+        '<div>'+
+          '<div class="kpi-value" style="font-size:19px;">'+formatMoney(a.entradasLiquido)+'</div>'+
+          '<div class="cell-muted" style="font-size:12px;">Líquido recebido — '+deltaLabelHtml(a.entradasLiquido, p.entradasLiquido, {formatFn:formatMoney})+'</div>'+
+        '</div>'+
+      '</div>'+
+      '<div class="card" style="padding:18px;">'+
+        '<div class="kpi-label">Saídas — '+esc(monthLabel(mesAtual))+'</div>'+
+        '<div class="cell-muted" style="font-size:11.5px;margin-bottom:12px;">vs '+esc(monthLabel(mesAnt))+'</div>'+
+        '<div class="kpi-value" style="font-size:23px;">'+formatMoney(a.saidasTotal)+'</div>'+
+        '<div class="cell-muted" style="font-size:12px;">'+deltaLabelHtml(a.saidasTotal, p.saidasTotal, {formatFn:formatMoney, invertido:true})+'</div>'+
+      '</div>'+
+      '<div class="card" style="padding:18px;">'+
+        '<div class="kpi-label">Líquido do mês</div>'+
+        '<div class="cell-muted" style="font-size:11.5px;margin-bottom:12px;">Entradas líquidas − Saídas</div>'+
+        '<div class="kpi-value" style="font-size:25px;color:'+(a.liquidoMes>=0?'var(--success)':'var(--danger)')+';">'+formatMoney(a.liquidoMes)+'</div>'+
+        '<div class="cell-muted" style="font-size:12px;">'+deltaLabelHtml(a.liquidoMes, p.liquidoMes, {formatFn:formatMoney})+'</div>'+
+      '</div>'+
+    '</div>'+
+    '<div class="card" style="padding:18px;margin-top:20px;">'+
+      '<div class="ind-chart-title">Comparação mês a mês</div>'+
+      indComparisonChartHtml(monthLabel(mesAtual), monthLabel(mesAnt), [
+        { label:'Entradas (bruto)', atual:a.entradasBruto, anterior:p.entradasBruto },
+        { label:'Entradas (líquido)', atual:a.entradasLiquido, anterior:p.entradasLiquido },
+        { label:'Saídas', atual:a.saidasTotal, anterior:p.saidasTotal },
+        { label:'Líquido do mês', atual:a.liquidoMes, anterior:p.liquidoMes }
+      ], formatMoney)+
+    '</div>'+
+    '<div class="card" style="padding:18px;margin-top:20px;">'+
+      '<div class="ind-chart-title">Saídas por categoria</div>'+
+      '<div class="ind-chart-sub">'+esc(monthLabel(mesAtual))+'</div>'+
+      financeiroCategoriaChartHtml(a.porCategoriaSaida)+
+    '</div>';
+  }
+  function financeiroIndicadoresAnoHtml(){
+    var months = monthsYTD();
+    var anoLabel = String(new Date().getFullYear());
+    var periodoLabel = monthLabel(months[0])+' a '+monthLabel(months[months.length-1]);
+    var a = financeiroStatsAcumulado(months);
+    return financeiroToggleHtml(null)+
+    '<div class="quick-access-grid">'+
+      '<div class="card" style="padding:18px;">'+
+        '<div class="kpi-label">Entradas — '+esc(anoLabel)+' até agora</div>'+
+        '<div class="cell-muted" style="font-size:11.5px;margin-bottom:12px;">'+esc(periodoLabel)+'</div>'+
+        '<div style="margin-bottom:14px;">'+
+          '<div class="kpi-value" style="font-size:23px;">'+formatMoney(a.entradasBruto)+'</div>'+
+          '<div class="cell-muted" style="font-size:12px;">Bruto</div>'+
+        '</div>'+
+        '<div>'+
+          '<div class="kpi-value" style="font-size:19px;">'+formatMoney(a.entradasLiquido)+'</div>'+
+          '<div class="cell-muted" style="font-size:12px;">Líquido recebido</div>'+
+        '</div>'+
+      '</div>'+
+      '<div class="card" style="padding:18px;">'+
+        '<div class="kpi-label">Saídas — '+esc(anoLabel)+' até agora</div>'+
+        '<div class="cell-muted" style="font-size:11.5px;margin-bottom:12px;">'+esc(periodoLabel)+'</div>'+
+        '<div class="kpi-value" style="font-size:23px;">'+formatMoney(a.saidasTotal)+'</div>'+
+      '</div>'+
+      '<div class="card" style="padding:18px;">'+
+        '<div class="kpi-label">Líquido — '+esc(anoLabel)+' até agora</div>'+
+        '<div class="cell-muted" style="font-size:11.5px;margin-bottom:12px;">Entradas líquidas − Saídas</div>'+
+        '<div class="kpi-value" style="font-size:25px;color:'+(a.liquidoMes>=0?'var(--success)':'var(--danger)')+';">'+formatMoney(a.liquidoMes)+'</div>'+
+      '</div>'+
+    '</div>'+
+    '<div class="card" style="padding:18px;margin-top:20px;">'+
+      '<div class="ind-chart-title">Por mês — '+esc(anoLabel)+'</div>'+
+      indYearMetricsGridHtml(months, financeiroStatsDoMes, [
+        { key:'entradasBruto', label:'Entradas (bruto)' },
+        { key:'entradasLiquido', label:'Entradas (líquido)' },
+        { key:'saidasTotal', label:'Saídas' },
+        { key:'liquidoMes', label:'Líquido do mês' }
+      ], formatMoney)+
+    '</div>'+
+    '<div class="card" style="padding:18px;margin-top:20px;">'+
+      '<div class="ind-chart-title">Saídas por categoria</div>'+
+      '<div class="ind-chart-sub">'+esc(anoLabel)+' até agora</div>'+
+      financeiroCategoriaChartHtml(a.porCategoriaSaida)+
+    '</div>';
+  }
+  function refreshFinanceiroIndicadores(){
+    var root = document.getElementById('financeiroIndicadoresRoot');
+    if(!root) return;
+    root.innerHTML = financeiroIndicadoresHtml();
+    bindFinanceiroIndicadoresEvents();
+  }
+  function bindFinanceiroIndicadoresEvents(){
+    var root = document.getElementById('financeiroIndicadoresRoot');
+    if(!root) return;
+    root.querySelectorAll('[data-fin-view]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        state.financeiroView = this.getAttribute('data-fin-view');
+        refreshFinanceiroIndicadores();
+      });
+    });
+    var sel = document.getElementById('financeiroMesSelect');
+    if(sel){
+      sel.addEventListener('change', function(){
+        state.financeiroMes = this.value;
+        refreshFinanceiroIndicadores();
+      });
+    }
+  }
+
+  /* ---- tabela de lancamentos ---- */
+  function financeiroTipoBadgeHtml(tipo){
+    return tipo === 'entrada' ? '<span class="badge badge-success">Entrada</span>' : '<span class="badge badge-danger">Saída</span>';
+  }
+  function financeiroLinhaHtml(l){
+    var paciente = l.pacienteId ? getPatient(l.pacienteId) : null;
+    var valorHtml = formatMoney(l.valorBruto);
+    if(l.tipo === 'entrada' && Number(l.valorLiquido) !== Number(l.valorBruto)){
+      valorHtml += '<div class="cell-muted" style="font-size:11px;">líquido: '+formatMoney(l.valorLiquido)+'</div>';
+    }
+    return ''+
+      '<tr>'+
+        '<td>'+formatDate(l.data)+'</td>'+
+        '<td>'+financeiroTipoBadgeHtml(l.tipo)+'</td>'+
+        '<td>'+esc(l.categoria||'—')+'</td>'+
+        '<td>'+esc(l.descricao||'—')+(paciente?' <span class="cell-muted">('+esc(paciente.nome)+')</span>':'')+'</td>'+
+        '<td>'+esc(l.formaPagamento||'—')+'</td>'+
+        '<td>'+valorHtml+'</td>'+
+        '<td class="actions">'+
+          '<button type="button" class="btn-icon" data-fin-editar="'+l.id+'" title="Editar">✎</button>'+
+          '<button type="button" class="btn-icon btn-danger-outline" data-fin-excluir="'+l.id+'" title="Excluir">🗑</button>'+
+        '</td>'+
+      '</tr>';
+  }
+  function financeiroTabelaLinhasHtml(){
+    var lista = financeiroLancamentosFiltrados(state.financeiroMes || getCurrentMonthKey());
+    if(!lista.length) return '<tr><td colspan="7"><div class="empty-state">Nenhum lançamento nesse mês (com esses filtros).</div></td></tr>';
+    return lista.map(financeiroLinhaHtml).join('');
+  }
+  function refreshFinanceiroTabela(){
+    var tbody = document.getElementById('financeiroTableBody');
+    if(!tbody) return;
+    tbody.innerHTML = financeiroTabelaLinhasHtml();
+    bindFinanceiroRowActions();
+  }
+  function bindFinanceiroRowActions(){
+    document.querySelectorAll('[data-fin-editar]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        state.financeiroEditId = parseInt(this.getAttribute('data-fin-editar'),10);
+        state.modal = 'financeiro';
+        renderModal();
+      });
+    });
+    document.querySelectorAll('[data-fin-excluir]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var id = parseInt(this.getAttribute('data-fin-excluir'),10);
+        if(!confirm('Excluir este lançamento? Essa ação não pode ser desfeita.')) return;
+        state.financeiro.lancamentos = state.financeiro.lancamentos.filter(function(l){ return l.id !== id; });
+        saveFinanceiro();
+        refreshFinanceiroTabela();
+        refreshFinanceiroIndicadores();
+        showToast('Lançamento excluído.', 'success');
+      });
+    });
+  }
+
+  /* ---- pagina principal ---- */
+  function financeiroTemplate(){
+    if(!state.financeiroMes) state.financeiroMes = getCurrentMonthKey();
+    var categoriasTodas = (state.financeiro ? state.financeiro.categoriasEntrada.concat(state.financeiro.categoriasSaida) : [])
+      .filter(function(c,i,arr){ return arr.indexOf(c) === i; });
+    return ''+
+      '<h1 class="page-title">Financeiro</h1>'+
+      '<p class="page-sub">Tudo que entra e sai do negócio</p>'+
+      '<div class="section-header-row" style="margin-top:18px;">'+
+        '<h2 class="section-title">Indicadores</h2>'+
+        '<button class="info-icon-btn" type="button" data-info-toggle="info-financeiro-ind">i</button>'+
+      '</div>'+
+      '<div class="info-popover" id="info-financeiro-ind">Bruto = valor cheio recebido em cada Entrada. Líquido = o que sobra depois de descontar taxa (ex: cartão) — editável por lançamento. Líquido do mês = soma do líquido das Entradas menos as Saídas. Troque o mês no seletor ou veja o ano inteiro no toggle "Ano" — esse filtro é só do Financeiro, não mexe em mais nada.</div>'+
+      '<div id="financeiroIndicadoresRoot">'+financeiroIndicadoresHtml()+'</div>'+
+      '<div class="section-header-row" style="margin-top:32px;">'+
+        '<h2 class="section-title">Lançamentos</h2>'+
+        '<button class="btn-icon" type="button" id="financeiroTableToggleBtn" style="margin-left:auto;">'+(state.financeiroTableCollapsed?'Mostrar':'Recolher')+'</button>'+
+      '</div>'+
+      '<div class="toolbar">'+
+        '<div class="toolbar-filters">'+
+          '<input type="text" id="financeiroSearchInput" class="search-input" placeholder="Buscar por descrição..." value="'+esc(state.financeiroSearch)+'">'+
+          filterChipHtml('financeiroTipoFiltro', 'Tipo', 'Todos', [{value:'entrada',label:'Entrada'},{value:'saida',label:'Saída'}])+
+          (categoriasTodas.length ? filterChipHtml('financeiroCategoriaFiltro', 'Categoria', 'Todas', categoriasTodas) : '')+
+          filterChipHtml('financeiroFormaFiltro', 'Forma', 'Todas', FINANCEIRO_FORMAS_PAGTO)+
+        '</div>'+
+        '<button class="btn btn-primary" id="novoLancamentoBtn">+ Novo Lançamento</button>'+
+      '</div>'+
+      '<div id="financeiroTableWrap" style="'+(state.financeiroTableCollapsed?'display:none;':'')+'">'+
+        '<div class="card table-scroll">'+
+          '<table><thead><tr><th>Data</th><th>Tipo</th><th>Categoria</th><th>Descrição</th><th>Forma</th><th>Valor</th><th>Ações</th></tr></thead>'+
+          '<tbody id="financeiroTableBody">'+financeiroTabelaLinhasHtml()+'</tbody></table>'+
+        '</div>'+
+      '</div>';
+  }
+  function attachFinanceiroEvents(){
+    bindInfoIcons(document.getElementById('content'));
+    bindFinanceiroIndicadoresEvents();
+    bindFinanceiroRowActions();
+    document.getElementById('financeiroTableToggleBtn').addEventListener('click', function(){
+      state.financeiroTableCollapsed = !state.financeiroTableCollapsed;
+      document.getElementById('financeiroTableWrap').style.display = state.financeiroTableCollapsed ? 'none' : '';
+      this.textContent = state.financeiroTableCollapsed ? 'Mostrar' : 'Recolher';
+    });
+    document.getElementById('financeiroSearchInput').addEventListener('input', function(e){
+      state.financeiroSearch = e.target.value;
+      refreshFinanceiroTabela();
+    });
+    document.getElementById('novoLancamentoBtn').addEventListener('click', function(){
+      state.financeiroEditId = null;
+      state.modal = 'financeiro';
+      renderModal();
+    });
+    var content = document.getElementById('content');
+    content.addEventListener('click', function(e){
+      var toggle = e.target.closest('[data-filter-toggle]');
+      if(toggle){
+        var menu = toggle.closest('.th-filter').querySelector('.filter-menu');
+        var willOpen = !menu.classList.contains('open');
+        document.querySelectorAll('.filter-menu.open').forEach(function(m){ m.classList.remove('open'); });
+        if(willOpen) menu.classList.add('open');
+        document.querySelectorAll('.card, .toolbar').forEach(function(c){
+          c.classList.toggle('menu-open', !!c.querySelector('.filter-menu.open'));
+        });
+        return;
+      }
+      var option = e.target.closest('.filter-menu-option');
+      if(option){
+        applyFilterSelection(option.getAttribute('data-filter-key'), option.getAttribute('data-filter-value'));
+        refreshFinanceiroTabela();
+      }
+    });
+  }
+
+  /* ---- modal de lancamento (Entrada/Saida) ---- */
+  function financeiroCategoriaOptsHtml(tipo, selecionada){
+    var lista = tipo === 'saida' ? (state.financeiro.categoriasSaida||[]) : (state.financeiro.categoriasEntrada||[]);
+    return '<option value="">—</option>'+lista.map(function(c){
+      return '<option value="'+esc(c)+'"'+(c===selecionada?' selected':'')+'>'+esc(c)+'</option>';
+    }).join('');
+  }
+  function financeiroModalHtml(){
+    var novo = state.financeiroEditId === null;
+    var l = novo ? { tipo: state.financeiroTipoNovo||'entrada', categoria:'', descricao:'', data: todayISODate(),
+                      formaPagamento:'', valorBruto:'', valorLiquido:'', pacienteId:null }
+                 : getLancamento(state.financeiroEditId);
+    if(!l) return '';
+    var tipoBtns = ''+
+      '<button type="button" class="meta-type-btn'+(l.tipo==='entrada'?' active':'')+'" data-fin-modal-tipo="entrada">Entrada</button>'+
+      '<button type="button" class="meta-type-btn'+(l.tipo==='saida'?' active':'')+'" data-fin-modal-tipo="saida">Saída</button>';
+    var formaOpts = '<option value="">—</option>'+FINANCEIRO_FORMAS_PAGTO.map(function(f){
+      return '<option value="'+esc(f)+'"'+(l.formaPagamento===f?' selected':'')+'>'+esc(f)+'</option>';
+    }).join('');
+    var pacientesOrdenados = (state.patients||[]).slice().sort(function(a,b){ return (a.nome||'').localeCompare(b.nome||''); });
+    var pacienteOpts = '<option value="">— nenhum —</option>'+pacientesOrdenados.map(function(p){
+      return '<option value="'+p.id+'"'+(l.pacienteId===p.id?' selected':'')+'>'+esc(p.nome)+'</option>';
+    }).join('');
+    return ''+
+    '<div class="modal modal-wide">'+
+      '<div class="modal-header">'+
+        '<h2>'+(novo?'Novo Lançamento':'Editar Lançamento')+'</h2>'+
+        '<button class="modal-close" id="modalCloseBtn">&times;</button>'+
+      '</div>'+
+      '<div class="modal-body">'+
+        '<div class="form-grid">'+
+          '<div class="form-group full"><label>Tipo</label><div class="meta-type-toggle" id="finModalTipoToggle">'+tipoBtns+'</div></div>'+
+          '<div class="form-group"><label>Categoria</label><select id="fin_categoria" class="filter-select" style="width:100%;">'+financeiroCategoriaOptsHtml(l.tipo, l.categoria)+'</select>'+
+            '<div style="display:flex;gap:8px;margin-top:8px;">'+
+              '<input type="text" id="fin_novaCategoria" placeholder="Criar nova categoria" style="flex:1;">'+
+              '<button type="button" class="btn-icon" id="financeiroAddCategoriaBtn">+ Criar</button>'+
+            '</div></div>'+
+          '<div class="form-group"><label>Forma de pagamento</label><select id="fin_forma" class="filter-select" style="width:100%;">'+formaOpts+'</select></div>'+
+          '<div class="form-group full"><label>Descrição</label><input type="text" id="fin_descricao" value="'+esc(l.descricao||'')+'" placeholder="Ex: Mensalidade Ana, Aluguel de agosto..."></div>'+
+          '<div class="form-group"><label>Data</label><input type="date" id="fin_data" value="'+esc(l.data||todayISODate())+'"></div>'+
+          '<div class="form-group"><label>Valor bruto</label><input type="number" step="0.01" min="0" id="fin_valorBruto" value="'+esc(l.valorBruto===''?'':l.valorBruto)+'" placeholder="0,00"></div>'+
+          '<div class="form-group" id="finValorLiquidoGroup" style="'+(l.tipo==='saida'?'display:none;':'')+'"><label>Valor líquido</label><input type="number" step="0.01" min="0" id="fin_valorLiquido" value="'+esc(l.valorLiquido===''?'':l.valorLiquido)+'" placeholder="0,00">'+
+            '<div class="mini-label" style="text-align:left;margin-top:4px;">Preenche igual ao bruto por padrão — edite se descontou taxa de cartão.</div></div>'+
+          '<div class="form-group full"><label>Paciente (opcional)</label><select id="fin_paciente" class="filter-select" style="width:100%;">'+pacienteOpts+'</select></div>'+
+        '</div>'+
+      '</div>'+
+      '<div class="modal-footer">'+
+        (novo ? '' : '<button class="btn btn-danger" id="finExcluirBtn" style="margin-right:auto;">Excluir</button>')+
+        '<button class="btn btn-secondary" id="finCancelBtn">Cancelar</button>'+
+        '<button class="btn btn-primary" id="finSalvarBtn">Salvar</button>'+
+      '</div>'+
+    '</div>';
+  }
+  function bindFinanceiroModalEvents(){
+    var tipoAtual = state.financeiroEditId === null ? (state.financeiroTipoNovo||'entrada') : (getLancamento(state.financeiroEditId)||{}).tipo;
+    function atualizarParaTipo(){
+      document.getElementById('fin_categoria').innerHTML = financeiroCategoriaOptsHtml(tipoAtual, '');
+      document.getElementById('finValorLiquidoGroup').style.display = tipoAtual === 'saida' ? 'none' : '';
+    }
+    document.querySelectorAll('[data-fin-modal-tipo]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        tipoAtual = this.getAttribute('data-fin-modal-tipo');
+        document.querySelectorAll('[data-fin-modal-tipo]').forEach(function(b){
+          b.classList.toggle('active', b.getAttribute('data-fin-modal-tipo') === tipoAtual);
+        });
+        atualizarParaTipo();
+      });
+    });
+    var addCatBtn = document.getElementById('financeiroAddCategoriaBtn');
+    if(addCatBtn){
+      addCatBtn.addEventListener('click', function(){
+        var inp = document.getElementById('fin_novaCategoria');
+        var nova = inp.value.trim();
+        if(!nova) return;
+        var lista = tipoAtual === 'saida' ? state.financeiro.categoriasSaida : state.financeiro.categoriasEntrada;
+        if(lista.indexOf(nova) === -1){
+          lista.push(nova);
+          saveFinanceiro();
+        }
+        var sel = document.getElementById('fin_categoria');
+        if(!Array.from(sel.options).some(function(o){ return o.value === nova; })){
+          var opt = document.createElement('option');
+          opt.value = nova; opt.textContent = nova;
+          sel.appendChild(opt);
+        }
+        sel.value = nova;
+        inp.value = '';
+      });
+    }
+    document.getElementById('fin_valorBruto').addEventListener('input', function(){
+      var liqInput = document.getElementById('fin_valorLiquido');
+      if(liqInput && !liqInput.dataset.editadoManualmente) liqInput.value = this.value;
+    });
+    var liqInputEl = document.getElementById('fin_valorLiquido');
+    if(liqInputEl){
+      liqInputEl.addEventListener('input', function(){ this.dataset.editadoManualmente = '1'; });
+    }
+    document.getElementById('finCancelBtn').addEventListener('click', function(){ closeModal(); });
+    var rmBtn = document.getElementById('finExcluirBtn');
+    if(rmBtn){
+      rmBtn.addEventListener('click', function(){
+        if(!confirm('Excluir este lançamento? Essa ação não pode ser desfeita.')) return;
+        state.financeiro.lancamentos = state.financeiro.lancamentos.filter(function(x){ return x.id !== state.financeiroEditId; });
+        saveFinanceiro();
+        closeModal();
+        render();
+        showToast('Lançamento excluído.', 'success');
+      });
+    }
+    document.getElementById('finSalvarBtn').addEventListener('click', function(){
+      var data = document.getElementById('fin_data').value;
+      if(!data){ alert('Informe a data.'); return; }
+      var valorBrutoRaw = document.getElementById('fin_valorBruto').value;
+      var valorBruto = valorBrutoRaw === '' ? 0 : parseFloat(valorBrutoRaw);
+      if(!valorBruto){ alert('Informe o valor.'); return; }
+      var liqInput = document.getElementById('fin_valorLiquido');
+      var valorLiquido = (tipoAtual === 'saida' || !liqInput || liqInput.value === '') ? valorBruto : parseFloat(liqInput.value);
+      var pacienteRaw = document.getElementById('fin_paciente').value;
+      var dados = {
+        tipo: tipoAtual,
+        categoria: document.getElementById('fin_categoria').value,
+        descricao: document.getElementById('fin_descricao').value.trim(),
+        data: data,
+        formaPagamento: document.getElementById('fin_forma').value,
+        valorBruto: valorBruto,
+        valorLiquido: valorLiquido,
+        pacienteId: pacienteRaw ? parseInt(pacienteRaw,10) : null
+      };
+      var novo = state.financeiroEditId === null;
+      var l;
+      if(novo){
+        l = Object.assign({ id: nextFinanceiroId() }, dados);
+        state.financeiro.lancamentos.push(l);
+      } else {
+        l = getLancamento(state.financeiroEditId);
+        Object.assign(l, dados);
+      }
+      saveFinanceiro();
+      closeModal();
+      render();
+      showToast(novo ? 'Lançamento criado.' : 'Lançamento atualizado.', 'success');
+    });
+  }
+
   /* ================= MODALS ================= */
   function closeModal(silent){
     document.getElementById('modal-root').innerHTML = '';
@@ -10214,13 +10765,15 @@
       html = indicacaoModalHtml();
     } else if(state.modal === 'comunidade'){
       html = comunidadeModalHtml();
+    } else if(state.modal === 'financeiro'){
+      html = financeiroModalHtml();
     }
     root.innerHTML = '<div class="modal-overlay" id="modalOverlay">'+html+'</div>';
 
     var overlay = document.getElementById('modalOverlay');
     overlay.addEventListener('click', function(e){
       if(e.target !== overlay) return;
-      if(state.modal === 'add' || state.modal === 'edit' || state.modal === 'weekEdit' || state.modal === 'lead'){
+      if(state.modal === 'add' || state.modal === 'edit' || state.modal === 'weekEdit' || state.modal === 'lead' || state.modal === 'financeiro'){
         if(confirm('Tem certeza que deseja sair? As informações preenchidas neste cadastro serão perdidas.')){
           closeModal();
         }
@@ -10468,6 +11021,9 @@
     }
     if(state.modal === 'comunidade'){
       bindComunidadeModalEvents();
+    }
+    if(state.modal === 'financeiro'){
+      bindFinanceiroModalEvents();
     }
     if(state.modal === 'settings'){
       document.querySelectorAll('[data-settings-tab]').forEach(function(btn){
