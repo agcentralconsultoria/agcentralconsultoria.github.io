@@ -1403,6 +1403,7 @@
     comunidadePrefillData: null,
     indicadoresMes: null,
     indicadoresView: 'mes',
+    leadParaConverter: null,  // id do lead sendo transformado em paciente pelo formulario de Novo Paciente
     leadSearch: '',
     leadTemperaturaFilter: 'todos',
     leadEtiquetaFilter: 'todos',
@@ -4753,7 +4754,7 @@
     if(etapa === 'fechado' && anterior !== 'fechado'){
       // indicação vira convertida sozinha e o contador do indicador sobe
       avisarConversaoDeIndicacao(converterIndicacaoDoLead(id));
-      if(!l.pacienteId){ criarPacienteDoLead(l); return; }
+      if(!l.pacienteId){ abrirCadastroPacienteDoLead(l); return; }
     }
     showToast('Lead movido para "'+etapaInfo(etapa).label+'".', 'success');
   }
@@ -4767,25 +4768,15 @@
       showToast('Indicação de '+r.indicacao.indicadorNome+' convertida ('+r.total+' no total).', 'success');
     }
   }
-  /* Lead que fecha vira paciente automaticamente. O cadastro nasce incompleto de
-     proposito — ele aparece no "Resumo de Entrega de Paciente" do Dashboard com tudo
-     que falta preencher, entao nada se perde. */
-  function criarPacienteDoLead(l){
-    var novo = emptyPatientCore();
-    novo.id = nextId();
-    novo.nome = l.nome || 'Novo paciente';
-    novo.telefone = l.whatsapp || '';
-    novo.createdAt = nextCreatedAt();
-    novo.createdDate = todayISODate();
-    novo.meses = {};
-    novo.leadId = l.id;
-    if(l.observacoes) novo.observacoes = l.observacoes;
-    state.patients.push(novo);
-    l.pacienteId = novo.id;
-    savePatients();
-    saveCaptacao();
-    refreshLeadKanban();
-    showToast('Lead fechado! Paciente "'+novo.nome+'" criado — complete o cadastro.', 'success');
+  /* Lead que fecha abre direto o formulario normal de Novo Paciente, ja com nome/telefone
+     preenchidos — o paciente so passa a existir de verdade quando o formulario for salvo
+     (mesma logica/validacao do cadastro manual). Se cancelar, nada e criado; o botao
+     "Completar cadastro de paciente" no proprio Lead deixa retomar depois. */
+  function abrirCadastroPacienteDoLead(l){
+    state.leadParaConverter = l.id;
+    state.modal = 'add';
+    state.activeId = null;
+    renderModal();
   }
   /* ---------- Indicações ----------
      Guarda so o VINCULO: quem indicou -> quem foi indicado. A pessoa indicada vira um
@@ -6229,9 +6220,14 @@
         (l.instagram ? '<a class="btn btn-secondary" style="display:inline-flex;align-items:center;gap:7px;" href="'+esc(instagramHref(l.instagram))+'" target="_blank" rel="noopener">'+instagramIcon(16,'#DD2A7B')+' Instagram</a>' : '')+
       '</div></div>';
     }
-    var vinculo = (!novo && l.pacienteId) ?
-      '<div class="form-group full"><div class="meta-box">✓ Este lead virou paciente. '+
-      '<button type="button" class="link-btn" id="leadIrPacienteBtn" style="color:#9A3412;text-decoration:underline;">Abrir o cadastro</button></div></div>' : '';
+    var vinculo = '';
+    if(!novo && l.pacienteId){
+      vinculo = '<div class="form-group full"><div class="meta-box">✓ Este lead virou paciente. '+
+        '<button type="button" class="link-btn" id="leadIrPacienteBtn" style="color:#9A3412;text-decoration:underline;">Abrir o cadastro</button></div></div>';
+    } else if(!novo && l.etapa === 'fechado'){
+      vinculo = '<div class="form-group full"><div class="meta-box">Este lead está fechado mas ainda não tem paciente vinculado. '+
+        '<button type="button" class="link-btn" id="leadCompletarPacienteBtn" style="color:#9A3412;text-decoration:underline;">Completar cadastro de paciente</button></div></div>';
+    }
     return ''+
     '<div class="modal modal-wide">'+
       '<div class="modal-header">'+
@@ -6517,7 +6513,13 @@
         closeModal();
         state.tab = 'pacientes';
         render();
-        openProfile(pid);
+        openProfileModal(pid);
+      });
+    }
+    var completarPac = document.getElementById('leadCompletarPacienteBtn');
+    if(completarPac){
+      completarPac.addEventListener('click', function(){
+        abrirCadastroPacienteDoLead(getLead(state.leadEditId));
       });
     }
     document.getElementById('leadCancelBtn').addEventListener('click', closeModal);
@@ -6578,11 +6580,14 @@
       saveCaptacao();
       var conversao = fechouAgora ? converterIndicacaoDoLead(lead.id) : null;
       var precisaPaciente = fechouAgora && !lead.pacienteId;
-      closeModal();
       render();
       if(conversao) avisarConversaoDeIndicacao(conversao);
-      if(precisaPaciente) criarPacienteDoLead(lead);
-      else if(!conversao) showToast(novo ? 'Lead criado.' : 'Lead atualizado.', 'success');
+      if(precisaPaciente){
+        abrirCadastroPacienteDoLead(lead);
+      } else {
+        closeModal();
+        if(!conversao) showToast(novo ? 'Lead criado.' : 'Lead atualizado.', 'success');
+      }
     });
   }
 
@@ -9588,6 +9593,7 @@
     document.getElementById('chart-expand-root').innerHTML = '';
     state.modal = null;
     state.activeId = null;
+    state.leadParaConverter = null;
   }
 
   /* ---- Profile modal ---- */
@@ -10173,7 +10179,13 @@
       state.formDraftFichaOpen = {};
       state.formDraftFichasDieta = [];
       state.formDraftFichaDietaOpen = {};
-      html = formModalHtml('add', emptyPatientCore(), state.competencia);
+      var novoBase = emptyPatientCore();
+      var leadConv = state.leadParaConverter ? getLead(state.leadParaConverter) : null;
+      if(leadConv){
+        novoBase.nome = leadConv.nome || '';
+        novoBase.telefone = leadConv.whatsapp || '';
+      }
+      html = formModalHtml('add', novoBase, state.competencia);
     } else if(state.modal === 'edit'){
       var pe = getPatient(state.activeId);
       if(!pe){ closeModal(); return; }
@@ -10386,6 +10398,12 @@
           mergeWeeklyIntoMonth(patient, result.monthKey, result.weekly);
           maybeStartJornada(patient, result.jornadaInicio, result.jornadaModelo);
           state.patients.push(patient);
+          var leadConvertido = state.leadParaConverter ? getLead(state.leadParaConverter) : null;
+          if(leadConvertido){
+            patient.leadId = leadConvertido.id;
+            leadConvertido.pacienteId = patient.id;
+            saveCaptacao();
+          }
         } else {
           var idx = -1;
           for(var i=0;i<state.patients.length;i++){
@@ -10403,7 +10421,10 @@
         savePatients();
         closeModal();
         render();
-        showToast(wasAdd ? 'Paciente adicionado com sucesso.' : 'Paciente atualizado com sucesso.', 'success');
+        var msg = wasAdd
+          ? (leadConvertido ? 'Lead fechado — paciente "'+patient.nome+'" cadastrado com sucesso.' : 'Paciente adicionado com sucesso.')
+          : 'Paciente atualizado com sucesso.';
+        showToast(msg, 'success');
       });
       var formDeleteBtn = document.getElementById('formDeletePatientBtn');
       if(formDeleteBtn){
