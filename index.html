@@ -1386,7 +1386,7 @@
     tab: 'dashboard',
     sidebarCollapsed: false,   // computador: barra estreita so com icones
     sidebarDrawerOpen: false,  // celular: gaveta aberta por cima do conteudo
-    captacaoExpanded: true,    // grupo Captacao aberto no menu
+    captacaoExpanded: false,   // grupo Captacao comeca recolhido; so abre por clique
     captacao: null,
     captacaoTemplates: null,
     leadJornadaExpanded: {},   // tarefas abertas no detalhe do lead
@@ -4258,7 +4258,8 @@
       '<span class="side-ico">'+ico+'</span><span class="side-label">'+esc(label)+'</span></button>';
   }
   function sidebarHtml(){
-    var capAberto = state.captacaoExpanded || isCaptacaoTab(state.tab);
+    // so o clique no grupo abre/fecha — estar numa sub-aba nao forca o menu aberto
+    var capAberto = state.captacaoExpanded;
     var capAtivo = isCaptacaoTab(state.tab);
     var subs = CAPTACAO_SUBTABS.map(function(s){
       return sideItemHtml(s.tab, s.ico, s.label);
@@ -4341,16 +4342,8 @@
     var capGroupBtn = document.getElementById('captacaoGroupBtn');
     if(capGroupBtn){
       capGroupBtn.addEventListener('click', function(){
-        // clicar no grupo abre/fecha; se estava fechado, ja leva pra Visao Geral
-        if(state.captacaoExpanded && !isCaptacaoTab(state.tab)){
-          state.captacaoExpanded = false;
-        } else if(!state.captacaoExpanded){
-          state.captacaoExpanded = true;
-          state.tab = 'cap-visao';
-          state.sidebarDrawerOpen = false;
-        } else {
-          state.captacaoExpanded = false;
-        }
+        // so abre/fecha a lista de sub-abas — nao navega e nao troca a pagina aberta
+        state.captacaoExpanded = !state.captacaoExpanded;
         render();
       });
     }
@@ -10203,7 +10196,7 @@
     var overlay = document.getElementById('modalOverlay');
     overlay.addEventListener('click', function(e){
       if(e.target !== overlay) return;
-      if(state.modal === 'add' || state.modal === 'edit' || state.modal === 'weekEdit'){
+      if(state.modal === 'add' || state.modal === 'edit' || state.modal === 'weekEdit' || state.modal === 'lead'){
         if(confirm('Tem certeza que deseja sair? As informações preenchidas neste cadastro serão perdidas.')){
           closeModal();
         }
