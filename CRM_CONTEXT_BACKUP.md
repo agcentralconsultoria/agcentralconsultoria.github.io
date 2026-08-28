@@ -1080,3 +1080,36 @@ nada dessas ações dependia da listagem removida).
   continuam existindo e intactos pros outros cards (Vencendo, Consulta
   Próxima, Renovação Próxima/Antecipada, Inativos, Aniversariantes,
   Fichas de Treino) — só "Pacientes Ativos" ganhou a tabela nova.
+
+---
+
+## 20. Paginação genérica de 10 por página (28/08/2026)
+
+Reaproveitada a mesma lógica/visual do paginador do histórico de peso
+(`.peso-history-pager`, 5 por página — **esse continua intocado**) numa
+versão genérica com tamanho configurável, em `paginateList(list, pageKey,
+pageSize)` + `listPagerHtml(pageKey, page, totalPages)` +
+`listPagerGoPrev`/`listPagerGoNext` ([index.html](index.html)). Cada lista
+paginada guarda sua página atual em `state.listPage[pageKey]`, sempre
+reclampada pro intervalo válido a cada render — a mesma auto-correção que
+já existia só pro peso, então filtro/busca/troca de mês nunca deixam a
+página "presa" vazia.
+
+Aplicado com **10 por página** em:
+- **Dashboard > Pacientes em Risco** (`pageKey: 'risco'`) — o número no
+  título da seção continua sendo o total real, não o da página.
+- **Dashboard > Acesso Rápido**, cada bloco com paginação independente:
+  Sem Atualização Recente Treino (`qaTreino`), Vencimentos (`qaVenc`), Sem
+  Atualização Recente Dieta (`qaDieta`), Sem Consulta Marcada
+  (`qaConsulta`), Sem Vigência (`qaVigencia`), Resumo de Entrega de
+  Paciente (`qaResumoEntrega`).
+- **Pacientes > Visão Geral** (`pageKey: 'overview'`) — pager num
+  `<div id="overviewPagerWrap">` próprio, atualizado junto com o tbody
+  (`#overviewTableBody`) em `refreshOverviewTable()` sempre que busca,
+  filtro (Status Consulta/Média), ordenação por Nome ou troca de
+  competência mudam os resultados.
+- As funções de linhas do Acesso Rápido (`semAtualizacaoRows`,
+  `vencimentosQuickRows`, `semConsultaMarcadaRows`, `semVigenciaRows`,
+  `resumoEntregaRows`) passaram a retornar `{ rowsHtml, pagerHtml }` em vez
+  de só a string das linhas — único jeito de expor a paginação sem duplicar
+  a lógica de busca/ordenação que cada uma já tinha.

@@ -1538,6 +1538,7 @@
     pesoHistoryOpen: {},
     pesoEditingKey: null,
     pesoHistoryPage: {},
+    listPage: {},
     pesoChartShowObs: false,
     weekEditIndex: null,
     weekEditMonthKey: null,
@@ -2785,6 +2786,37 @@
         btn.classList.toggle('selected', btn.getAttribute('data-filter-value') === value);
       });
     }
+  }
+  /* Paginação genérica reaproveitável (mesmo padrão visual/comportamento do histórico
+     de peso — 5 por página, com clamp automático — só que com tamanho de página
+     configurável e uma chave própria por lista em state.listPage). Cada chamada
+     reclampa a página guardada em state.listPage[pageKey] pro intervalo valido da
+     lista atual, entao filtro/busca/troca de competencia nunca deixam a pagina
+     "presa" vazia — a mesma logica de auto-correção que ja existia so pro peso. */
+  function paginateList(list, pageKey, pageSize){
+    pageSize = pageSize || 10;
+    if(!state.listPage) state.listPage = {};
+    var totalPages = Math.max(1, Math.ceil(list.length / pageSize));
+    var page = Math.min(Math.max(state.listPage[pageKey] || 0, 0), totalPages - 1);
+    state.listPage[pageKey] = page;
+    var start = page * pageSize;
+    return { items: list.slice(start, start + pageSize), page: page, totalPages: totalPages };
+  }
+  function listPagerHtml(pageKey, page, totalPages){
+    if(totalPages <= 1) return '';
+    return '<div class="peso-history-pager">'+
+      '<button type="button" class="btn-icon" data-list-page-prev="'+pageKey+'"'+(page===0?' disabled':'')+'>&lt;</button>'+
+      '<span class="cell-muted">'+(page+1)+'/'+totalPages+'</span>'+
+      '<button type="button" class="btn-icon" data-list-page-next="'+pageKey+'"'+(page===totalPages-1?' disabled':'')+'>&gt;</button>'+
+    '</div>';
+  }
+  function listPagerGoPrev(pageKey){
+    if(!state.listPage) state.listPage = {};
+    state.listPage[pageKey] = Math.max(0, (state.listPage[pageKey]||0) - 1);
+  }
+  function listPagerGoNext(pageKey){
+    if(!state.listPage) state.listPage = {};
+    state.listPage[pageKey] = (state.listPage[pageKey]||0) + 1;
   }
   /* Quem faz só Treino tem check-in a cada 14 dias, ou seja 2 por mês, e não toda semana.
      Em vez de encurtar os arrays (o que perderia dado e bagunçaria os índices), a gente
@@ -7546,7 +7578,8 @@
     var monthKey = state.competencia;
     var k = computeKPIs();
     var risco = pacientesEmRisco(monthKey);
-    var riscoRows = risco.map(function(p){
+    var riscoPage = paginateList(risco, 'risco');
+    var riscoRows = riscoPage.items.map(function(p){
       var r = engagementRisk(p, monthKey);
       var avgText = r.avg === null ? '—' : r.avg.toFixed(1);
       var avgCls = avgBadgeClass(r.avg);
@@ -7560,6 +7593,7 @@
     if(!risco.length){
       riscoRows = '<tr><td colspan="4"><div class="empty-state">Nenhum paciente em risco em '+monthLabel(monthKey)+'. 🎉</div></td></tr>';
     }
+    var riscoPagerHtml = listPagerHtml('risco', riscoPage.page, riscoPage.totalPages);
     return ''+
     '<div class="profile-top" style="margin-bottom:4px;">'+
       '<div><h1 class="page-title" style="margin-bottom:0;">Dashboard</h1></div>'+
@@ -7648,6 +7682,7 @@
     '<div class="card" style="margin-bottom:32px;background:var(--danger-bg);border:1px solid var(--danger);">'+
       '<table><thead><tr><th>Nome</th><th>Engajamento Médio</th><th>Check-ins</th><th>Prioridade</th></tr></thead>'+
       '<tbody>'+riscoRows+'</tbody></table>'+
+      riscoPagerHtml+
     '</div>'+
     '<div class="section-header-row">'+
       '<h2 class="section-title">Comparação Mensal</h2>'+
@@ -7801,6 +7836,19 @@
         var fValue = option.getAttribute('data-filter-value');
         applyFilterSelection(fKey, fValue);
         if(DASHBOARD_ATIVOS_FILTER_KEYS.indexOf(fKey) !== -1) refreshDashboardAtivosTable();
+        return;
+      }
+      var pagerPrev = e.target.closest('[data-list-page-prev]');
+      if(pagerPrev){
+        listPagerGoPrev(pagerPrev.getAttribute('data-list-page-prev'));
+        render();
+        return;
+      }
+      var pagerNext = e.target.closest('[data-list-page-next]');
+      if(pagerNext){
+        listPagerGoNext(pagerNext.getAttribute('data-list-page-next'));
+        render();
+        return;
       }
     });
   }
@@ -8130,10 +8178,12 @@
   }
   function semVigenciaRows(){
     var list = pacientesSemVigencia();
-    if(!list.length) return '<tr><td colspan="2"><div class="empty-state">Nenhum paciente sem vigência. 🎉</div></td></tr>';
-    return list.map(function(p){
+    if(!list.length) return { rowsHtml: '<tr><td colspan="2"><div class="empty-state">Nenhum paciente sem vigência. 🎉</div></td></tr>', pagerHtml: '' };
+    var pg = paginateList(list, 'qaVigencia');
+    var rowsHtml = pg.items.map(function(p){
       return '<tr><td><button class="link-btn" data-open-profile="'+p.id+'">'+esc(p.nome)+'</button></td><td>'+priorityBadge(p.prioridade)+'</td></tr>';
     }).join('');
+    return { rowsHtml: rowsHtml, pagerHtml: listPagerHtml('qaVigencia', pg.page, pg.totalPages) };
   }
   /* ---- Resumo de Entrega: o que ainda falta preencher em cada paciente ---- */
   function semanasJaOcorridas(monthKey){
@@ -8193,8 +8243,9 @@
       if(a.faltas.length !== b.faltas.length) return b.faltas.length - a.faltas.length;
       return a.p.nome.localeCompare(b.p.nome, 'pt-BR');
     });
-    if(!list.length) return '<tr><td colspan="2"><div class="empty-state">Todos os pacientes estão completos. 🎉</div></td></tr>';
-    return list.map(function(x){
+    if(!list.length) return { rowsHtml: '<tr><td colspan="2"><div class="empty-state">Todos os pacientes estão completos. 🎉</div></td></tr>', pagerHtml: '' };
+    var pg = paginateList(list, 'qaResumoEntrega');
+    var rowsHtml = pg.items.map(function(x){
       var n = x.faltas.length;
       var cls = n >= 6 ? 'badge-danger' : n >= 3 ? 'badge-warning' : 'badge-gray';
       return '<tr>'+
@@ -8204,20 +8255,25 @@
         '</td>'+
       '</tr>';
     }).join('');
+    return { rowsHtml: rowsHtml, pagerHtml: listPagerHtml('qaResumoEntrega', pg.page, pg.totalPages) };
   }
   function semConsultaMarcadaRows(){
     var list = pacientesSemConsultaMarcada(state.dashQuickConsultaSort);
-    if(!list.length) return '<tr><td colspan="2"><div class="empty-state">Nenhum paciente sem consulta marcada. 🎉</div></td></tr>';
-    return list.map(function(p){
+    if(!list.length) return { rowsHtml: '<tr><td colspan="2"><div class="empty-state">Nenhum paciente sem consulta marcada. 🎉</div></td></tr>', pagerHtml: '' };
+    var pg = paginateList(list, 'qaConsulta');
+    var rowsHtml = pg.items.map(function(p){
       return '<tr><td><button class="link-btn" data-open-profile="'+p.id+'">'+esc(p.nome)+'</button></td><td>'+consultaBadge(p)+'</td></tr>';
     }).join('');
+    return { rowsHtml: rowsHtml, pagerHtml: listPagerHtml('qaConsulta', pg.page, pg.totalPages) };
   }
   function vencimentosQuickRows(){
     var list = pacientesVencimentosList(state.dashQuickVencSort);
-    if(!list.length) return '<tr><td colspan="2"><div class="empty-state">Nenhum paciente com vencimento cadastrado.</div></td></tr>';
-    return list.map(function(p){
+    if(!list.length) return { rowsHtml: '<tr><td colspan="2"><div class="empty-state">Nenhum paciente com vencimento cadastrado.</div></td></tr>', pagerHtml: '' };
+    var pg = paginateList(list, 'qaVenc');
+    var rowsHtml = pg.items.map(function(p){
       return '<tr><td><button class="link-btn" data-open-profile="'+p.id+'">'+esc(p.nome)+'</button></td><td>'+prazoBadge(p.vencimento)+'</td></tr>';
     }).join('');
+    return { rowsHtml: rowsHtml, pagerHtml: listPagerHtml('qaVenc', pg.page, pg.totalPages) };
   }
   function formatDiasOuSemanas(dias, unit){
     if(dias === null) return 'Nunca atualizado';
@@ -8231,8 +8287,10 @@
     var sortDir = kind === 'treino' ? state.dashQuickTreinoSort : state.dashQuickDietaSort;
     var unit = kind === 'treino' ? state.dashQuickTreinoUnit : state.dashQuickDietaUnit;
     var list = pacientesSemAtualizacao(kind, sortDir);
-    if(!list.length) return '<tr><td colspan="2"><div class="empty-state">Nenhum paciente com serviço de '+(kind==='treino'?'Treino':'Dieta')+'.</div></td></tr>';
-    return list.map(function(item){
+    var pageKey = kind === 'treino' ? 'qaTreino' : 'qaDieta';
+    if(!list.length) return { rowsHtml: '<tr><td colspan="2"><div class="empty-state">Nenhum paciente com serviço de '+(kind==='treino'?'Treino':'Dieta')+'.</div></td></tr>', pagerHtml: '' };
+    var pg = paginateList(list, pageKey);
+    var rowsHtml = pg.items.map(function(item){
       var diasLabel = formatDiasOuSemanas(item.dias, unit);
       var clsTreino = (unit === 'semanas' && item.dias !== null && item.dias >= 7)
         ? treinoTempoClassFromSemanas(Math.floor(item.dias/7))
@@ -8240,6 +8298,7 @@
       var cls = kind === 'treino' ? clsTreino : (item.dias === null || item.dias >= 30 ? 'badge-success' : item.dias >= 15 ? 'badge-warning' : 'badge-gray');
       return '<tr><td><button class="link-btn" data-open-profile="'+item.p.id+'">'+esc(item.p.nome)+'</button></td><td><span class="badge '+cls+'">'+esc(diasLabel)+'</span></td></tr>';
     }).join('');
+    return { rowsHtml: rowsHtml, pagerHtml: listPagerHtml(pageKey, pg.page, pg.totalPages) };
   }
   function quickSortBtnHtml(key, currentDir){
     return '<button class="btn-icon" type="button" data-quick-sort="'+key+'">'+(currentDir==='desc'?'Maior → Menor':'Menor → Maior')+' ⇅</button>';
@@ -8257,6 +8316,12 @@
     return '<div data-dash-wrap="'+key+'"'+(state.dashCollapsed[key] ? ' style="display:none;"' : '')+'>';
   }
   function dashboardQuickAccessHtml(){
+    var qaTreino = semAtualizacaoRows('treino');
+    var qaVenc = vencimentosQuickRows();
+    var qaDieta = semAtualizacaoRows('dieta');
+    var qaConsulta = semConsultaMarcadaRows();
+    var qaVigencia = semVigenciaRows();
+    var qaResumoEntrega = resumoEntregaRows();
     return ''+
     '<div class="section-header-row">'+
       '<h2 class="section-title">Acesso Rápido</h2>'+
@@ -8267,31 +8332,36 @@
       '<div class="card" style="padding:16px;">'+
         '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Atualização Recente — Treino</h3><div style="display:flex;gap:6px;">'+quickUnitBtnHtml('treino', state.dashQuickTreinoUnit)+quickSortBtnHtml('treino', state.dashQuickTreinoSort)+'</div>'+dashToggleBtnHtml('qaTreino')+'</div>'+
         dashWrapOpenHtml('qaTreino')+
-          '<table><thead><tr><th>Nome</th><th>Última atualização</th></tr></thead><tbody>'+semAtualizacaoRows('treino')+'</tbody></table>'+
+          '<table><thead><tr><th>Nome</th><th>Última atualização</th></tr></thead><tbody>'+qaTreino.rowsHtml+'</tbody></table>'+
+          qaTreino.pagerHtml+
         '</div>'+
       '</div>'+
       '<div class="card" style="padding:16px;">'+
         '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Vencimentos</h3>'+quickSortBtnHtml('vencimentos', state.dashQuickVencSort)+dashToggleBtnHtml('qaVenc')+'</div>'+
         dashWrapOpenHtml('qaVenc')+
-          '<table><thead><tr><th>Nome</th><th>Vencimento</th></tr></thead><tbody>'+vencimentosQuickRows()+'</tbody></table>'+
+          '<table><thead><tr><th>Nome</th><th>Vencimento</th></tr></thead><tbody>'+qaVenc.rowsHtml+'</tbody></table>'+
+          qaVenc.pagerHtml+
         '</div>'+
       '</div>'+
       '<div class="card" style="padding:16px;">'+
         '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Atualização Recente — Dieta</h3><div style="display:flex;gap:6px;">'+quickUnitBtnHtml('dieta', state.dashQuickDietaUnit)+quickSortBtnHtml('dieta', state.dashQuickDietaSort)+'</div>'+dashToggleBtnHtml('qaDieta')+'</div>'+
         dashWrapOpenHtml('qaDieta')+
-          '<table><thead><tr><th>Nome</th><th>Última atualização</th></tr></thead><tbody>'+semAtualizacaoRows('dieta')+'</tbody></table>'+
+          '<table><thead><tr><th>Nome</th><th>Última atualização</th></tr></thead><tbody>'+qaDieta.rowsHtml+'</tbody></table>'+
+          qaDieta.pagerHtml+
         '</div>'+
       '</div>'+
       '<div class="card" style="padding:16px;">'+
         '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Consulta Marcada</h3>'+quickSortBtnHtml('consulta', state.dashQuickConsultaSort)+dashToggleBtnHtml('qaConsulta')+'</div>'+
         dashWrapOpenHtml('qaConsulta')+
-          '<table><thead><tr><th>Nome</th><th>Status Consulta</th></tr></thead><tbody>'+semConsultaMarcadaRows()+'</tbody></table>'+
+          '<table><thead><tr><th>Nome</th><th>Status Consulta</th></tr></thead><tbody>'+qaConsulta.rowsHtml+'</tbody></table>'+
+          qaConsulta.pagerHtml+
         '</div>'+
       '</div>'+
       '<div class="card" style="padding:16px;">'+
         '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Vigência</h3>'+dashToggleBtnHtml('qaVigencia')+'</div>'+
         dashWrapOpenHtml('qaVigencia')+
-          '<table><thead><tr><th>Nome</th><th>Prioridade</th></tr></thead><tbody>'+semVigenciaRows()+'</tbody></table>'+
+          '<table><thead><tr><th>Nome</th><th>Prioridade</th></tr></thead><tbody>'+qaVigencia.rowsHtml+'</tbody></table>'+
+          qaVigencia.pagerHtml+
         '</div>'+
       '</div>'+
       '<div class="card" style="padding:16px;">'+
@@ -8300,7 +8370,8 @@
           dashToggleBtnHtml('qaResumoEntrega')+'</div>'+
         '<div class="info-popover" id="info-resumo-entrega">O que ainda falta preencher em cada paciente, pra você fechar o cadastro. Só aparece quem tem pendência, do que falta mais pro que falta menos. Engajamento e check-in contam só as semanas que já passaram, e itens de treino ou dieta só aparecem pra quem contrata aquele serviço.</div>'+
         dashWrapOpenHtml('qaResumoEntrega')+
-          '<table><thead><tr><th>Nome</th><th>Falta preencher</th></tr></thead><tbody>'+resumoEntregaRows()+'</tbody></table>'+
+          '<table><thead><tr><th>Nome</th><th>Falta preencher</th></tr></thead><tbody>'+qaResumoEntrega.rowsHtml+'</tbody></table>'+
+          qaResumoEntrega.pagerHtml+
         '</div>'+
       '</div>'+
     '</div>';
@@ -9339,7 +9410,8 @@
   }
   function overviewTableRowsHtml(monthKey){
     var wk = weeksInMonth(monthKey);
-    var list = overviewFilteredPatients(monthKey);
+    var fullList = overviewFilteredPatients(monthKey);
+    var list = paginateList(fullList, 'overview').items;
     var rows = list.map(function(x){
       var p = x.p, r = x.r;
       var data = getMonthData(p, monthKey);
@@ -9396,6 +9468,11 @@
       rows = '<tr><td colspan="'+(wk+5)+'"><div class="empty-state">Nenhum paciente encontrado.</div></td></tr>';
     }
     return rows;
+  }
+  function overviewPagerHtml(monthKey){
+    var fullList = overviewFilteredPatients(monthKey);
+    var pg = paginateList(fullList, 'overview');
+    return listPagerHtml('overview', pg.page, pg.totalPages);
   }
   function weekMiniCalendarHtml(monthKey){
     var parsed = parseMonthKey(monthKey);
@@ -9455,7 +9532,8 @@
         {value:'Ruim', label:'Ruim'}, {value:'Mediano', label:'Mediano'}, {value:'Bom', label:'Bom'}
       ])+
       '<th>Observações</th>'+
-    '</tr></thead><tbody id="overviewTableBody">'+overviewTableRowsHtml(monthKey)+'</tbody></table>';
+    '</tr></thead><tbody id="overviewTableBody">'+overviewTableRowsHtml(monthKey)+'</tbody></table>'+
+    '<div id="overviewPagerWrap">'+overviewPagerHtml(monthKey)+'</div>';
   }
   function pacientesTemplate(){
     return ''+
@@ -9500,6 +9578,8 @@
     if(!tbody) return;
     tbody.innerHTML = overviewTableRowsHtml(state.competencia);
     bindProfileOpeners(tbody);
+    var pagerWrap = document.getElementById('overviewPagerWrap');
+    if(pagerWrap) pagerWrap.innerHTML = overviewPagerHtml(state.competencia);
   }
   var OVERVIEW_FILTER_KEYS = ['overviewConsultaFilter','overviewMediaFilter'];
   function attachPacientesEvents(){
@@ -9668,6 +9748,19 @@
         var fValue = option.getAttribute('data-filter-value');
         applyFilterSelection(fKey, fValue);
         if(OVERVIEW_FILTER_KEYS.indexOf(fKey) !== -1) refreshOverviewTable();
+        return;
+      }
+      var pagerPrev = e.target.closest('[data-list-page-prev]');
+      if(pagerPrev){
+        listPagerGoPrev(pagerPrev.getAttribute('data-list-page-prev'));
+        refreshOverviewTable();
+        return;
+      }
+      var pagerNext = e.target.closest('[data-list-page-next]');
+      if(pagerNext){
+        listPagerGoNext(pagerNext.getAttribute('data-list-page-next'));
+        refreshOverviewTable();
+        return;
       }
     });
     document.getElementById('pacientesCompetenciaSelect').addEventListener('change', function(){
