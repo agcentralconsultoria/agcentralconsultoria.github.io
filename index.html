@@ -537,6 +537,16 @@
   .kpi-card.info{border-left-color:var(--info);}
   .kpi-card.pink{border-left-color:var(--baby);}
   .kpi-card.muted{border-left-color:var(--gray-badge);}
+  /* Card combinado Modo Bebezinho + Urgente: metade da faixa esquerda em cada
+     cor (badge-baby em cima, badge-danger embaixo), pra sinalizar visualmente
+     que junta as duas prioridades sem precisar de mais texto/elementos. */
+  .kpi-card.dual-priority{
+    border-left-color:transparent;
+    background-image:linear-gradient(var(--baby), var(--baby) 50%, var(--danger) 50%, var(--danger));
+    background-size:4px 100%;
+    background-repeat:no-repeat;
+    background-position:left top;
+  }
   .kpi-label{font-size:12.5px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px;}
   .kpi-value{font-size:32px;font-weight:800;color:var(--text);margin-top:8px;}
   .section-title{font-size:16px;font-weight:700;color:var(--text);margin:0 0 14px;}
@@ -7279,7 +7289,8 @@
     treinoVencido: { title: 'Ficha de Treino Vencida' },
     treinoAVencer: { title: 'Ficha de Treino a Vencer' },
     renovacaoAntecipada: { title: 'Renovação Antecipada', info: 'Vencimento do plano nos próximos 30 dias (ainda não venceu).' },
-    renovacaoProxima: { title: 'Renovação Próxima', info: 'Vencimento do plano entre 31 e 40 dias a partir de hoje.' }
+    renovacaoProxima: { title: 'Renovação Próxima', info: 'Vencimento do plano entre 31 e 40 dias a partir de hoje.' },
+    bebezinhoUrgente: { title: 'Modo Bebezinho / Urgente', info: 'Pacientes com prioridade Modo Bebezinho ou Urgente, ordenados pelo vencimento mais próximo primeiro. Quem não tem vencimento cadastrado aparece por último.' }
   };
   function dashboardFilterPatients(key){
     var today = new Date();
@@ -7296,8 +7307,20 @@
       if(key === 'inativos') return renovacaoStatus(p) === 'Vencido';
       if(key === 'renovacaoAntecipada') return renovacaoStatus(p) === 'Renovação antecipada';
       if(key === 'renovacaoProxima') return renovacaoStatus(p) === 'Renovação próxima';
+      if(key === 'bebezinhoUrgente') return p.prioridade === 'Modo Bebezinho' || p.prioridade === 'Urgente';
       return false;
     });
+    if(key === 'bebezinhoUrgente'){
+      // ordem por vencimento (quem vence primeiro aparece primeiro), nao por
+      // prioridade — quem nao tem vencimento cadastrado vai pro final da lista.
+      return list.sort(function(a,b){
+        if(!a.vencimento && !b.vencimento) return a.nome.localeCompare(b.nome, 'pt-BR');
+        if(!a.vencimento) return 1;
+        if(!b.vencimento) return -1;
+        if(a.vencimento !== b.vencimento) return a.vencimento < b.vencimento ? -1 : 1;
+        return a.nome.localeCompare(b.nome, 'pt-BR');
+      });
+    }
     return list.sort(function(a,b){ return a.nome.localeCompare(b.nome, 'pt-BR'); });
   }
   function inativosRows(){
@@ -7566,6 +7589,10 @@
       '<button class="kpi-card info'+(state.dashboardFilter==='consulta'?' selected':'')+'" data-kpi="consulta">'+
         '<div class="kpi-label">Consulta Próxima</div>'+
         '<div class="kpi-value">'+k.consultaProximo+'</div>'+
+      '</button>'+
+      '<button class="kpi-card dual-priority'+(state.dashboardFilter==='bebezinhoUrgente'?' selected':'')+'" data-kpi="bebezinhoUrgente">'+
+        '<div class="kpi-label">Modo Bebezinho<br>Urgente</div>'+
+        '<div class="kpi-value">'+dashboardFilterPatients('bebezinhoUrgente').length+'</div>'+
       '</button>'+
       '<button class="kpi-card muted'+(state.dashboardFilter==='inativos'?' selected':'')+'" data-kpi="inativos">'+
         '<div class="kpi-label">Pacientes Inativos</div>'+
