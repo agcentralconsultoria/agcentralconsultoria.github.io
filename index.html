@@ -412,9 +412,7 @@
     box-shadow:var(--shadow);border-left:4px solid var(--primary);
     cursor:pointer;text-align:left;border-top:none;border-right:none;border-bottom:none;
     font-family:inherit;width:100%;transition:box-shadow .15s, transform .05s;
-    position:relative;
   }
-  .kpi-card .info-icon-btn{position:absolute;top:10px;right:10px;}
   .kpi-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.12);}
   .kpi-card:active{transform:scale(.99);}
   .kpi-card.selected{outline:2px solid var(--primary);outline-offset:-1px;}
@@ -7263,13 +7261,13 @@
   var DASHBOARD_FILTER_META = {
     ativos: { title: 'Pacientes Ativos' },
     vencendo: { title: 'Vencendo em 15 dias' },
-    consulta: { title: 'Consulta Próxima' },
+    consulta: { title: 'Consulta Próxima', info: 'Consulta marcada entre hoje e os próximos 15 dias.' },
     aniversariantes: { title: 'Aniversariantes da Semana' },
     inativos: { title: 'Pacientes Inativos' },
     treinoVencido: { title: 'Ficha de Treino Vencida' },
     treinoAVencer: { title: 'Ficha de Treino a Vencer' },
-    renovacaoAntecipada: { title: 'Renovação Antecipada' },
-    renovacaoProxima: { title: 'Renovação Próxima' }
+    renovacaoAntecipada: { title: 'Renovação Antecipada', info: 'Vencimento do plano nos próximos 30 dias (ainda não venceu).' },
+    renovacaoProxima: { title: 'Renovação Próxima', info: 'Vencimento do plano entre 31 e 40 dias a partir de hoje.' }
   };
   function dashboardFilterPatients(key){
     var today = new Date();
@@ -7521,7 +7519,6 @@
         '<div class="kpi-value">'+k.vencendo+'</div>'+
       '</button>'+
       '<button class="kpi-card info'+(state.dashboardFilter==='consulta'?' selected':'')+'" data-kpi="consulta">'+
-        '<span class="info-icon-btn" type="button" data-info-toggle="info-consulta">i</span>'+
         '<div class="kpi-label">Consulta Próxima</div>'+
         '<div class="kpi-value">'+k.consultaProximo+'</div>'+
       '</button>'+
@@ -7534,19 +7531,14 @@
         '<div class="kpi-value">'+dashboardFilterPatients('inativos').length+'</div>'+
       '</button>'+
       '<button class="kpi-card alt'+(state.dashboardFilter==='renovacaoProxima'?' selected':'')+'" data-kpi="renovacaoProxima">'+
-        '<span class="info-icon-btn" type="button" data-info-toggle="info-renovacao-proxima">i</span>'+
         '<div class="kpi-label">Renovação Próxima</div>'+
         '<div class="kpi-value">'+dashboardFilterPatients('renovacaoProxima').length+'</div>'+
       '</button>'+
       '<button class="kpi-card info'+(state.dashboardFilter==='renovacaoAntecipada'?' selected':'')+'" data-kpi="renovacaoAntecipada">'+
-        '<span class="info-icon-btn" type="button" data-info-toggle="info-renovacao-antecipada">i</span>'+
         '<div class="kpi-label">Renovação Antecipada</div>'+
         '<div class="kpi-value">'+dashboardFilterPatients('renovacaoAntecipada').length+'</div>'+
       '</button>'+
     '</div>'+
-    '<div class="info-popover" id="info-consulta">Consulta marcada entre hoje e os próximos 15 dias.</div>'+
-    '<div class="info-popover" id="info-renovacao-proxima">Vencimento do plano entre 31 e 40 dias a partir de hoje.</div>'+
-    '<div class="info-popover" id="info-renovacao-antecipada">Vencimento do plano nos próximos 30 dias (ainda não venceu).</div>'+
     '<div class="section-header-row">'+
       '<h2 class="section-title">Fichas de Treino</h2>'+
       '<button class="info-icon-btn" type="button" data-info-toggle="info-treino">i</button>'+
@@ -7564,9 +7556,13 @@
     '</div>'+
     (state.dashboardFilter ? (''+
       '<div class="profile-top" style="margin-bottom:4px;">'+
-        '<h2 class="section-title" style="margin:0;">'+DASHBOARD_FILTER_META[state.dashboardFilter].title+'</h2>'+
+        '<div style="display:flex;align-items:center;gap:8px;">'+
+          '<h2 class="section-title" style="margin:0;">'+DASHBOARD_FILTER_META[state.dashboardFilter].title+'</h2>'+
+          (DASHBOARD_FILTER_META[state.dashboardFilter].info ? '<button class="info-icon-btn" type="button" data-info-toggle="info-dashboard-filter">i</button>' : '')+
+        '</div>'+
         '<button class="modal-close" id="dashboardFilterCloseBtn" title="Fechar">&times;</button>'+
       '</div>'+
+      (DASHBOARD_FILTER_META[state.dashboardFilter].info ? '<div class="info-popover" id="info-dashboard-filter">'+DASHBOARD_FILTER_META[state.dashboardFilter].info+'</div>' : '')+
       '<div class="card" style="margin-bottom:32px;">'+
         (state.dashboardFilter === 'aniversariantes' ? (''+
           '<table><thead><tr><th>Nome</th><th>Data de Nascimento</th><th>Faltam</th></tr></thead>'+
