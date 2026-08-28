@@ -7270,18 +7270,6 @@
     });
     return { ativos: ativos, vencendo: vencendo, consultaProximo: consultaProximo };
   }
-  function ultimosPacientes(){
-    var today = new Date();
-    today.setHours(0,0,0,0);
-    return state.patients.filter(function(p){
-      if(renovacaoStatus(p) === 'Vencido') return false;
-      if(p.prioridade === 'Modo Bebezinho') return true;
-      if(!p.createdDate) return false;
-      var created = new Date(p.createdDate + 'T00:00:00');
-      var diffDays = Math.floor((today - created) / 86400000);
-      return diffDays <= 30;
-    }).sort(function(a,b){ return b.createdAt - a.createdAt; });
-  }
   var DASHBOARD_FILTER_META = {
     ativos: { title: 'Pacientes Ativos' },
     vencendo: { title: 'Vencendo em 15 dias' },
@@ -7534,19 +7522,6 @@
   function dashboardTemplate(){
     var monthKey = state.competencia;
     var k = computeKPIs();
-    var ultimos = ultimosPacientes();
-    var rows = ultimos.map(function(p){
-      return '<tr>'+
-        '<td><button class="link-btn" data-open-profile="'+p.id+'">'+esc(p.nome)+'</button></td>'+
-        '<td>'+esc(p.plano)+'</td>'+
-        '<td>'+priorityBadge(p.prioridade)+'</td>'+
-        '<td>'+renovacaoBadge(p)+'</td>'+
-        '<td>'+prazoBadge(p.vencimento)+'</td>'+
-      '</tr>';
-    }).join('');
-    if(!ultimos.length){
-      rows = '<tr><td colspan="5"><div class="empty-state">Nenhum paciente cadastrado ainda.</div></td></tr>';
-    }
     var risco = pacientesEmRisco(monthKey);
     var riscoRows = risco.map(function(p){
       var r = engagementRisk(p, monthKey);
@@ -7646,18 +7621,6 @@
     '<div class="card" style="margin-bottom:32px;background:var(--danger-bg);border:1px solid var(--danger);">'+
       '<table><thead><tr><th>Nome</th><th>Engajamento Médio</th><th>Check-ins</th><th>Prioridade</th></tr></thead>'+
       '<tbody>'+riscoRows+'</tbody></table>'+
-    '</div>'+
-    '<div class="section-header-row">'+
-      '<h2 class="section-title">Últimos Pacientes</h2>'+
-      '<button class="info-icon-btn" type="button" data-info-toggle="info-ultimos">i</button>'+
-      dashToggleBtnHtml('ultimos')+
-    '</div>'+
-    '<div class="info-popover" id="info-ultimos">Entraram no acompanhamento nos últimos 30 dias, ou estão em Modo Bebezinho (ficam aqui enquanto estiverem nessa prioridade, sem limite de tempo).</div>'+
-    dashWrapOpenHtml('ultimos')+
-      '<div class="card" style="margin-bottom:32px;">'+
-        '<table><thead><tr><th>Nome</th><th>Plano</th><th>Prioridade</th><th>Status</th><th>Vencimento</th></tr></thead>'+
-        '<tbody>'+rows+'</tbody></table>'+
-      '</div>'+
     '</div>'+
     '<div class="section-header-row">'+
       '<h2 class="section-title">Comparação Mensal</h2>'+
