@@ -251,6 +251,17 @@ patient = {
   edição — atualizar a Vigência é o que reativa, não existe flag separada).
 - Prioridade, ordem de urgência: **Modo Bebezinho > Urgente > Moderada > Sem
   urgência**.
+- **Janela do check-in semanal, sexta a segunda** (regra dada pelo Ângelo em
+  28/08/2026): cada semana de check-in "oficialmente" cai numa sexta-feira
+  (`nthFridayDate`), mas se o paciente manda o check-in/peso no sábado,
+  domingo ou segunda, ainda conta como aquela semana. Terça/quarta/quinta
+  ficam fora de qualquer janela — não pertencem a semana nenhuma. Implementada
+  em `weekIndexForDate(monthKey, dateStr)` ([index.html](index.html)) e usada pra
+  casar um peso com data explícita (registrado via "+ Registrar peso"/"Editar
+  peso") com a "Observação do Check-in" certa no tooltip de "Evolução do
+  peso" e ao salvar a observação pela tela de editar peso. Sem data explícita
+  (peso lançado direto na grade semanal), a semana já é a própria posição no
+  array, então nada muda pra esse caso.
 
 ---
 
