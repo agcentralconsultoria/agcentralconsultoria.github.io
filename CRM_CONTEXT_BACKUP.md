@@ -960,6 +960,11 @@ Dashboard, Jornada, Captação completa, Financeiro).
   verdade**, é só regenerar os arquivos em `icons/` a partir dela
   (mesmo processo de upscale, ou direto se já vier grande) — não precisa
   reabrir manifest/head, só substituir os PNGs.
+- **Ajuste 28/08/2026**: o fundo transparente ao redor do círculo gerava
+  fundo branco no ícone (padrão de várias telas/OS pra PNG transparente).
+  Ícones regenerados com fundo **preto** sólido (composto na hora do
+  upscale). `manifest.json` `background_color` também mudado de `#ffffff`
+  pra `#000000` (cor da splash screen ao abrir o PWA).
 
 ---
 
