@@ -1720,6 +1720,22 @@
     }
     return fridays[weekIndex] || null;
   }
+  /* Janela do check-in de cada semana: sexta (dia oficial) ate segunda (sexta+3
+     dias) — se o paciente nao manda sexta/sabado, tem ate domingo/segunda que
+     ainda conta pra aquela semana. Usada pra saber a qual semana um peso com data
+     explicita pertence, e assim casar com a Observacao do Check-in certa (regra
+     dada pelo Angelo em 28/08/2026). Fora dessa janela (ter/qua/qui), nao ha
+     semana correspondente. */
+  function weekIndexForDate(monthKey, dateStr){
+    if(!dateStr) return -1;
+    var wk = weeksInMonth(monthKey);
+    for(var i=0;i<wk;i++){
+      var friday = nthFridayDate(monthKey, i);
+      if(!friday) continue;
+      if(dateStr >= friday && dateStr <= addDaysIso(friday, 3)) return i;
+    }
+    return -1;
+  }
   function fmtPeso(v){
     // mostra o peso com a precisao que a pessoa digitou, sem arredondar pra 1 casa
     // decimal a forca (96.02 tem que continuar 96.02, nao virar 96.0)
@@ -1743,7 +1759,14 @@
           var explicit = Array.isArray(dataArr) ? dataArr[i] : null;
           var d = explicit || nthFridayDate(monthKey, i);
           if(!d) return;
-          entries.push({ date: d, value: parseFloat(v), monthKey: monthKey, weekIndex: i, obs: (Array.isArray(obsArr) && obsArr[i]) || '' });
+          // a observacao do check-in mora no indice da SEMANA (pela data), que pode
+          // divergir do indice de armazenamento do peso `i` (que so segue a ordem de
+          // cadastro, nao a data — ver comentario de nextFreePesoSlot). Sem data
+          // explicita (peso lancado na grade semanal) os dois indices sempre batem,
+          // entao o fallback pra `i` preserva esse caso sem mudar nada.
+          var checkinWeekIndex = weekIndexForDate(monthKey, d);
+          if(checkinWeekIndex === -1) checkinWeekIndex = i;
+          entries.push({ date: d, value: parseFloat(v), monthKey: monthKey, weekIndex: i, checkinWeekIndex: checkinWeekIndex, obs: (Array.isArray(obsArr) && obsArr[checkinWeekIndex]) || '' });
         });
       });
     }
@@ -9585,7 +9608,11 @@
         }
         updatePesoEntry(editPid, editMonthKey, editWeekIndex, editValue, editDate);
         var editObsEl = document.getElementById('pesoEditObs');
-        if(editObsEl) updateObsCheckinEntry(editPid, editMonthKey, editWeekIndex, editObsEl.value.trim());
+        if(editObsEl){
+          var editCheckinWeekIndex = weekIndexForDate(editMonthKey, editDate);
+          if(editCheckinWeekIndex === -1) editCheckinWeekIndex = editWeekIndex;
+          updateObsCheckinEntry(editPid, editMonthKey, editCheckinWeekIndex, editObsEl.value.trim());
+        }
         state.pesoEditingKey = null;
         refreshOverviewTable();
         showToast('Peso atualizado.', 'success');
