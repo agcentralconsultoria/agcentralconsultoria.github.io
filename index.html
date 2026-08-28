@@ -7518,25 +7518,25 @@
         '<div class="kpi-label">Vencendo em 15 dias</div>'+
         '<div class="kpi-value">'+k.vencendo+'</div>'+
       '</button>'+
-      '<button class="kpi-card info'+(state.dashboardFilter==='consulta'?' selected':'')+'" data-kpi="consulta">'+
-        '<div class="kpi-label">Consulta Próxima</div>'+
-        '<div class="kpi-value">'+k.consultaProximo+'</div>'+
-      '</button>'+
-      '<button class="kpi-card pink'+(state.dashboardFilter==='aniversariantes'?' selected':'')+'" data-kpi="aniversariantes">'+
-        '<div class="kpi-label">Aniversariantes da Semana</div>'+
-        '<div class="kpi-value">'+aniversariantesDaSemana().length+'</div>'+
-      '</button>'+
-      '<button class="kpi-card muted'+(state.dashboardFilter==='inativos'?' selected':'')+'" data-kpi="inativos">'+
-        '<div class="kpi-label">Pacientes Inativos</div>'+
-        '<div class="kpi-value">'+dashboardFilterPatients('inativos').length+'</div>'+
+      '<button class="kpi-card info'+(state.dashboardFilter==='renovacaoAntecipada'?' selected':'')+'" data-kpi="renovacaoAntecipada">'+
+        '<div class="kpi-label">Renovação Antecipada</div>'+
+        '<div class="kpi-value">'+dashboardFilterPatients('renovacaoAntecipada').length+'</div>'+
       '</button>'+
       '<button class="kpi-card alt'+(state.dashboardFilter==='renovacaoProxima'?' selected':'')+'" data-kpi="renovacaoProxima">'+
         '<div class="kpi-label">Renovação Próxima</div>'+
         '<div class="kpi-value">'+dashboardFilterPatients('renovacaoProxima').length+'</div>'+
       '</button>'+
-      '<button class="kpi-card info'+(state.dashboardFilter==='renovacaoAntecipada'?' selected':'')+'" data-kpi="renovacaoAntecipada">'+
-        '<div class="kpi-label">Renovação Antecipada</div>'+
-        '<div class="kpi-value">'+dashboardFilterPatients('renovacaoAntecipada').length+'</div>'+
+      '<button class="kpi-card pink'+(state.dashboardFilter==='aniversariantes'?' selected':'')+'" data-kpi="aniversariantes">'+
+        '<div class="kpi-label">Aniversariantes da Semana</div>'+
+        '<div class="kpi-value">'+aniversariantesDaSemana().length+'</div>'+
+      '</button>'+
+      '<button class="kpi-card info'+(state.dashboardFilter==='consulta'?' selected':'')+'" data-kpi="consulta">'+
+        '<div class="kpi-label">Consulta Próxima</div>'+
+        '<div class="kpi-value">'+k.consultaProximo+'</div>'+
+      '</button>'+
+      '<button class="kpi-card muted'+(state.dashboardFilter==='inativos'?' selected':'')+'" data-kpi="inativos">'+
+        '<div class="kpi-label">Pacientes Inativos</div>'+
+        '<div class="kpi-value">'+dashboardFilterPatients('inativos').length+'</div>'+
       '</button>'+
     '</div>'+
     '<div class="section-header-row">'+
