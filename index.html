@@ -1508,6 +1508,7 @@
     statusFilter: 'todos',
     planoFilter: 'todos',
     prioridadeFilter: 'todos',
+    consultaFilter: 'todos',
     overviewNomeFilter: '',
     overviewSortDir: 'asc',
     overviewConsultaFilter: 'todos',
@@ -7326,21 +7327,55 @@
       '</tr>';
     }).join('');
   }
+  function patientSummaryRowHtml(p){
+    return '<tr>'+
+      '<td><button class="link-btn" data-open-profile="'+p.id+'">'+esc(p.nome)+'</button></td>'+
+      '<td>'+esc(p.plano)+'</td>'+
+      '<td>'+priorityBadge(p.prioridade)+'</td>'+
+      '<td>'+renovacaoBadge(p)+'</td>'+
+      '<td>'+prazoBadge(p.vencimento)+'</td>'+
+      '<td>'+consultaBadge(p)+'</td>'+
+    '</tr>';
+  }
   function dashboardFilterRows(key){
     var list = dashboardFilterPatients(key);
     if(!list.length){
       return '<tr><td colspan="6"><div class="empty-state">Nenhum paciente encontrado.</div></td></tr>';
     }
-    return list.map(function(p){
-      return '<tr>'+
-        '<td><button class="link-btn" data-open-profile="'+p.id+'">'+esc(p.nome)+'</button></td>'+
-        '<td>'+esc(p.plano)+'</td>'+
-        '<td>'+priorityBadge(p.prioridade)+'</td>'+
-        '<td>'+renovacaoBadge(p)+'</td>'+
-        '<td>'+prazoBadge(p.vencimento)+'</td>'+
-        '<td>'+consultaBadge(p)+'</td>'+
-      '</tr>';
-    }).join('');
+    return list.map(patientSummaryRowHtml).join('');
+  }
+  /* Tabela de "Pacientes Ativos" no Dashboard: reaproveita o mesmo motor de
+     busca/ordenacao/filtro da antiga listagem de "Pacientes" (removida por ser
+     redundante com este card — ver pedido do Angelo em 28/08/2026), incluindo
+     os mesmos estados (sortBy/sortDir/planoFilter/prioridadeFilter/statusFilter)
+     e a mesma funcao `filteredPatients()`. */
+  function dashboardAtivosRows(){
+    var list = filteredPatients();
+    if(!list.length){
+      return '<tr><td colspan="6"><div class="empty-state">Nenhum paciente encontrado.</div></td></tr>';
+    }
+    return list.map(patientSummaryRowHtml).join('');
+  }
+  function dashboardAtivosTableHtml(){
+    return '<input type="text" id="dashAtivosSearchInput" class="search-input" style="margin-bottom:12px;max-width:320px;" placeholder="Buscar por nome..." value="'+esc(state.search)+'">'+
+      '<table><thead><tr>'+
+        '<th class="th-sort" data-sort="nome">Nome'+sortArrow('nome')+'</th>'+
+        filterThHtml('planoFilter', 'Plano', 'Todos os Planos', ['Avulso','Trimestral','Semestral','Anual','Essencial Trimestral','Essencial Semestral'])+
+        filterThHtml('prioridadeFilter', 'Prioridade', 'Todas as Prioridades', ['Modo Bebezinho','Urgente','Moderada','Sem urgência'])+
+        filterThHtml('statusFilter', 'Status', 'Todos os Status', [
+          {value:'Ativo', label:'Ativo'}, {value:'Renovação próxima', label:'Renovação próxima'}, {value:'Renovação antecipada', label:'Renovação antecipada'}
+        ])+
+        '<th class="th-sort" data-sort="vencimento">Vencimento'+sortArrow('vencimento')+'</th>'+
+        filterThHtml('consultaFilter', 'Status Consulta', 'Todos', [
+          {value:'emdia', label:'Em dia'}, {value:'proximo', label:'Próximo'}, {value:'atrasado', label:'Atrasado'}, {value:'semdata', label:'Sem data'}
+        ])+
+      '</tr></thead><tbody id="dashAtivosTableBody">'+dashboardAtivosRows()+'</tbody></table>';
+  }
+  function refreshDashboardAtivosTable(){
+    var tbody = document.getElementById('dashAtivosTableBody');
+    if(!tbody) return;
+    tbody.innerHTML = dashboardAtivosRows();
+    bindProfileOpeners(tbody);
   }
   function birthdayRows(){
     var list = aniversariantesDaSemana();
@@ -7596,7 +7631,8 @@
         ) : (state.dashboardFilter === 'treinoVencido' || state.dashboardFilter === 'treinoAVencer') ? (''+
           '<table><thead><tr><th>Nome</th><th>Treino Passado</th><th>Vencimento</th><th>Expectativa</th></tr></thead>'+
           '<tbody>'+fichaTreinoRows(state.dashboardFilter)+'</tbody></table>'
-        ) : (''+
+        ) : state.dashboardFilter === 'ativos' ? dashboardAtivosTableHtml()
+        : (''+
           '<table><thead><tr><th>Nome</th><th>Plano</th><th>Prioridade</th><th>Status</th><th>Vencimento</th><th>Status Consulta</th></tr></thead>'+
           '<tbody>'+dashboardFilterRows(state.dashboardFilter)+'</tbody></table>'
         )) +
@@ -7733,6 +7769,50 @@
         openFormModal('edit', parseInt(this.getAttribute('data-reactivate'),10));
       });
     }
+    // Tabela de "Pacientes Ativos" (busca/ordenar/filtrar) — mesmo padrao reaproveitado
+    // da antiga listagem de Pacientes (data-sort + data-filter-toggle/filter-menu-option).
+    var dashAtivosSearch = document.getElementById('dashAtivosSearchInput');
+    if(dashAtivosSearch){
+      dashAtivosSearch.addEventListener('input', function(e){
+        state.search = e.target.value;
+        refreshDashboardAtivosTable();
+      });
+    }
+    var content = document.getElementById('content');
+    var dashSortHeaders = content.querySelectorAll('[data-sort]');
+    for(var ds=0;ds<dashSortHeaders.length;ds++){
+      dashSortHeaders[ds].addEventListener('click', function(){
+        var col = this.getAttribute('data-sort');
+        if(state.sortBy === col){
+          state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          state.sortBy = col;
+          state.sortDir = 'asc';
+        }
+        render();
+      });
+    }
+    var DASHBOARD_ATIVOS_FILTER_KEYS = ['planoFilter','prioridadeFilter','statusFilter','consultaFilter'];
+    content.addEventListener('click', function(e){
+      var toggle = e.target.closest('[data-filter-toggle]');
+      if(toggle){
+        var menu = toggle.closest('.th-filter').querySelector('.filter-menu');
+        var willOpen = !menu.classList.contains('open');
+        document.querySelectorAll('.filter-menu.open').forEach(function(m){ m.classList.remove('open'); });
+        if(willOpen) menu.classList.add('open');
+        document.querySelectorAll('.card').forEach(function(c){
+          c.classList.toggle('menu-open', !!c.querySelector('.filter-menu.open'));
+        });
+        return;
+      }
+      var option = e.target.closest('.filter-menu-option');
+      if(option){
+        var fKey = option.getAttribute('data-filter-key');
+        var fValue = option.getAttribute('data-filter-value');
+        applyFilterSelection(fKey, fValue);
+        if(DASHBOARD_ATIVOS_FILTER_KEYS.indexOf(fKey) !== -1) refreshDashboardAtivosTable();
+      }
+    });
   }
   function setJornadaTaskDone(patientId, taskId, done){
     var p = getPatient(patientId);
@@ -9191,27 +9271,29 @@
   }
   function filteredPatients(){
     var term = state.search.trim().toLowerCase();
-    return state.patients.filter(function(p){
+    var list = state.patients.filter(function(p){
       if(renovacaoStatus(p) === 'Vencido') return false;
       var matchesSearch = !term || p.nome.toLowerCase().indexOf(term) !== -1;
       var matchesStatus = state.statusFilter === 'todos' || renovacaoStatus(p) === state.statusFilter;
       var matchesPlano = state.planoFilter === 'todos' || p.plano === state.planoFilter;
       var matchesPrioridade = state.prioridadeFilter === 'todos' || p.prioridade === state.prioridadeFilter;
-      return matchesSearch && matchesStatus && matchesPlano && matchesPrioridade;
-    }).sort(comparePatients);
-  }
-  function patientRowTemplate(p){
-    return '<tr>'+
-      '<td><button class="link-btn" data-open-profile="'+p.id+'">'+esc(p.nome)+'</button></td>'+
-      '<td>'+esc(p.plano)+'</td>'+
-      '<td>'+priorityBadge(p.prioridade)+'</td>'+
-      '<td>'+renovacaoBadge(p)+'</td>'+
-      '<td class="actions">'+
-        '<button class="btn-icon" data-open-profile="'+p.id+'">Ver</button>'+
-        '<button class="btn-icon" data-open-edit="'+p.id+'">Editar</button>'+
-        '<button class="btn-icon btn-danger-outline" data-open-delete="'+p.id+'">Excluir</button>'+
-      '</td>'+
-    '</tr>';
+      var matchesConsulta = state.consultaFilter === 'todos' || consultaStatus(p) === state.consultaFilter;
+      return matchesSearch && matchesStatus && matchesPlano && matchesPrioridade && matchesConsulta;
+    });
+    // com um Status Consulta especifico selecionado, a ordem e sempre por urgencia da
+    // consulta (menos dias primeiro) — pedido do Angelo em 28/08/2026 — em vez da
+    // ordenacao por coluna (Nome/Vencimento/etc) escolhida no cabecalho.
+    if(state.consultaFilter !== 'todos'){
+      return list.sort(function(a,b){
+        var da = consultaDiffDays(a), db = consultaDiffDays(b);
+        if(da === null && db === null) return a.nome.localeCompare(b.nome, 'pt-BR');
+        if(da === null) return 1;
+        if(db === null) return -1;
+        if(da !== db) return da - db;
+        return a.nome.localeCompare(b.nome, 'pt-BR');
+      });
+    }
+    return list.sort(comparePatients);
   }
   function weekCellHtml(engVal, chkVal){
     var cls = engVal !== null ? engColorClass(engVal) : (chkVal===false ? 'eng-red' : 'eng-empty');
@@ -9392,9 +9474,6 @@
       '<div class="form-group" style="min-width:220px;"><label>Competência</label><select id="pacientesCompetenciaSelect" class="filter-select">'+monthSelectOptions(state.competencia)+'</select></div>'+
     '</div>'+
     '<div class="toolbar">'+
-      '<div class="toolbar-filters">'+
-        '<input type="text" id="searchInput" class="search-input" placeholder="Buscar por nome..." value="'+esc(state.search)+'">'+
-      '</div>'+
       '<div class="toolbar-io">'+
         '<button class="btn btn-outline" id="exportBtn">Exportar</button>'+
         '<button class="btn btn-outline" id="importBtn">Importar</button>'+
@@ -9403,24 +9482,6 @@
       '<button class="btn btn-primary" id="newPatientBtn">+ Novo Paciente</button>'+
     '</div>'+
     '<div class="section-header-row">'+
-      '<h2 class="section-title">Pacientes</h2>'+
-      '<button class="btn-icon" type="button" id="pacientesTableToggleBtn" style="margin-left:auto;">'+(state.pacientesTableCollapsed?'Mostrar':'Recolher')+'</button>'+
-    '</div>'+
-    '<div id="pacientesTableWrap" style="'+(state.pacientesTableCollapsed?'display:none;':'')+'">'+
-      '<div class="card">'+
-        '<table><thead><tr>'+
-          '<th class="th-sort" data-sort="nome">Nome'+sortArrow('nome')+'</th>'+
-          filterThHtml('planoFilter', 'Plano', 'Todos os Planos', ['Avulso','Trimestral','Semestral','Anual','Essencial Trimestral','Essencial Semestral'])+
-          filterThHtml('prioridadeFilter', 'Prioridade', 'Todas as Prioridades', ['Modo Bebezinho','Urgente','Moderada','Sem urgência'])+
-          filterThHtml('statusFilter', 'Status', 'Todos os Status', [
-            {value:'Ativo', label:'Ativo'}, {value:'Renovação próxima', label:'Renovação próxima'}, {value:'Renovação antecipada', label:'Renovação antecipada'}
-          ])+
-          '<th>Ações</th>'+
-        '</tr></thead>'+
-        '<tbody id="patientsTableBody">'+renderPatientRows()+'</tbody></table>'+
-      '</div>'+
-    '</div>'+
-    '<div class="section-header-row" style="margin-top:32px;">'+
       '<h2 class="section-title">Visão Geral — Engajamento e Check-in ('+monthLabel(state.competencia)+')</h2>'+
       '<button class="info-icon-btn" type="button" data-info-toggle="info-visao-geral">i</button>'+
       '<button class="btn-icon" type="button" data-info-toggle="info-week-calendar" title="Ver quais dias correspondem a cada semana">📅 Ver semanas</button>'+
@@ -9444,39 +9505,15 @@
       '</div>'+
     '</div>';
   }
-  function renderPatientRows(){
-    var list = filteredPatients();
-    if(!list.length){
-      return '<tr><td colspan="5"><div class="empty-state">Nenhum paciente encontrado.</div></td></tr>';
-    }
-    return list.map(patientRowTemplate).join('');
-  }
-  function refreshPatientsTable(){
-    var tbody = document.getElementById('patientsTableBody');
-    if(!tbody) return;
-    tbody.innerHTML = renderPatientRows();
-    bindProfileOpeners(tbody);
-    bindRowActions(tbody);
-  }
   function refreshOverviewTable(){
     var tbody = document.getElementById('overviewTableBody');
     if(!tbody) return;
     tbody.innerHTML = overviewTableRowsHtml(state.competencia);
     bindProfileOpeners(tbody);
   }
-  var MAIN_TABLE_FILTER_KEYS = ['planoFilter','prioridadeFilter','statusFilter'];
   var OVERVIEW_FILTER_KEYS = ['overviewConsultaFilter','overviewMediaFilter'];
   function attachPacientesEvents(){
     var content = document.getElementById('content');
-    document.getElementById('searchInput').addEventListener('input', function(e){
-      state.search = e.target.value;
-      refreshPatientsTable();
-    });
-    document.getElementById('pacientesTableToggleBtn').addEventListener('click', function(){
-      state.pacientesTableCollapsed = !state.pacientesTableCollapsed;
-      document.getElementById('pacientesTableWrap').style.display = state.pacientesTableCollapsed ? 'none' : '';
-      this.textContent = state.pacientesTableCollapsed ? 'Mostrar' : 'Recolher';
-    });
     document.getElementById('visaoGeralToggleBtn').addEventListener('click', function(){
       state.visaoGeralCollapsed = !state.visaoGeralCollapsed;
       document.getElementById('visaoGeralWrap').style.display = state.visaoGeralCollapsed ? 'none' : '';
@@ -9640,7 +9677,6 @@
         var fKey = option.getAttribute('data-filter-key');
         var fValue = option.getAttribute('data-filter-value');
         applyFilterSelection(fKey, fValue);
-        if(MAIN_TABLE_FILTER_KEYS.indexOf(fKey) !== -1) refreshPatientsTable();
         if(OVERVIEW_FILTER_KEYS.indexOf(fKey) !== -1) refreshOverviewTable();
       }
     });
@@ -9660,21 +9696,7 @@
       handleImportFile(this.files[0]);
       this.value = '';
     });
-    var sortHeaders = content.querySelectorAll('.th-sort');
-    for(var s=0;s<sortHeaders.length;s++){
-      sortHeaders[s].addEventListener('click', function(){
-        var col = this.getAttribute('data-sort');
-        if(state.sortBy === col){
-          state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
-        } else {
-          state.sortBy = col;
-          state.sortDir = 'asc';
-        }
-        render();
-      });
-    }
     bindProfileOpeners(content);
-    bindRowActions(content);
     bindInfoIcons(content);
   }
 
@@ -9758,21 +9780,6 @@
       });
     }
   }
-  function bindRowActions(scope){
-    var editEls = scope.querySelectorAll('[data-open-edit]');
-    for(var i=0;i<editEls.length;i++){
-      editEls[i].addEventListener('click', function(){
-        openFormModal('edit', parseInt(this.getAttribute('data-open-edit'),10));
-      });
-    }
-    var delEls = scope.querySelectorAll('[data-open-delete]');
-    for(var j=0;j<delEls.length;j++){
-      delEls[j].addEventListener('click', function(){
-        openDeleteModal(parseInt(this.getAttribute('data-open-delete'),10));
-      });
-    }
-  }
-
   /* ================= FINANCEIRO ================= */
   /* Entrada/Saida sao os mesmos conceitos de Receita/Despesa, so com outro nome — um
      unico campo `tipo`. Cada Entrada guarda valor bruto e valor liquido separados:

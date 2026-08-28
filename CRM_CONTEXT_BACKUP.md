@@ -1041,3 +1041,42 @@ suficiente pra entender o que mudou. Marcos grandes, em ordem:
     seletor de mês independente, toggle Mês/Ano — ver §14.
 19. **Modo escuro completo**: alternância sol/lua fixa no canto superior
     direito, aplicado em todo o CRM preservando as cores de marca — ver §15.
+
+---
+
+## 19. Listagem de "Pacientes" removida — Dashboard "Pacientes Ativos" virou a lista principal (28/08/2026)
+
+A aba **Pacientes** tinha uma listagem própria (Nome/Plano/Prioridade/Status +
+botões Ver/Editar/Excluir) redundante com o card "Pacientes Ativos" do
+Dashboard. Removida a pedido do Ângelo — dentro de "Pacientes" agora só
+existem **Visão Geral** e **Material Pós-Consulta Pendente** (mais o toolbar
+com Competência, + Novo Paciente, Exportar, Importar — tudo preservado,
+nada dessas ações dependia da listagem removida).
+
+- O card **"Pacientes Ativos"** do Dashboard, ao ser clicado, agora abre a
+  tabela principal de pacientes ativos com busca por nome, ordenação por
+  Nome e Vencimento, e filtro por Plano/Prioridade/Status/Status Consulta —
+  reaproveitando 100% o motor antigo (`filteredPatients()`, `comparePatients`,
+  `filterThHtml`/`applyFilterSelection`, os mesmos `state.sortBy` /
+  `state.sortDir` / `state.planoFilter` / `state.prioridadeFilter` /
+  `state.statusFilter` que a listagem antiga já usava — ficaram "livres" pra
+  reaproveitar assim que a listagem foi removida). Novo campo
+  `state.consultaFilter` pro filtro de Status Consulta (Em dia/Próximo/
+  Atrasado/Sem data), que essa tabela não tinha antes.
+- **Sem botões de Ver/Editar/Excluir** nessa tabela (pedido explícito) — o
+  nome do paciente é clicável e abre o perfil, onde editar/excluir já
+  existem.
+- **Regra de ordenação por Vencimento**: crescente = quem vence primeiro
+  aparece primeiro (data mais próxima no topo); clique de novo inverte.
+- **Regra do filtro de Status Consulta** (definida pelo Ângelo nessa
+  conversa): ao selecionar um status de consulta específico (ex: "Próximo"),
+  a lista SEMPRE ordena por urgência — menos dias até a consulta primeiro
+  (ex: consulta em 3 dias antes de consulta em 5 dias), independente da
+  coluna de ordenação (Nome/Vencimento) que estava ativa antes. Só passa a
+  valer enquanto o filtro de Status Consulta não for "Todos".
+- Funções/estado removidos por ficarem órfãos: `patientRowTemplate`,
+  `renderPatientRows`, `refreshPatientsTable`, `bindRowActions`,
+  `MAIN_TABLE_FILTER_KEYS`. `dashboardFilterPatients`/`dashboardFilterRows`
+  continuam existindo e intactos pros outros cards (Vencendo, Consulta
+  Próxima, Renovação Próxima/Antecipada, Inativos, Aniversariantes,
+  Fichas de Treino) — só "Pacientes Ativos" ganhou a tabela nova.
