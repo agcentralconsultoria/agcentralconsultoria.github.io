@@ -1113,3 +1113,54 @@ Aplicado com **10 por página** em:
   `resumoEntregaRows`) passaram a retornar `{ rowsHtml, pagerHtml }` em vez
   de só a string das linhas — único jeito de expor a paginação sem duplicar
   a lógica de busca/ordenação que cada uma já tinha.
+
+---
+
+## 21. Comunidade e Instagram viraram duas abas separadas (29/08/2026)
+
+Até aqui, "Comunidade" era uma aba só cobrindo WhatsApp **e** Instagram
+juntos (um array `state.captacao.comunidade`, diferenciado por um campo
+`canal`). A pedido do Ângelo, viraram **duas abas separadas** dentro de
+Captação — Instagram logo abaixo de Comunidade no menu — porque ficava
+tudo misturado na mesma tela.
+
+- **Duas listas de dados de verdade**, não só duas telas filtrando a
+  mesma lista: `state.captacao.comunidade` (só WhatsApp, formato/nome
+  inalterado — nada migrou de lugar pra ela) e `state.captacao.instagram`
+  (nova, só itens de Instagram). Decisão explícita do Ângelo — a
+  alternativa mais simples (mesma lista, telas filtradas) foi oferecida e
+  recusada.
+- **Migração automática e idempotente** em `normalizeCaptacao()`: qualquer
+  item com `canal:'instagram'` que ainda esteja dentro de `comunidade`
+  (dado antigo, de antes dessa mudança, ou de um backup exportado
+  antes e importado depois) migra pra `instagram` toda vez que os dados
+  carregam — não é uma migração "de uma vez só". Isso cobre tanto o
+  primeiro carregamento pós-mudança quanto a importação futura de um JSON
+  exportado num CRM antigo.
+- **Motor único, reaproveitado pelas duas** (evita duplicar ~300 linhas):
+  `CRONOGRAMA_CFG` guarda a config de cada uma (array, canal, título,
+  tipos), e as funções genéricas (`cronogramaTemplate`,
+  `cronogramaListaHtml`, `cronogramaCalendarioHtml`, `cronogramaModalHtml`,
+  `bindCronogramaEvents` etc.) recebem essa config como parâmetro.
+  `comunidadeTemplate()`/`instagramTemplate()` e afins são só wrappers
+  finos chamando a versão genérica com a config certa.
+- **Sem seletor de Canal no formulário nem filtro na tela** — antes cada
+  item escolhia o canal manualmente; agora isso é implícito por qual aba
+  você está usando, então esse campo desapareceu do modal (só sobrou
+  Tipo/Data/Descrição) e o filtro "Todos/WhatsApp/Instagram" da lista
+  também saiu (não faz mais sentido com listas já separadas).
+- **Agenda de Captação**: antes tinha um bloco só "X itens de Comunidade"
+  misturando os dois canais; agora são **dois blocos separados**
+  ("X itens de Comunidade" e "X itens de Instagram") por faixa de prazo,
+  cada um com suas próprias ações de concluir/editar/excluir — decisão
+  explícita do Ângelo (a alternativa de tirar Instagram da Agenda foi
+  oferecida e recusada).
+- `bindCronogramaItemActionsIn(root, onChange)` (ex-
+  `bindComunidadeItemActionsIn`) agora reconhece sozinha a qual das duas
+  listas cada botão pertence (a chave vem embutida no atributo, ex:
+  `data-cron-done="instagram:12"`), então uma chamada só já cobre os dois
+  blocos simultâneos da Agenda.
+- Testado com dado migrado de um formato antigo simulado (lista mista),
+  desktop e mobile 375px: separação da migração, lista/calendário/modal
+  das duas abas, concluir/editar/excluir isolado (não vaza pra lista
+  errada), Agenda com os dois blocos — zero erro de console.

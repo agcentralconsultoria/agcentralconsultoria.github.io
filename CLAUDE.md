@@ -11,8 +11,8 @@ CRM de gestão de pacientes para o Angelo Garcia (treinador/nutricionista), usad
 também por sua colaboradora Débora. Um único arquivo `index.html` (~630KB+, vanilla
 JS/HTML/CSS, sem build, sem framework) contendo cadastro de pacientes, fichas de
 treino/dieta, check-ins semanais, Dashboard, Jornada (funil de tarefas/kanban), a
-área de Captação (Leads, Parcerias, Indicações, Comunidade, Visão Geral — completa,
-ver `CRM_CONTEXT_BACKUP.md` §11/§12), a aba **Financeiro** (entradas/saídas,
+área de Captação (Leads, Parcerias, Indicações, Comunidade, Instagram, Visão
+Geral — completa, ver `CRM_CONTEXT_BACKUP.md` §11/§12/§21), a aba **Financeiro** (entradas/saídas,
 bruto/líquido, comparativos mensais — ver §14) e um **modo escuro** completo com
 alternância sol/lua fixa no canto superior direito (ver §15).
 
