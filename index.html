@@ -691,8 +691,8 @@
   .jornada-kanban-cards{max-height:494px;overflow-y:auto;padding-right:4px;}
   .jornada-kanban-card,.jornada-task,.jornada-template-task{cursor:grab;}
   .jornada-kanban-card.dragging,.jornada-task.dragging,.jornada-template-task.dragging{opacity:.4;cursor:grabbing;}
-  .jornada-kanban-card.drag-over-top,.jornada-task.drag-over-top,.jornada-template-task.drag-over-top{box-shadow:0 -2px 0 0 var(--primary);}
-  .jornada-kanban-card.drag-over-bottom,.jornada-task.drag-over-bottom,.jornada-template-task.drag-over-bottom{box-shadow:0 2px 0 0 var(--primary);}
+  .jornada-kanban-card.drag-over-top,.jornada-task.drag-over-top,.jornada-template-task.drag-over-top,.lead-card.drag-over-top{box-shadow:0 -2px 0 0 var(--primary);}
+  .jornada-kanban-card.drag-over-bottom,.jornada-task.drag-over-bottom,.jornada-template-task.drag-over-bottom,.lead-card.drag-over-bottom{box-shadow:0 2px 0 0 var(--primary);}
   .jornada-kanban-card{
     padding:8px 9px;border-radius:8px;
     border:1px solid var(--border);margin-bottom:6px;background:var(--surface);
@@ -4943,6 +4943,25 @@
     root.querySelectorAll('[data-stop]').forEach(function(a){
       a.addEventListener('click', function(e){ e.stopPropagation(); });
     });
+    // Reordenar manualmente dentro da mesma coluna (mesmo motor generico usado no
+    // Kanban da Jornada — so dispara quando solta em cima de outro card DA MESMA
+    // coluna; soltar num card de outra coluna nao mexe na ordem aqui e deixa o
+    // 'drop' da coluna (acima) mudar a etapa, como ja funcionava).
+    root.querySelectorAll('.lead-cards').forEach(function(colEl){
+      bindDragReorder(colEl, '.lead-card', '.lead-cards',
+        function(item){ return item.getAttribute('data-lead-id'); },
+        function(orderedKeys){
+          reorderLeadsInEtapa(orderedKeys.map(function(k){ return parseInt(k,10); }));
+          refreshLeadKanban();
+        });
+    });
+  }
+  function reorderLeadsInEtapa(orderedIds){
+    orderedIds.forEach(function(id, idx){
+      var l = getLead(id);
+      if(l) l.ordem = idx;
+    });
+    saveCaptacao();
   }
   function moverLeadParaEtapa(id, etapa){
     var l = getLead(id);
