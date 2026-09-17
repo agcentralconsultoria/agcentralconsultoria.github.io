@@ -4367,6 +4367,7 @@
         '<h1>Angelo Garcia CRM</h1>'+
         '<p class="sub">'+(mfaStep?'Digite o código de 6 dígitos do app autenticador':'Acesse sua conta para continuar')+'</p>'+
         '<div id="loginError" class="login-error"></div>'+
+        '<pre id="loginErrorDebug" style="display:none;text-align:left;font-size:11px;line-height:1.4;background:#f5f5f5;border:1px solid #ddd;border-radius:6px;padding:8px;margin-top:8px;white-space:pre-wrap;word-break:break-all;-webkit-user-select:text;user-select:text;color:#555;"></pre>'+
         '<form id="loginForm">'+formInner+'</form>'+
         '<p class="login-hint">Acesso restrito à equipe Angelo Garcia.</p>'+
       '</div>'+
@@ -4377,8 +4378,10 @@
     form.addEventListener('submit', function(e){
       e.preventDefault();
       var errBox = document.getElementById('loginError');
+      var dbgBox = document.getElementById('loginErrorDebug');
       var submitBtn = form.querySelector('button[type="submit"]');
       errBox.classList.remove('show');
+      if(dbgBox){ dbgBox.style.display = 'none'; dbgBox.textContent = ''; }
       if(!mfa){
         errBox.textContent = 'Ainda carregando, espera um instante e tenta de novo.';
         errBox.classList.add('show');
@@ -4417,8 +4420,22 @@
           render();
           return;
         }
+        console.error('[DEBUG login] Erro real do Firebase:', error);
         errBox.textContent = 'E-mail ou senha inválidos.';
         errBox.classList.add('show');
+        if(dbgBox){
+          var dbgLines = [
+            'code: ' + (error && error.code),
+            'name: ' + (error && error.name),
+            'message: ' + (error && error.message)
+          ];
+          if(error && error.customData){
+            try{ dbgLines.push('customData: ' + JSON.stringify(error.customData)); }
+            catch(e){ dbgLines.push('customData: (não foi possível serializar)'); }
+          }
+          dbgBox.textContent = 'DEBUG TEMPORÁRIO — copie e envie:\n' + dbgLines.join('\n');
+          dbgBox.style.display = 'block';
+        }
       });
     });
     var backBtn = document.getElementById('loginMfaBackBtn');
