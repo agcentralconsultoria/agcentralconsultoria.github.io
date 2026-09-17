@@ -997,6 +997,9 @@
   .week-cell{border-radius:8px;padding:6px 2px;text-align:center;min-width:44px;}
   .week-cell-inativa{background:var(--bg);color:var(--text-faint);opacity:.55;font-weight:700;}
   .week-cell .num{font-size:13.5px;font-weight:800;}
+  .week-cell .num.tone-green{color:var(--success);}
+  .week-cell .num.tone-yellow{color:var(--warning);}
+  .week-cell .num.tone-red{color:var(--danger);}
   .week-cell .mark{font-size:11px;font-weight:700;margin-top:2px;}
   .table-scroll{overflow-x:auto;}
   .obs-cell{
@@ -9416,9 +9419,14 @@
     return list.sort(comparePatients);
   }
   function weekCellHtml(engVal, chkVal){
-    var cls = engVal !== null ? engColorClass(engVal) : (chkVal===false ? 'eng-red' : 'eng-empty');
+    // Cor de fundo (predominante) segue o check-in: enviou = verde, nao enviou = vermelho.
+    // So quando o check-in ainda nao foi avaliado e que a cor de fundo cai de volta pra
+    // nota de engajamento (ou cinza, se tambem nao tiver nota). A nota em si sempre mostra
+    // sua propria cor de texto (9-10 verde, 7-8 amarelo, 0-6 vermelho), independente do fundo.
+    var cls = chkVal === true ? 'eng-green' : chkVal === false ? 'eng-red' : (engVal !== null ? engColorClass(engVal) : 'eng-empty');
+    var numTone = engVal !== null ? engColorClass(engVal).replace('eng-','tone-') : '';
     var mark = chkVal===true?'✓':chkVal===false?'✗':'—';
-    return '<div class="week-cell '+cls+'"><div class="num">'+(engVal===null?'—':engVal)+'</div><div class="mark">'+mark+'</div></div>';
+    return '<div class="week-cell '+cls+'"><div class="num'+(numTone?' '+numTone:'')+'">'+(engVal===null?'—':engVal)+'</div><div class="mark">'+mark+'</div></div>';
   }
   function materialPendenteList(){
     return state.patients.filter(function(p){ return renovacaoStatus(p) !== 'Vencido' && !p.materialPos; })
