@@ -1269,7 +1269,6 @@
     messagingSenderId: "320508821570",
     appId: "1:320508821570:web:eb460521cb8a27fe83eddb"
   };
-  window.__APP_BUILD = { projectId: appConfig.projectId, authDomain: appConfig.authDomain, buildId: '2026-09-17T11:53:24Z-debug3' };
   var authApp = initializeApp(appConfig, "authApp");
   var mfaAuth = getAuth(authApp);
   var firestoreDb = getFirestore(authApp);
@@ -4368,10 +4367,8 @@
         '<h1>Angelo Garcia CRM</h1>'+
         '<p class="sub">'+(mfaStep?'Digite o código de 6 dígitos do app autenticador':'Acesse sua conta para continuar')+'</p>'+
         '<div id="loginError" class="login-error"></div>'+
-        '<pre id="loginErrorDebug" style="display:none;text-align:left;font-size:11px;line-height:1.4;background:#f5f5f5;border:1px solid #ddd;border-radius:6px;padding:8px;margin-top:8px;white-space:pre-wrap;word-break:break-all;-webkit-user-select:text;user-select:text;color:#555;"></pre>'+
         '<form id="loginForm">'+formInner+'</form>'+
         '<p class="login-hint">Acesso restrito à equipe Angelo Garcia.</p>'+
-        (window.__APP_BUILD ? '<p class="login-hint" style="font-size:10px;opacity:.6;word-break:break-all;">DEBUG projectId: '+window.__APP_BUILD.projectId+' · authDomain: '+window.__APP_BUILD.authDomain+' · build: '+window.__APP_BUILD.buildId+'</p>' : '<p class="login-hint" style="font-size:10px;opacity:.6;color:#c00;">DEBUG: window.__APP_BUILD indisponível (script de config não carregou)</p>')+
       '</div>'+
     '</div>';
   }
@@ -4382,9 +4379,7 @@
       var submitBtn = form.querySelector('button[type="submit"]');
       if(submitBtn.disabled) return; // evita disparar mais de uma tentativa de login em paralelo
       var errBox = document.getElementById('loginError');
-      var dbgBox = document.getElementById('loginErrorDebug');
       errBox.classList.remove('show');
-      if(dbgBox){ dbgBox.style.display = 'none'; dbgBox.textContent = ''; }
       if(!mfa){
         errBox.textContent = 'Ainda carregando, espera um instante e tenta de novo.';
         errBox.classList.add('show');
@@ -4423,26 +4418,12 @@
           render();
           return;
         }
-        console.error('[DEBUG login] Erro real do Firebase:', error);
         if(error && error.code === 'auth/too-many-requests'){
           errBox.textContent = 'Muitas tentativas de login neste navegador. Aguarde alguns minutos antes de tentar novamente.';
         } else {
           errBox.textContent = 'E-mail ou senha inválidos.';
         }
         errBox.classList.add('show');
-        if(dbgBox){
-          var dbgLines = [
-            'code: ' + (error && error.code),
-            'name: ' + (error && error.name),
-            'message: ' + (error && error.message)
-          ];
-          if(error && error.customData){
-            try{ dbgLines.push('customData: ' + JSON.stringify(error.customData)); }
-            catch(e){ dbgLines.push('customData: (não foi possível serializar)'); }
-          }
-          dbgBox.textContent = 'DEBUG TEMPORÁRIO — copie e envie:\n' + dbgLines.join('\n');
-          dbgBox.style.display = 'block';
-        }
       });
     });
     var backBtn = document.getElementById('loginMfaBackBtn');
