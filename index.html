@@ -4377,9 +4377,10 @@
     var form = document.getElementById('loginForm');
     form.addEventListener('submit', function(e){
       e.preventDefault();
+      var submitBtn = form.querySelector('button[type="submit"]');
+      if(submitBtn.disabled) return; // evita disparar mais de uma tentativa de login em paralelo
       var errBox = document.getElementById('loginError');
       var dbgBox = document.getElementById('loginErrorDebug');
-      var submitBtn = form.querySelector('button[type="submit"]');
       errBox.classList.remove('show');
       if(dbgBox){ dbgBox.style.display = 'none'; dbgBox.textContent = ''; }
       if(!mfa){
@@ -4421,7 +4422,11 @@
           return;
         }
         console.error('[DEBUG login] Erro real do Firebase:', error);
-        errBox.textContent = 'E-mail ou senha inválidos.';
+        if(error && error.code === 'auth/too-many-requests'){
+          errBox.textContent = 'Muitas tentativas de login neste navegador. Aguarde alguns minutos antes de tentar novamente.';
+        } else {
+          errBox.textContent = 'E-mail ou senha inválidos.';
+        }
         errBox.classList.add('show');
         if(dbgBox){
           var dbgLines = [
