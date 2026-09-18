@@ -16,6 +16,7 @@ const GOOGLE_OAUTH_CLIENT_ID = defineSecret('GOOGLE_OAUTH_CLIENT_ID');
 const GOOGLE_OAUTH_CLIENT_SECRET = defineSecret('GOOGLE_OAUTH_CLIENT_SECRET');
 const GOOGLE_OAUTH_REFRESH_TOKEN = defineSecret('GOOGLE_OAUTH_REFRESH_TOKEN');
 const MANUAL_SYNC_KEY = defineSecret('MANUAL_SYNC_KEY');
+const TREINO_SYNC_KEY = defineSecret('TREINO_SYNC_KEY');
 
 const OAUTH_SECRETS = [GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, GOOGLE_OAUTH_REFRESH_TOKEN];
 
@@ -59,6 +60,84 @@ function todayIso() {
 function isVencido(p, todayStr) {
   if (!p || !p.vencimento) return false;
   return p.vencimento < todayStr;
+}
+
+// ---- Mesma logica de semanas/check-in do index.html (copiada, nao reinventada) ----
+function monthKeyOf(y, m0) {
+  return y + '-' + String(m0 + 1).padStart(2, '0');
+}
+function parseMonthKey(key) {
+  const parts = key.split('-');
+  return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10) - 1 };
+}
+function getFridaysInMonth(year, monthIndex0) {
+  let count = 0;
+  const d = new Date(year, monthIndex0, 1);
+  while (d.getMonth() === monthIndex0) {
+    if (d.getDay() === 5) count++;
+    d.setDate(d.getDate() + 1);
+  }
+  return count;
+}
+function weeksInMonth(key) {
+  const p = parseMonthKey(key);
+  return getFridaysInMonth(p.year, p.month);
+}
+function isoDate(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function addDaysIso(dateStr, n) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return isoDate(d);
+}
+function nthFridayDate(monthKey, weekIndex) {
+  const parsed = parseMonthKey(monthKey);
+  const d = new Date(parsed.year, parsed.month, 1);
+  const fridays = [];
+  while (d.getMonth() === parsed.month) {
+    if (d.getDay() === 5) fridays.push(isoDate(d));
+    d.setDate(d.getDate() + 1);
+  }
+  return fridays[weekIndex] || null;
+}
+// Janela do check-in: sexta (dia oficial) ate segunda (sexta+3 dias) - mesma
+// regra do CRM pra casar uma data de checkin com a semana correta.
+function weekIndexForDate(monthKey, dateStr) {
+  if (!dateStr) return -1;
+  const wk = weeksInMonth(monthKey);
+  for (let i = 0; i < wk; i++) {
+    const friday = nthFridayDate(monthKey, i);
+    if (!friday) continue;
+    if (dateStr >= friday && dateStr <= addDaysIso(friday, 3)) return i;
+  }
+  return -1;
+}
+function isTreinoQuinzenal(p) {
+  return !!p && p.servico === 'Treino';
+}
+function isEssencialMensal(p) {
+  return !!p && (p.plano === 'Essencial Trimestral' || p.plano === 'Essencial Semestral');
+}
+// Acha em qual mes/semana uma data de check-in cai. Tenta o mes da propria
+// data e o mes anterior (a janela sexta-a-segunda pode virar o mes, ex:
+// sexta 30/08 com check-in na segunda 01/09).
+function resolveMonthAndWeek(p, dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const prevMonth = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+  const candidates = [
+    monthKeyOf(d.getFullYear(), d.getMonth()),
+    monthKeyOf(prevMonth.getFullYear(), prevMonth.getMonth()),
+  ];
+  for (const monthKey of candidates) {
+    const rawIndex = weekIndexForDate(monthKey, dateStr);
+    if (rawIndex === -1) continue;
+    let weekIndex = rawIndex;
+    if (isEssencialMensal(p)) weekIndex = 0;
+    else if (isTreinoQuinzenal(p)) weekIndex = rawIndex < 2 ? 0 : 2;
+    return { monthKey, weekIndex };
+  }
+  return null;
 }
 
 function eventStartDate(ev) {
@@ -327,4 +406,101 @@ exports.onPatientsChange = onDocumentWritten({
   if (reasons.length === 0) return;
   logger.info('Gatilho de sincronizacao completa (cadastro/reativacao):\n' + reasons.join('\n'));
   await runSync({ forceFullSync: true });
+});
+
+// Endpoint pra automacao externa (Treino.io) lancar check-in + peso em jejum.
+// So mexe nesses dois campos, paciente a paciente, pelo e-mail - nao toca em
+// mais nada do cadastro. Autenticacao por chave propria (TREINO_SYNC_KEY),
+// separada da chave de sincronizacao do Calendar.
+//
+// POST https://<url-da-funcao>?key=<TREINO_SYNC_KEY>
+// Body JSON: { "entries": [
+//   { "email": "paciente@x.com", "date": "2026-09-20", "enviou": true, "peso": 78.4 },
+//   ...
+// ] }
+// "peso" e opcional (omitir ou null se so o check-in foi enviado sem peso).
+exports.syncCheckins = onRequest({
+  region: REGION,
+  secrets: [TREINO_SYNC_KEY],
+  timeoutSeconds: 120,
+  memory: '256MiB',
+}, async (req, res) => {
+  if (req.method !== 'POST') {
+    res.status(405).send('use POST');
+    return;
+  }
+  if (req.query.key !== TREINO_SYNC_KEY.value()) {
+    res.status(403).send('nao autorizado');
+    return;
+  }
+  const entries = req.body && Array.isArray(req.body.entries) ? req.body.entries : null;
+  if (!entries) {
+    res.status(400).send('body precisa ser { "entries": [ {email, date, enviou, peso}, ... ] }');
+    return;
+  }
+
+  try {
+    const result = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(PATIENTS_DOC);
+      if (!snap.exists) return { applied: [], skipped: ['crmData/patients nao existe'] };
+      const list = snap.data().list || [];
+      const byEmail = new Map();
+      list.forEach((p) => {
+        if (p.email) byEmail.set(String(p.email).trim().toLowerCase(), p);
+      });
+
+      const applied = [];
+      const skipped = [];
+
+      entries.forEach((entry) => {
+        const email = entry && entry.email ? String(entry.email).trim().toLowerCase() : null;
+        const date = entry && entry.date ? String(entry.date).slice(0, 10) : null;
+        if (!email || !date) {
+          skipped.push(`entrada invalida (faltou email ou date): ${JSON.stringify(entry)}`);
+          return;
+        }
+        const p = byEmail.get(email);
+        if (!p) {
+          skipped.push(`e-mail nao encontrado no CRM: ${email}`);
+          return;
+        }
+
+        const resolved = resolveMonthAndWeek(p, date);
+        if (!resolved) {
+          skipped.push(`${p.nome}: data ${date} nao caiu em nenhuma semana de check-in valida`);
+          return;
+        }
+        const { monthKey, weekIndex } = resolved;
+        const wk = weeksInMonth(monthKey);
+
+        if (!p.meses) p.meses = {};
+        if (!p.meses[monthKey]) p.meses[monthKey] = {};
+        const mes = p.meses[monthKey];
+        if (!Array.isArray(mes.checkin)) mes.checkin = [];
+        if (!Array.isArray(mes.peso)) mes.peso = [];
+        if (!Array.isArray(mes.pesoData)) mes.pesoData = [];
+        while (mes.checkin.length < wk) mes.checkin.push(null);
+        while (mes.peso.length < wk) mes.peso.push(null);
+        while (mes.pesoData.length < wk) mes.pesoData.push(null);
+
+        if (typeof entry.enviou === 'boolean') mes.checkin[weekIndex] = entry.enviou;
+        if (entry.peso !== undefined && entry.peso !== null && entry.peso !== '') {
+          mes.peso[weekIndex] = Number(entry.peso);
+          mes.pesoData[weekIndex] = date;
+        }
+        applied.push(`${p.nome}: ${monthKey} semana ${weekIndex + 1} -> enviou=${entry.enviou}, peso=${entry.peso === undefined ? '(nao enviado)' : entry.peso}`);
+      });
+
+      if (applied.length) tx.set(PATIENTS_DOC, { list }, { merge: true });
+      return { applied, skipped };
+    });
+
+    if (result.applied.length) logger.info('Check-ins do Treino.io aplicados:\n' + result.applied.join('\n'));
+    if (result.skipped.length) logger.info('Check-ins do Treino.io pulados:\n' + result.skipped.join('\n'));
+
+    res.status(200).json({ aplicados: result.applied.length, pulados: result.skipped.length, detalhesPulados: result.skipped });
+  } catch (err) {
+    logger.error(err);
+    res.status(500).send('Erro: ' + err.message);
+  }
 });
