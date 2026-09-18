@@ -1100,7 +1100,9 @@
     .app-shell{display:block;}
     .mobile-topbar{
       display:flex;align-items:center;gap:10px;background:var(--secondary);color:#fff;
-      padding:8px 12px;position:sticky;top:0;z-index:30;min-height:54px;
+      /* padding-left maior: abre espaco pro botao de abrir/fechar menu (sidebar-edge-toggle),
+         que agora fica fixo no canto superior esquerdo por cima dessa faixa. */
+      padding:8px 12px 8px 52px;position:sticky;top:0;z-index:30;min-height:54px;
     }
     .mobile-topbar .brand-text strong{font-size:14px;}
     .mobile-topbar .brand-text span{font-size:10px;}
@@ -1116,15 +1118,17 @@
     .sidebar.collapsed .sidebar-brand{justify-content:flex-start;}
     .sidebar.collapsed .sidebar-brand .brand-text{display:block;}
     .sidebar.drawer-open{transform:translateX(0);}
-    /* no celular quem manda na aba e a gaveta (.drawer-open), nao o .collapsed —
-       precisa anular a regra de desktop do .collapsed aqui (ela nao tem media
-       query propria), senao vaza e a aba fica na posicao errada quando o botao
-       de voltar/o backdrop fecha a gaveta mas o .collapsed continua marcado.
-       Maior tambem, pra ser facil de tocar. */
-    .sidebar-edge-toggle,.sidebar.collapsed ~ .sidebar-edge-toggle{left:0;width:28px;height:64px;font-size:15px;}
-    .sidebar-edge-toggle::before,.sidebar.collapsed ~ .sidebar-edge-toggle::before{content:'›';}
-    .sidebar.drawer-open ~ .sidebar-edge-toggle{left:264px;}
-    .sidebar.drawer-open ~ .sidebar-edge-toggle::before{content:'‹';}
+    /* No celular a setinha flutuando no meio da tela atrapalhava o conteudo
+       (ficava em cima dos cartoes do Dashboard etc.). Agora fica fixa dentro
+       da faixa preta do topo, perto do logo — mesma posicao sempre, aberta
+       ou fechada, porque o z-index dela (41) ja e maior que o da gaveta (40)
+       e do fundo escurecido (35), entao continua visivel/clicavel por cima. */
+    .sidebar-edge-toggle,.sidebar.collapsed ~ .sidebar-edge-toggle,.sidebar.drawer-open ~ .sidebar-edge-toggle{
+      position:fixed;top:9px;left:8px;transform:none;
+      width:36px;height:36px;border-radius:8px;font-size:17px;
+    }
+    .sidebar-edge-toggle::before,.sidebar.collapsed ~ .sidebar-edge-toggle::before{content:'☰';}
+    .sidebar.drawer-open ~ .sidebar-edge-toggle::before{content:'✕';}
     /* no celular o botao de tema fica dentro da faixa preta do topo (mobile-topbar,
        54px de altura) — mesma posicao fixa, so ajustada pra centralizar ali. */
     .theme-toggle{top:13px;right:12px;}
