@@ -1,5 +1,6 @@
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { onRequest } = require('firebase-functions/v2/https');
+const { onDocumentWritten } = require('firebase-functions/v2/firestore');
 const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
 const admin = require('firebase-admin');
@@ -42,8 +43,22 @@ function getCalendarClient() {
   return google.calendar({ version: 'v3', auth });
 }
 
+// Data de hoje no fuso do Brasil (nao UTC - toISOString() erraria o dia
+// entre 21h e meia-noite no horario de Brasilia).
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+// Mesma regra de "Vencido" usada no CRM (renovacaoStatus em index.html):
+// vencimento antes de hoje = vencido. So olha a data, nao outros campos.
+function isVencido(p, todayStr) {
+  if (!p || !p.vencimento) return false;
+  return p.vencimento < todayStr;
 }
 
 function eventStartDate(ev) {
@@ -156,11 +171,11 @@ async function recomputePatients(emails, testModeEmail) {
   });
 }
 
-async function runSync() {
+async function runSync({ forceFullSync = false } = {}) {
   const calendar = getCalendarClient();
 
   const stateSnap = await SYNC_STATE_DOC.get();
-  const prevSyncToken = stateSnap.exists ? stateSnap.data().syncToken : null;
+  const prevSyncToken = forceFullSync ? null : (stateSnap.exists ? stateSnap.data().syncToken : null);
 
   const configSnap = await CONFIG_DOC.get();
   let testModeEmail = DEFAULT_TEST_MODE_EMAIL;
@@ -269,4 +284,41 @@ exports.syncGoogleCalendarNow = onRequest({
     logger.error(err);
     res.status(500).send('Erro: ' + err.message);
   }
+});
+
+// Dispara uma sincronizacao COMPLETA (nao a incremental de 15 em 15 min)
+// só quando: (a) um paciente novo com e-mail e criado, ou (b) um paciente
+// existente deixa de estar "Vencido" por causa de mudanca no vencimento
+// (reativacao). So assim da pra achar uma consulta que ja existia no
+// Calendar antes do cadastro, ou que rolou enquanto ele estava inativo.
+// Edicao de qualquer outro campo (nome, telefone, e-mail, plano etc.) nao
+// dispara nada.
+exports.onPatientsChange = onDocumentWritten({
+  document: 'crmData/patients',
+  region: REGION,
+  secrets: OAUTH_SECRETS,
+  timeoutSeconds: 300,
+  memory: '512MiB',
+}, async (event) => {
+  if (!event.data || !event.data.after.exists) return;
+  const beforeList = event.data.before && event.data.before.exists ? (event.data.before.data().list || []) : [];
+  const afterList = event.data.after.data().list || [];
+  const beforeById = new Map(beforeList.map((p) => [p.id, p]));
+  const today = todayIso();
+
+  const reasons = [];
+  afterList.forEach((p) => {
+    const prev = beforeById.get(p.id);
+    if (!prev) {
+      if (p.email) reasons.push(`paciente novo: ${p.nome}`);
+      return;
+    }
+    if (isVencido(prev, today) && !isVencido(p, today)) {
+      reasons.push(`reativado (vencimento): ${p.nome}`);
+    }
+  });
+
+  if (reasons.length === 0) return;
+  logger.info('Gatilho de sincronizacao completa (cadastro/reativacao):\n' + reasons.join('\n'));
+  await runSync({ forceFullSync: true });
 });
