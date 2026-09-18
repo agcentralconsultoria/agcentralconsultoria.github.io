@@ -152,6 +152,7 @@ async function recomputePatients(emails, testModeEmail) {
 
     list.forEach((p) => {
       if (!p.email) return;
+      if (isVencido(p, today)) return;
       const email = String(p.email).trim().toLowerCase();
       const newDate = computedByEmail[email];
       if (!newDate || p.consulta === newDate) return;
@@ -184,9 +185,14 @@ async function runSync({ forceFullSync = false } = {}) {
     testModeEmail = configured ? String(configured).trim().toLowerCase() : null;
   }
 
+  // So sincroniza paciente ativo (nao "Vencido"). Um inativo so volta a
+  // ser sincronizado quando reativar (o gatilho onPatientsChange forca
+  // uma varredura completa nesse momento, ja com ele ativo de novo).
+  const today = todayIso();
   const patientsSnap = await PATIENTS_DOC.get();
   const patientEmails = new Set(
     (patientsSnap.exists ? patientsSnap.data().list || [] : [])
+      .filter((p) => !isVencido(p, today))
       .map((p) => (p.email ? String(p.email).trim().toLowerCase() : null))
       .filter(Boolean)
   );
