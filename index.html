@@ -1206,8 +1206,10 @@
        campo, e como esta dentro do @media, nao afeta o computador. ---- */
     input,select,textarea{font-size:16px !important;}
 
-    /* ---- janelas (modais) ocupando a tela ---- */
-    .modal-overlay{padding:10px;align-items:flex-start;}
+    /* ---- janelas (modais) ocupando a tela ----
+       padding-top maior que o padrao: sem isso o X do modal fica embaixo
+       do botao fixo de tema (.theme-toggle, top:13px + 28px de altura). */
+    .modal-overlay{padding:56px 10px 10px;align-items:flex-start;}
     .modal,.modal.modal-wide{max-width:100%;}
     .modal-header{padding:14px 16px;}
     .modal-header h2{font-size:15.5px;}
