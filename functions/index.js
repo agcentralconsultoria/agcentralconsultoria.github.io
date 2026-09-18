@@ -8,8 +8,15 @@ const { google } = require('googleapis');
 admin.initializeApp();
 const db = admin.firestore();
 
-const GOOGLE_SERVICE_ACCOUNT_KEY = defineSecret('GOOGLE_SERVICE_ACCOUNT_KEY');
+// Autenticacao OAuth como o proprio dono do calendario (nao service account):
+// so assim a API do Google devolve a lista de convidados dos eventos. Uma
+// service account, mesmo com o calendario compartilhado, so ve o organizador.
+const GOOGLE_OAUTH_CLIENT_ID = defineSecret('GOOGLE_OAUTH_CLIENT_ID');
+const GOOGLE_OAUTH_CLIENT_SECRET = defineSecret('GOOGLE_OAUTH_CLIENT_SECRET');
+const GOOGLE_OAUTH_REFRESH_TOKEN = defineSecret('GOOGLE_OAUTH_REFRESH_TOKEN');
 const MANUAL_SYNC_KEY = defineSecret('MANUAL_SYNC_KEY');
+
+const OAUTH_SECRETS = [GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, GOOGLE_OAUTH_REFRESH_TOKEN];
 
 const REGION = 'southamerica-east1';
 const CALENDAR_ID = 'primary';
@@ -26,13 +33,12 @@ const SYNC_STATE_DOC = db.doc('calendarSync/state');
 const CONFIG_DOC = db.doc('crmData/googleCalendarConfig');
 const PATIENTS_DOC = db.doc('crmData/patients');
 
-function getCalendarClient(keyJson) {
-  const credentials = JSON.parse(keyJson);
-  const auth = new google.auth.JWT({
-    email: credentials.client_email,
-    key: credentials.private_key,
-    scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
-  });
+function getCalendarClient() {
+  const auth = new google.auth.OAuth2(
+    GOOGLE_OAUTH_CLIENT_ID.value(),
+    GOOGLE_OAUTH_CLIENT_SECRET.value(),
+  );
+  auth.setCredentials({ refresh_token: GOOGLE_OAUTH_REFRESH_TOKEN.value() });
   return google.calendar({ version: 'v3', auth });
 }
 
@@ -56,7 +62,7 @@ function eventAttendeeEmails(ev) {
 
 // Busca eventos novos/alterados/cancelados desde a ultima sincronizacao.
 // Sem syncToken guardado (primeira vez, ou token expirado), faz uma
-// varredura completa dos ultimos 2 anos pra frente, o que tambem serve
+// varredura completa dos ultimos 6 meses pra frente, o que tambem serve
 // como backfill dos pacientes com data desatualizada.
 async function fetchCalendarChanges(calendar, syncToken) {
   let events = [];
@@ -76,7 +82,7 @@ async function fetchCalendarChanges(calendar, syncToken) {
         params.syncToken = syncToken;
       } else {
         const timeMin = new Date();
-        timeMin.setFullYear(timeMin.getFullYear() - 2);
+        timeMin.setMonth(timeMin.getMonth() - 6);
         params.timeMin = timeMin.toISOString();
       }
       const resp = await calendar.events.list(params);
@@ -151,7 +157,7 @@ async function recomputePatients(emails, testModeEmail) {
 }
 
 async function runSync() {
-  const calendar = getCalendarClient(GOOGLE_SERVICE_ACCOUNT_KEY.value());
+  const calendar = getCalendarClient();
 
   const stateSnap = await SYNC_STATE_DOC.get();
   const prevSyncToken = stateSnap.exists ? stateSnap.data().syncToken : null;
@@ -163,6 +169,13 @@ async function runSync() {
     testModeEmail = configured ? String(configured).trim().toLowerCase() : null;
   }
 
+  const patientsSnap = await PATIENTS_DOC.get();
+  const patientEmails = new Set(
+    (patientsSnap.exists ? patientsSnap.data().list || [] : [])
+      .map((p) => (p.email ? String(p.email).trim().toLowerCase() : null))
+      .filter(Boolean)
+  );
+
   const { events, nextSyncToken, usedFullSync } = await fetchCalendarChanges(calendar, prevSyncToken);
   logger.info(`Eventos recebidos do Google Calendar: ${events.length} (${usedFullSync ? 'sincronizacao completa' : 'incremental'})`);
 
@@ -172,27 +185,36 @@ async function runSync() {
 
   for (const ev of events) {
     const ref = db.collection(EVENTS_COLLECTION).doc(ev.id);
-    const oldSnap = await ref.get();
-    if (oldSnap.exists) {
-      (oldSnap.data().attendees || []).forEach((e) => touchedEmails.add(e));
-    }
-
     const cancelled = ev.status === 'cancelled';
     const startDate = cancelled ? null : eventStartDate(ev);
     const attendees = cancelled ? [] : eventAttendeeEmails(ev);
 
-    if (cancelled || !startDate || attendees.length === 0) {
+    // So le o doc anterior fora da sincronizacao completa: numa varredura
+    // total nao existe historico previo relevante (evento cancelado nem
+    // aparece sem syncToken), e isso evita 1 leitura por evento quando sao
+    // milhares (o que estourava o tempo limite da funcao).
+    let oldSnap = null;
+    if (!usedFullSync) {
+      oldSnap = await ref.get();
       if (oldSnap.exists) {
+        (oldSnap.data().attendees || []).forEach((e) => touchedEmails.add(e));
+      }
+    }
+
+    const relevantAttendees = attendees.filter((e) => patientEmails.has(e));
+
+    if (cancelled || !startDate || relevantAttendees.length === 0) {
+      if (oldSnap && oldSnap.exists) {
         batch.delete(ref);
         writesInBatch++;
       }
       continue;
     }
 
-    attendees.forEach((e) => touchedEmails.add(e));
+    relevantAttendees.forEach((e) => touchedEmails.add(e));
     batch.set(ref, {
       start: startDate,
-      attendees,
+      attendees: relevantAttendees,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
     writesInBatch++;
@@ -221,7 +243,9 @@ exports.syncGoogleCalendar = onSchedule({
   schedule: 'every 15 minutes',
   timeZone: 'America/Sao_Paulo',
   region: REGION,
-  secrets: [GOOGLE_SERVICE_ACCOUNT_KEY],
+  secrets: OAUTH_SECRETS,
+  timeoutSeconds: 300,
+  memory: '512MiB',
 }, async () => {
   await runSync();
 });
@@ -230,7 +254,9 @@ exports.syncGoogleCalendar = onSchedule({
 // https://<url-da-funcao>?key=<MANUAL_SYNC_KEY>
 exports.syncGoogleCalendarNow = onRequest({
   region: REGION,
-  secrets: [GOOGLE_SERVICE_ACCOUNT_KEY, MANUAL_SYNC_KEY],
+  secrets: [...OAUTH_SECRETS, MANUAL_SYNC_KEY],
+  timeoutSeconds: 300,
+  memory: '512MiB',
 }, async (req, res) => {
   if (req.query.key !== MANUAL_SYNC_KEY.value()) {
     res.status(403).send('nao autorizado');
