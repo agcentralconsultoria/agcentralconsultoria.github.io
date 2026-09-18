@@ -2711,6 +2711,7 @@
     return '';
   }
   function priorityBadge(v){
+    if(v === null || v === undefined) return '<span class="cell-muted">—</span>';
     var cls = v==='Modo Bebezinho' ? 'badge-baby' : v==='Urgente' ? 'badge-danger' : v==='Moderada' ? 'badge-warning' : 'badge-gray';
     return '<span class="badge '+cls+'">'+esc(v)+'</span>';
   }
@@ -2750,7 +2751,7 @@
     return '⚠️';
   }
   function bebezinhoEmoji(p){
-    return p.prioridade === 'Modo Bebezinho' ? '🍼' : '';
+    return computePrioridade(p) === 'Modo Bebezinho' ? '🍼' : '';
   }
   function engColorClass(v){
     if(v === null || v === undefined) return 'eng-empty';
@@ -2894,6 +2895,32 @@
     var limiteFaltas = isEssencialMensal(p) ? 0 : (isTreinoQuinzenal(p) ? 1 : 2);
     var atRisk = missed > limiteFaltas || (avg !== null && avg < 8);
     return { avg: avg, missed: missed, sent: sent, total: chk.length, atRisk: atRisk };
+  }
+  /* Prioridade automatica (nao se aplica ao Essencial, que fica sem prioridade nenhuma —
+     retorna null). Regra: primeiros 30 dias desde inicioPlano = Modo Bebezinho, sempre,
+     independente de engajamento. Depois disso, olha a media de engajamento do mes atual
+     ate o momento (so semanas/quinzenas ja preenchidas); se ainda nao tem nenhuma nota
+     preenchida nesse mes, cai pra media do mes anterior inteiro. Sem dado nenhum em lugar
+     nenhum, cai no padrao 'Sem urgência'. Mesmos cortes 0-6/7-8/9-10 ja usados na cor das
+     notas individuais (engColorClass), pra ficar tudo consistente. */
+  function computePrioridade(p, todayIso){
+    if(isEssencialMensal(p)) return null;
+    todayIso = todayIso || todayISODate();
+    if(p.inicioPlano){
+      var dias = daysBetween(p.inicioPlano, todayIso);
+      if(dias !== null && dias >= 0 && dias < 30) return 'Modo Bebezinho';
+    }
+    var curKey = monthKeyOf(new Date(todayIso+'T00:00:00'));
+    var avg = engagementRisk(p, curKey).avg;
+    if(avg === null){
+      var pk = parseMonthKey(curKey);
+      var prevKey = monthKeyOf(new Date(pk.year, pk.month-1, 1));
+      avg = engagementRisk(p, prevKey).avg;
+    }
+    if(avg === null) return 'Sem urgência';
+    if(avg >= 9) return 'Sem urgência';
+    if(avg >= 7) return 'Moderada';
+    return 'Urgente';
   }
   function consultaDiffDays(p){
     if(!p.consulta) return null;
@@ -3527,7 +3554,7 @@
       });
     });
     columns.sort(function(a,b){
-      var pa = PRIORITY_RANK[a.patient.prioridade], pb = PRIORITY_RANK[b.patient.prioridade];
+      var pa = priorityRankOf(a.patient), pb = priorityRankOf(b.patient);
       if(pa !== pb) return pa - pb;
       return a.minDiff - b.minDiff;
     });
@@ -3538,7 +3565,7 @@
     var columns = jornadaKanbanColumns().filter(function(col){
       var p = col.patient;
       if(term && p.nome.toLowerCase().indexOf(term) === -1) return false;
-      if(state.jornadaKanbanPrioridadeFilter !== 'todos' && p.prioridade !== state.jornadaKanbanPrioridadeFilter) return false;
+      if(state.jornadaKanbanPrioridadeFilter !== 'todos' && computePrioridade(p) !== state.jornadaKanbanPrioridadeFilter) return false;
       if(state.jornadaKanbanStatusFilter !== 'todos' && renovacaoStatusSimplified(p) !== state.jornadaKanbanStatusFilter) return false;
       return true;
     });
@@ -3603,7 +3630,7 @@
       });
     });
     groups.sort(function(a,b){
-      var pa = PRIORITY_RANK[a.patient.prioridade], pb = PRIORITY_RANK[b.patient.prioridade];
+      var pa = priorityRankOf(a.patient), pb = priorityRankOf(b.patient);
       if(pa !== pb) return pa - pb;
       return a.items[0].diff - b.items[0].diff;
     });
@@ -7401,7 +7428,7 @@
       if(key === 'inativos') return renovacaoStatus(p) === 'Vencido';
       if(key === 'renovacaoAntecipada') return renovacaoStatus(p) === 'Renovação antecipada';
       if(key === 'renovacaoProxima') return renovacaoStatus(p) === 'Renovação próxima';
-      if(key === 'bebezinhoUrgente') return p.prioridade === 'Modo Bebezinho' || p.prioridade === 'Urgente';
+      if(key === 'bebezinhoUrgente'){ var pr = computePrioridade(p); return pr === 'Modo Bebezinho' || pr === 'Urgente'; }
       return false;
     });
     if(key === 'bebezinhoUrgente'){
@@ -7426,7 +7453,7 @@
       return '<tr>'+
         '<td><button class="link-btn" data-open-profile="'+p.id+'">'+esc(p.nome)+'</button></td>'+
         '<td>'+esc(p.plano)+'</td>'+
-        '<td>'+priorityBadge(p.prioridade)+'</td>'+
+        '<td>'+priorityBadge(computePrioridade(p))+'</td>'+
         '<td>'+prazoBadge(p.vencimento)+'</td>'+
         '<td><button class="btn-icon" data-reactivate="'+p.id+'">Ativar</button></td>'+
       '</tr>';
@@ -7436,7 +7463,7 @@
     return '<tr>'+
       '<td><button class="link-btn" data-open-profile="'+p.id+'">'+esc(p.nome)+'</button></td>'+
       '<td>'+esc(p.plano)+'</td>'+
-      '<td>'+priorityBadge(p.prioridade)+'</td>'+
+      '<td>'+priorityBadge(computePrioridade(p))+'</td>'+
       '<td>'+renovacaoBadge(p)+'</td>'+
       '<td>'+prazoBadge(p.vencimento)+'</td>'+
       '<td>'+consultaBadge(p)+'</td>'+
@@ -7572,7 +7599,7 @@
         riscoList.map(function(p){
           var r = engagementRisk(p, monthKey);
           var avgText = r.avg === null ? '—' : r.avg.toFixed(1);
-          return '<tr><td><button class="link-btn" data-open-profile="'+p.id+'">'+esc(p.nome)+'</button></td><td><span class="badge '+avgBadgeClass(r.avg)+'">'+avgText+'</span></td><td>'+r.sent+'/'+r.total+' enviados</td><td>'+priorityBadge(p.prioridade)+'</td></tr>';
+          return '<tr><td><button class="link-btn" data-open-profile="'+p.id+'">'+esc(p.nome)+'</button></td><td><span class="badge '+avgBadgeClass(r.avg)+'">'+avgText+'</span></td><td>'+r.sent+'/'+r.total+' enviados</td><td>'+priorityBadge(computePrioridade(p))+'</td></tr>';
         }).join('')+'</tbody></table>';
     }
     if(metric === 'novos'){
@@ -7649,7 +7676,7 @@
         '<td><button class="link-btn" data-open-profile="'+p.id+'">'+esc(p.nome)+'</button></td>'+
         '<td><span class="badge '+avgCls+'">'+avgText+'</span></td>'+
         '<td>'+r.sent+'/'+r.total+' enviados</td>'+
-        '<td>'+priorityBadge(p.prioridade)+'</td>'+
+        '<td>'+priorityBadge(computePrioridade(p))+'</td>'+
       '</tr>';
     }).join('');
     if(!risco.length){
@@ -8243,7 +8270,7 @@
     if(!list.length) return { rowsHtml: '<tr><td colspan="2"><div class="empty-state">Nenhum paciente sem vigência. 🎉</div></td></tr>', pagerHtml: '' };
     var pg = paginateList(list, 'qaVigencia');
     var rowsHtml = pg.items.map(function(p){
-      return '<tr><td><button class="link-btn" data-open-profile="'+p.id+'">'+esc(p.nome)+'</button></td><td>'+priorityBadge(p.prioridade)+'</td></tr>';
+      return '<tr><td><button class="link-btn" data-open-profile="'+p.id+'">'+esc(p.nome)+'</button></td><td>'+priorityBadge(computePrioridade(p))+'</td></tr>';
     }).join('');
     return { rowsHtml: rowsHtml, pagerHtml: listPagerHtml('qaVigencia', pg.page, pg.totalPages) };
   }
@@ -9372,12 +9399,17 @@
 
   /* ================= PACIENTES ================= */
   var PRIORITY_RANK = { 'Modo Bebezinho': 0, 'Urgente': 1, 'Moderada': 2, 'Sem urgência': 3 };
+  /* Essencial nao tem prioridade (computePrioridade devolve null) — sorteia por ultimo. */
+  function priorityRankOf(p){
+    var v = computePrioridade(p);
+    return (v in PRIORITY_RANK) ? PRIORITY_RANK[v] : 4;
+  }
   function comparePatients(a, b){
     var dir = state.sortDir === 'asc' ? 1 : -1;
     var col = state.sortBy;
     var av, bv;
     if(col === 'prioridade'){
-      av = PRIORITY_RANK[a.prioridade]; bv = PRIORITY_RANK[b.prioridade];
+      av = priorityRankOf(a); bv = priorityRankOf(b);
     } else if(col === 'renovacao'){
       av = RENOVACAO_RANK[renovacaoStatus(a)]; bv = RENOVACAO_RANK[renovacaoStatus(b)];
     } else {
@@ -9399,7 +9431,7 @@
       var matchesSearch = !term || p.nome.toLowerCase().indexOf(term) !== -1;
       var matchesStatus = state.statusFilter === 'todos' || renovacaoStatus(p) === state.statusFilter;
       var matchesPlano = state.planoFilter === 'todos' || p.plano === state.planoFilter;
-      var matchesPrioridade = state.prioridadeFilter === 'todos' || p.prioridade === state.prioridadeFilter;
+      var matchesPrioridade = state.prioridadeFilter === 'todos' || computePrioridade(p) === state.prioridadeFilter;
       var matchesConsulta = state.consultaFilter === 'todos' || consultaStatus(p) === state.consultaFilter;
       return matchesSearch && matchesStatus && matchesPlano && matchesPrioridade && matchesConsulta;
     });
@@ -9442,7 +9474,7 @@
         '<td><button class="link-btn" data-open-profile="'+p.id+'">'+esc(p.nome)+'</button></td>'+
         '<td class="cell-muted">'+formatDateWithDiff(p.consulta)+'</td>'+
         '<td>'+consultaBadge(p)+'</td>'+
-        '<td>'+priorityBadge(p.prioridade)+'</td>'+
+        '<td>'+priorityBadge(computePrioridade(p))+'</td>'+
       '</tr>';
     }).join('');
   }
@@ -10516,7 +10548,7 @@
         '<div class="profile-top">'+
           '<div>'+
             '<h3 class="profile-name">'+esc(p.nome)+'</h3>'+
-            '<div class="profile-badges">'+priorityBadge(p.prioridade)+renovacaoBadge(p)+consultaBadge(p)+'</div>'+
+            '<div class="profile-badges">'+priorityBadge(computePrioridade(p))+renovacaoBadge(p)+consultaBadge(p)+'</div>'+
           '</div>'+
           '<button class="btn btn-secondary" id="profileEditBtn">Editar Paciente</button>'+
         '</div>'+
@@ -10618,7 +10650,7 @@
   function emptyPatientCore(){
     return {
       nome:'', plano:'Avulso', prioridade:'Sem urgência', servico:'Treino',
-      vencimento:'', consulta:'', nascimento:'', materialPos:false, isNovoPaciente:true,
+      vencimento:'', inicioPlano:'', consulta:'', nascimento:'', materialPos:false, isNovoPaciente:true,
       fichasTreino: [], fichasDieta: []
     };
   }
@@ -10794,10 +10826,9 @@
           '<div class="form-group"><label>Serviço</label><select id="f_servico">'+
             ['Treino','Dieta','Treino + Dieta'].map(function(o){ return '<option value="'+o+'"'+(p.servico===o?' selected':'')+'>'+o+'</option>'; }).join('')+
           '</select></div>'+
-          '<div class="form-group"><label>Prioridade</label><select id="f_prioridade">'+
-            ['Modo Bebezinho','Urgente','Moderada','Sem urgência'].map(function(o){ return '<option value="'+o+'"'+(p.prioridade===o?' selected':'')+'>'+o+'</option>'; }).join('')+
-          '</select></div>'+
-          '<div class="form-group"><label>Vigência do Plano</label><input type="date" id="f_venc" value="'+esc(p.vencimento)+'"><div class="mini-label" style="text-align:left;margin-top:4px;">Status é calculado automaticamente a partir desta data: Renovação próxima de 31 a 40 dias antes, Renovação antecipada nos últimos 30 dias, Vencido depois dele.</div></div>'+
+          '<div class="form-group"><label>Prioridade</label><div style="margin-top:6px;">'+priorityBadge(computePrioridade(p))+'</div><div class="mini-label" style="text-align:left;margin-top:4px;">Calculada automaticamente pelo engajamento (não se aplica ao Plano Essencial).</div></div>'+
+          '<div class="form-group"><label>Vigência do Plano <button class="info-icon-btn" type="button" data-info-toggle="info-venc-plano" style="margin-left:4px;">i</button></label><input type="date" id="f_venc" value="'+esc(p.vencimento)+'"><div class="info-popover" id="info-venc-plano">Status é calculado automaticamente a partir desta data: Renovação próxima de 31 a 40 dias antes, Renovação antecipada nos últimos 30 dias, Vencido depois dele.</div></div>'+
+          '<div class="form-group"><label>Início do Plano</label><input type="date" id="f_inicioPlano" value="'+esc(p.inicioPlano||'')+'"><div class="mini-label" style="text-align:left;margin-top:4px;">A partir dessa data, entra em Modo Bebezinho automaticamente por 30 dias (não se aplica ao Plano Essencial).</div></div>'+
           '<div class="form-group"><label>Data da Consulta</label><input type="date" id="f_consulta" value="'+esc(p.consulta)+'"><div class="mini-label" style="text-align:left;margin-top:4px;">Status (Em dia/Próximo/Atrasado) é calculado automaticamente: verde ≥16 dias, amarelo ≤15 dias, vermelho se já passou.</div></div>'+
           '<div class="form-group"><label>Data de Nascimento</label><input type="date" id="f_nascimento" value="'+esc(p.nascimento)+'"></div>'+
           '<div class="form-group"><label>Material Pós-Consulta</label>'+
@@ -10860,8 +10891,8 @@
         telefone: document.getElementById('f_telefone').value.trim(),
         plano: document.getElementById('f_plano').value,
         servico: document.getElementById('f_servico').value,
-        prioridade: document.getElementById('f_prioridade').value,
         vencimento: document.getElementById('f_venc').value,
+        inicioPlano: document.getElementById('f_inicioPlano').value,
         consulta: document.getElementById('f_consulta').value,
         nascimento: document.getElementById('f_nascimento').value,
         materialPos: document.getElementById('f_material').checked,
@@ -11086,6 +11117,7 @@
       html = financeiroModalHtml();
     }
     root.innerHTML = '<div class="modal-overlay" id="modalOverlay">'+html+'</div>';
+    bindInfoIcons(root);
 
     var overlay = document.getElementById('modalOverlay');
     overlay.addEventListener('click', function(e){
