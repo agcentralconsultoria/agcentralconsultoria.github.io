@@ -1,0 +1,14 @@
+{
+  "name": "functions",
+  "description": "Sincronizacao automatica de Data da Consulta com o Google Calendar",
+  "engines": {
+    "node": "20"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^5.1.0",
+    "googleapis": "^140.0.1"
+  },
+  "private": true
+}
