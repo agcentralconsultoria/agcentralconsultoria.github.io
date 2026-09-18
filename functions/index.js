@@ -408,17 +408,46 @@ exports.onPatientsChange = onDocumentWritten({
   await runSync({ forceFullSync: true });
 });
 
-// Endpoint pra automacao externa (Treino.io) lancar check-in + peso em jejum.
-// So mexe nesses dois campos, paciente a paciente, pelo e-mail - nao toca em
-// mais nada do cadastro. Autenticacao por chave propria (TREINO_SYNC_KEY),
-// separada da chave de sincronizacao do Calendar.
+// Endpoint pra automacao externa (Treino.io) lancar check-in, peso em jejum
+// e as respostas das perguntas com emoji 💬. So mexe em checkin/peso/pesoData/
+// obsCheckin, paciente a paciente, pelo e-mail - nao toca em mais nada do
+// cadastro. Autenticacao por chave propria (TREINO_SYNC_KEY), separada da
+// chave de sincronizacao do Calendar.
 //
 // POST https://<url-da-funcao>?key=<TREINO_SYNC_KEY>
 // Body JSON: { "entries": [
-//   { "email": "paciente@x.com", "date": "2026-09-20", "enviou": true, "peso": 78.4 },
+//   { "email": "paciente@x.com", "date": "2026-09-20", "enviou": true,
+//     "peso": 78.4, "observacoes": ["texto da resposta 1", "texto 2"] },
 //   ...
 // ] }
-// "peso" e opcional (omitir ou null se so o check-in foi enviado sem peso).
+// "peso" e "observacoes" sao opcionais.
+//
+// Idempotencia (reenvio seguro):
+// - peso: se ja existir peso gravado pra mesma data, so reaplica se for
+//   igual (nao duplica); se for diferente, NAO sobrescreve - fica como
+//   divergencia na resposta. Data diferente da ja gravada no slot da
+//   semana = atualizacao normal (checkin mais recente daquela semana).
+// - observacoes: cada resposta vira uma linha entre aspas no campo de
+//   observacoes do check-in daquela semana; reenviar a mesma linha nao
+//   duplica. Texto que ja estava la (nao entre aspas, digitado a mao) nunca
+//   e apagado nem sobrescrito, so preservado.
+function appendObservacoes(existente, novasRespostas) {
+  const linhas = existente ? existente.split('\n') : [];
+  let adicionadas = 0;
+  novasRespostas.forEach((texto) => {
+    if (typeof texto !== 'string') return;
+    const limpo = texto.trim();
+    if (!limpo) return;
+    const lower = limpo.toLowerCase();
+    if (lower === 'não respondido' || lower === 'nao respondido') return;
+    const linha = '"' + limpo + '"';
+    if (linhas.indexOf(linha) !== -1) return;
+    linhas.push(linha);
+    adicionadas++;
+  });
+  return { texto: linhas.join('\n'), adicionadas };
+}
+
 exports.syncCheckins = onRequest({
   region: REGION,
   secrets: [TREINO_SYNC_KEY],
@@ -435,22 +464,29 @@ exports.syncCheckins = onRequest({
   }
   const entries = req.body && Array.isArray(req.body.entries) ? req.body.entries : null;
   if (!entries) {
-    res.status(400).send('body precisa ser { "entries": [ {email, date, enviou, peso}, ... ] }');
+    res.status(400).send('body precisa ser { "entries": [ {email, date, enviou, peso, observacoes}, ... ] }');
     return;
   }
 
   try {
     const result = await db.runTransaction(async (tx) => {
       const snap = await tx.get(PATIENTS_DOC);
-      if (!snap.exists) return { applied: [], skipped: ['crmData/patients nao existe'] };
+      if (!snap.exists) {
+        return { logLines: [], skipped: ['crmData/patients nao existe'], divergenciasPeso: [], checkins: 0, pesos: 0, observacoes: 0 };
+      }
       const list = snap.data().list || [];
       const byEmail = new Map();
       list.forEach((p) => {
         if (p.email) byEmail.set(String(p.email).trim().toLowerCase(), p);
       });
 
-      const applied = [];
+      const logLines = [];
       const skipped = [];
+      const divergenciasPeso = [];
+      let checkinsAplicados = 0;
+      let pesosAplicados = 0;
+      let observacoesAplicadas = 0;
+      let algumaMudanca = false;
 
       entries.forEach((entry) => {
         const email = entry && entry.email ? String(entry.email).trim().toLowerCase() : null;
@@ -479,26 +515,75 @@ exports.syncCheckins = onRequest({
         if (!Array.isArray(mes.checkin)) mes.checkin = [];
         if (!Array.isArray(mes.peso)) mes.peso = [];
         if (!Array.isArray(mes.pesoData)) mes.pesoData = [];
+        if (!Array.isArray(mes.obsCheckin)) mes.obsCheckin = [];
         while (mes.checkin.length < wk) mes.checkin.push(null);
         while (mes.peso.length < wk) mes.peso.push(null);
         while (mes.pesoData.length < wk) mes.pesoData.push(null);
+        while (mes.obsCheckin.length < wk) mes.obsCheckin.push('');
 
-        if (typeof entry.enviou === 'boolean') mes.checkin[weekIndex] = entry.enviou;
-        if (entry.peso !== undefined && entry.peso !== null && entry.peso !== '') {
-          mes.peso[weekIndex] = Number(entry.peso);
-          mes.pesoData[weekIndex] = date;
+        const partesLog = [`${p.nome}: ${monthKey} semana ${weekIndex + 1}`];
+
+        if (typeof entry.enviou === 'boolean') {
+          mes.checkin[weekIndex] = entry.enviou;
+          checkinsAplicados++;
+          algumaMudanca = true;
+          partesLog.push(`enviou=${entry.enviou}`);
         }
-        applied.push(`${p.nome}: ${monthKey} semana ${weekIndex + 1} -> enviou=${entry.enviou}, peso=${entry.peso === undefined ? '(nao enviado)' : entry.peso}`);
+
+        if (entry.peso !== undefined && entry.peso !== null && entry.peso !== '') {
+          const novoPeso = Number(entry.peso);
+          const pesoAtual = mes.peso[weekIndex];
+          const dataAtual = mes.pesoData[weekIndex];
+          if (pesoAtual === null || pesoAtual === undefined) {
+            mes.peso[weekIndex] = novoPeso;
+            mes.pesoData[weekIndex] = date;
+            pesosAplicados++;
+            algumaMudanca = true;
+            partesLog.push(`peso=${novoPeso}`);
+          } else if (dataAtual === date) {
+            if (Number(pesoAtual) === novoPeso) {
+              partesLog.push(`peso=${novoPeso} (ja gravado, reenvio ignorado)`);
+            } else {
+              divergenciasPeso.push(`${p.nome} (${email}) em ${date}: ja gravado ${pesoAtual}kg, recebido ${novoPeso}kg - NAO sobrescrito`);
+            }
+          } else {
+            mes.peso[weekIndex] = novoPeso;
+            mes.pesoData[weekIndex] = date;
+            pesosAplicados++;
+            algumaMudanca = true;
+            partesLog.push(`peso=${novoPeso} (atualizado, data anterior ${dataAtual})`);
+          }
+        }
+
+        if (Array.isArray(entry.observacoes) && entry.observacoes.length) {
+          const resultado = appendObservacoes(mes.obsCheckin[weekIndex] || '', entry.observacoes);
+          if (resultado.adicionadas > 0) {
+            mes.obsCheckin[weekIndex] = resultado.texto;
+            observacoesAplicadas += resultado.adicionadas;
+            algumaMudanca = true;
+            partesLog.push(`+${resultado.adicionadas} observacao(oes)`);
+          }
+        }
+
+        if (partesLog.length > 1) logLines.push(partesLog.join(' -> '));
       });
 
-      if (applied.length) tx.set(PATIENTS_DOC, { list }, { merge: true });
-      return { applied, skipped };
+      if (algumaMudanca) tx.set(PATIENTS_DOC, { list }, { merge: true });
+      return { logLines, skipped, divergenciasPeso, checkins: checkinsAplicados, pesos: pesosAplicados, observacoes: observacoesAplicadas };
     });
 
-    if (result.applied.length) logger.info('Check-ins do Treino.io aplicados:\n' + result.applied.join('\n'));
+    if (result.logLines.length) logger.info('Check-ins do Treino.io aplicados:\n' + result.logLines.join('\n'));
     if (result.skipped.length) logger.info('Check-ins do Treino.io pulados:\n' + result.skipped.join('\n'));
+    if (result.divergenciasPeso.length) logger.warn('Divergencias de peso (nao sobrescritas):\n' + result.divergenciasPeso.join('\n'));
 
-    res.status(200).json({ aplicados: result.applied.length, pulados: result.skipped.length, detalhesPulados: result.skipped });
+    res.status(200).json({
+      checkinsAplicados: result.checkins,
+      pesosAplicados: result.pesos,
+      observacoesAplicadas: result.observacoes,
+      pulados: result.skipped.length,
+      detalhesPulados: result.skipped,
+      divergenciasPeso: result.divergenciasPeso,
+    });
   } catch (err) {
     logger.error(err);
     res.status(500).send('Erro: ' + err.message);
