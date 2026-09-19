@@ -25,12 +25,10 @@ const REGION = 'southamerica-east1';
 const CALENDAR_ID = 'primary';
 const EVENTS_COLLECTION = 'calendarEvents';
 
-// Enquanto o documento crmData/googleCalendarConfig nao existir no Firestore,
-// so o paciente de teste (Arthur) recebe a data automatica - por seguranca,
-// pra nao aplicar em producao antes da validacao. Depois de validar, crie o
-// documento crmData/googleCalendarConfig com { testModeEmail: null } pra
-// liberar a sincronizacao geral.
-const DEFAULT_TEST_MODE_EMAIL = 'arthur.garcia10@hotmail.com';
+// Modo teste validado e aprovado (19/09/2026) - sincronizacao liberada pra
+// todos os pacientes por padrao. O documento crmData/googleCalendarConfig
+// ainda pode restringir a um email especifico se definir testModeEmail.
+const DEFAULT_TEST_MODE_EMAIL = null;
 
 const SYNC_STATE_DOC = db.doc('calendarSync/state');
 const CONFIG_DOC = db.doc('crmData/googleCalendarConfig');
