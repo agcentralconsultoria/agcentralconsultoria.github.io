@@ -386,11 +386,13 @@ exports.syncGoogleCalendarNow = onRequest({
 });
 
 // Dispara uma sincronizacao COMPLETA (nao a incremental de 15 em 15 min)
-// só quando: (a) um paciente novo com e-mail e criado, ou (b) um paciente
+// só quando: (a) um paciente novo com e-mail e criado, (b) um paciente
 // existente deixa de estar "Vencido" por causa de mudanca no vencimento
-// (reativacao). So assim da pra achar uma consulta que ja existia no
-// Calendar antes do cadastro, ou que rolou enquanto ele estava inativo.
-// Edicao de qualquer outro campo (nome, telefone, e-mail, plano etc.) nao
+// (reativacao), ou (c) o e-mail de um paciente existente muda (ex: corrigir
+// e-mail digitado errado) - a vinculacao com o Calendar e por e-mail, entao
+// um e-mail corrigido so passa a achar os eventos dele numa varredura
+// completa, ja que a incremental so revisita evento que foi tocado no
+// Calendar. Edicao de qualquer outro campo (nome, telefone, plano etc.) nao
 // dispara nada.
 exports.onPatientsChange = onDocumentWritten({
   document: 'crmData/patients',
@@ -414,6 +416,11 @@ exports.onPatientsChange = onDocumentWritten({
     }
     if (isVencido(prev, today) && !isVencido(p, today)) {
       reasons.push(`reativado (vencimento): ${p.nome}`);
+    }
+    const prevEmail = prev.email ? String(prev.email).trim().toLowerCase() : '';
+    const newEmail = p.email ? String(p.email).trim().toLowerCase() : '';
+    if (newEmail && prevEmail !== newEmail) {
+      reasons.push(`e-mail alterado: ${p.nome}`);
     }
   });
 
