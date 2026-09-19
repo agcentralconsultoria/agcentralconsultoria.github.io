@@ -566,36 +566,56 @@ exports.syncCheckins = onRequest({
     return;
   }
 
-  const providedKey = req.query.key;
-  const providedToken = req.query.token;
-  let authOk = false;
+  const providedKey = req.query.key ? String(req.query.key).trim() : '';
+  const providedToken = req.query.token ? String(req.query.token).trim() : '';
 
+  if (!providedKey && !providedToken) {
+    logger.warn('syncCheckins rejeitado: sem credencial (use ?key= ou ?token=).');
+    res.status(403).send('nao autorizado: envie ?key=<chave> ou ?token=<codigo>');
+    return;
+  }
+
+  let body = req.body;
+  if (Buffer.isBuffer(body)) body = body.toString('utf8');
+  if (typeof body === 'string') {
+    try { body = JSON.parse(body); } catch (e) { body = null; }
+  }
+
+  const entries = body && Array.isArray(body.entries) ? body.entries : null;
+  if (!entries || !entries.length) {
+    logger.warn('syncCheckins rejeitado: body invalido ou lote vazio (codigo NAO foi consumido).');
+    res.status(400).send('body invalido. Envie JSON { "batchId": "...", "entries": [ {email, date, enviou, peso, observacoes}, ... ] } com pelo menos 1 entrada, e Content-Type: application/json. O codigo de sincronizacao NAO foi consumido - pode reutilizar o mesmo.');
+    return;
+  }
+  const batchId = body.batchId ? String(body.batchId).slice(0, 100) : null;
+
+  let authOk = false;
   if (providedKey && providedKey === TREINO_SYNC_KEY.value()) {
     authOk = true;
   } else if (providedToken) {
-    const tokenRef = db.collection(SYNC_TOKENS_COLLECTION).doc(String(providedToken));
-    authOk = await db.runTransaction(async (tx) => {
+    const tokenRef = db.collection(SYNC_TOKENS_COLLECTION).doc(providedToken);
+    const motivo = await db.runTransaction(async (tx) => {
       const snap = await tx.get(tokenRef);
-      if (!snap.exists) return false;
+      if (!snap.exists) return 'codigo invalido (nao existe)';
       const data = snap.data();
-      if (data.used) return false;
-      if (data.expiresAt.toMillis() < Date.now()) return false;
+      if (data.used) return 'codigo ja usado - gere um novo no CRM';
+      if (data.expiresAt.toMillis() < Date.now()) return 'codigo expirado - gere um novo no CRM';
       tx.update(tokenRef, { used: true, usedAt: admin.firestore.FieldValue.serverTimestamp() });
-      return true;
+      return null;
     });
+    if (motivo) {
+      logger.warn('syncCheckins rejeitado: ' + motivo);
+      res.status(403).send('nao autorizado: ' + motivo);
+      return;
+    }
+    authOk = true;
   }
 
   if (!authOk) {
-    res.status(403).send('nao autorizado');
+    logger.warn('syncCheckins rejeitado: chave permanente incorreta.');
+    res.status(403).send('nao autorizado: chave invalida');
     return;
   }
-
-  const entries = req.body && Array.isArray(req.body.entries) ? req.body.entries : null;
-  if (!entries) {
-    res.status(400).send('body precisa ser { "entries": [ {email, date, enviou, peso, observacoes}, ... ], "batchId": "opcional" }');
-    return;
-  }
-  const batchId = req.body && req.body.batchId ? String(req.body.batchId).slice(0, 100) : null;
 
   try {
     if (batchId) {
