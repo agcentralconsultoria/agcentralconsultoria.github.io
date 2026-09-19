@@ -5,6 +5,7 @@ const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
 const admin = require('firebase-admin');
 const { google } = require('googleapis');
+const crypto = require('crypto');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -34,6 +35,21 @@ const DEFAULT_TEST_MODE_EMAIL = 'arthur.garcia10@hotmail.com';
 const SYNC_STATE_DOC = db.doc('calendarSync/state');
 const CONFIG_DOC = db.doc('crmData/googleCalendarConfig');
 const PATIENTS_DOC = db.doc('crmData/patients');
+
+// Unico usuario autorizado a gerar codigo de sincronizacao (Angelo). Mesma
+// pessoa que ja e a unica com permissao de trocar senha no CRM
+// (SENHA_EMAIL_PERMITIDO em index.html) - confirmado via UID real do
+// Firebase Auth, nao da pra falsificar.
+const ALLOWED_MINT_UID = 'uLicObTjbnZS5D3uIRKHLFlxhcO2';
+const SYNC_TOKENS_COLLECTION = 'syncTokens';
+const SYNC_BATCHES_COLLECTION = 'syncBatches';
+const SYNC_TOKEN_TTL_MS = 10 * 60 * 1000;
+
+function setCors(res) {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+}
 
 function getCalendarClient() {
   const auth = new google.auth.OAuth2(
@@ -448,27 +464,143 @@ function appendObservacoes(existente, novasRespostas) {
   return { texto: linhas.join('\n'), adicionadas };
 }
 
+// Gera um codigo de sincronizacao temporario (10 min, uso unico), pra quem
+// nao tem a chave permanente (ex: um agente de IA) conseguir mandar UM lote
+// pro syncCheckins sem nunca ter acesso a chave de verdade. So funciona pra
+// quem esta logado no CRM como o Angelo (verificado pelo token do Firebase
+// Auth, nao da pra chamar isso sem estar logado).
+//
+// POST https://<url-da-funcao>?  (sem parametro nenhum)
+// Header: Authorization: Bearer <idToken do Firebase Auth>
+exports.mintSyncCheckinsToken = onRequest({
+  region: REGION,
+  timeoutSeconds: 30,
+  memory: '256MiB',
+}, async (req, res) => {
+  setCors(res);
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
+  if (req.method !== 'POST') {
+    res.status(405).send('use POST');
+    return;
+  }
+
+  const authHeader = req.get('Authorization') || '';
+  const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!idToken) {
+    res.status(401).send('faltou header Authorization: Bearer <idToken>');
+    return;
+  }
+
+  let decoded;
+  try {
+    decoded = await admin.auth().verifyIdToken(idToken);
+  } catch (err) {
+    res.status(401).send('token invalido ou expirado');
+    return;
+  }
+  if (decoded.uid !== ALLOWED_MINT_UID) {
+    res.status(403).send('usuario nao autorizado a gerar codigo de sincronizacao');
+    return;
+  }
+
+  // limite de geracao: no maximo 20 codigos por hora, pra essa mesma pessoa.
+  // Filtro so por igualdade (mintedByUid) + contagem na memoria, de proposito
+  // - assim nao depende de criar indice composto no Firestore.
+  const umaHoraAtrasMs = Date.now() - 60 * 60 * 1000;
+  const recentesSnap = await db.collection(SYNC_TOKENS_COLLECTION)
+    .where('mintedByUid', '==', decoded.uid)
+    .limit(200)
+    .get();
+  const geradosNaUltimaHora = recentesSnap.docs.filter((d) => d.data().createdAt.toMillis() > umaHoraAtrasMs).length;
+  if (geradosNaUltimaHora >= 20) {
+    res.status(429).send('limite de codigos gerados por hora atingido, tente novamente mais tarde');
+    return;
+  }
+
+  const token = crypto.randomBytes(24).toString('base64url');
+  const now = Date.now();
+  const expiresAt = now + SYNC_TOKEN_TTL_MS;
+  await db.collection(SYNC_TOKENS_COLLECTION).doc(token).set({
+    createdAt: admin.firestore.Timestamp.fromMillis(now),
+    expiresAt: admin.firestore.Timestamp.fromMillis(expiresAt),
+    used: false,
+    mintedByUid: decoded.uid,
+  });
+
+  logger.info(`Codigo de sincronizacao gerado (expira em 10 min).`);
+  res.status(200).json({ token, expiresAt });
+});
+
+// POST /syncCheckins - agora aceita DOIS jeitos de autenticar:
+// 1) ?key=<TREINO_SYNC_KEY> - a chave permanente de sempre, sem mudancas.
+// 2) ?token=<codigo> - um codigo de uso unico gerado por mintSyncCheckinsToken.
+//    E consumido (marcado como usado) na hora, antes de processar - uma
+//    segunda tentativa com o mesmo codigo e recusada.
+//
+// batchId (opcional, no corpo): identifica um lote. Se o mesmo batchId for
+// reenviado (ex: o chamador nao recebeu a resposta por queda de conexao),
+// o endpoint NAO reprocessa - devolve as mesmas contagens ja aplicadas da
+// primeira vez, sem duplicar nada. So fica salvo metadado minimo do lote
+// (id, hora, status, contagens) - nunca nome, e-mail, peso ou observacao.
 exports.syncCheckins = onRequest({
   region: REGION,
   secrets: [TREINO_SYNC_KEY],
   timeoutSeconds: 120,
   memory: '256MiB',
 }, async (req, res) => {
+  setCors(res);
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
   if (req.method !== 'POST') {
     res.status(405).send('use POST');
     return;
   }
-  if (req.query.key !== TREINO_SYNC_KEY.value()) {
+
+  const providedKey = req.query.key;
+  const providedToken = req.query.token;
+  let authOk = false;
+
+  if (providedKey && providedKey === TREINO_SYNC_KEY.value()) {
+    authOk = true;
+  } else if (providedToken) {
+    const tokenRef = db.collection(SYNC_TOKENS_COLLECTION).doc(String(providedToken));
+    authOk = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(tokenRef);
+      if (!snap.exists) return false;
+      const data = snap.data();
+      if (data.used) return false;
+      if (data.expiresAt.toMillis() < Date.now()) return false;
+      tx.update(tokenRef, { used: true, usedAt: admin.firestore.FieldValue.serverTimestamp() });
+      return true;
+    });
+  }
+
+  if (!authOk) {
     res.status(403).send('nao autorizado');
     return;
   }
+
   const entries = req.body && Array.isArray(req.body.entries) ? req.body.entries : null;
   if (!entries) {
-    res.status(400).send('body precisa ser { "entries": [ {email, date, enviou, peso, observacoes}, ... ] }');
+    res.status(400).send('body precisa ser { "entries": [ {email, date, enviou, peso, observacoes}, ... ], "batchId": "opcional" }');
     return;
   }
+  const batchId = req.body && req.body.batchId ? String(req.body.batchId).slice(0, 100) : null;
 
   try {
+    if (batchId) {
+      const batchSnap = await db.collection(SYNC_BATCHES_COLLECTION).doc(batchId).get();
+      if (batchSnap.exists && batchSnap.data().status === 'completed') {
+        res.status(200).json(Object.assign({ reenvio: true }, batchSnap.data().counts));
+        return;
+      }
+    }
+
     const result = await db.runTransaction(async (tx) => {
       const snap = await tx.get(PATIENTS_DOC);
       if (!snap.exists) {
@@ -572,20 +704,39 @@ exports.syncCheckins = onRequest({
       return { logLines, skipped, divergenciasPeso, checkins: checkinsAplicados, pesos: pesosAplicados, observacoes: observacoesAplicadas };
     });
 
-    if (result.logLines.length) logger.info('Check-ins do Treino.io aplicados:\n' + result.logLines.join('\n'));
-    if (result.skipped.length) logger.info('Check-ins do Treino.io pulados:\n' + result.skipped.join('\n'));
-    if (result.divergenciasPeso.length) logger.warn('Divergencias de peso (nao sobrescritas):\n' + result.divergenciasPeso.join('\n'));
+    // Log so com CONTAGENS - nunca nome, e-mail, peso ou texto de observacao.
+    // O detalhe (com identificacao do paciente) vai so na resposta HTTP,
+    // direto pra quem chamou autenticado - nunca fica gravado em log.
+    logger.info(`syncCheckins: ${result.checkins} check-in(s), ${result.pesos} peso(s), ${result.observacoes} observacao(oes) aplicados; ${result.skipped.length} pulado(s); ${result.divergenciasPeso.length} divergencia(s) de peso.`);
 
-    res.status(200).json({
+    const respostaCounts = {
       checkinsAplicados: result.checkins,
       pesosAplicados: result.pesos,
       observacoesAplicadas: result.observacoes,
       pulados: result.skipped.length,
       detalhesPulados: result.skipped,
       divergenciasPeso: result.divergenciasPeso,
-    });
+    };
+
+    if (batchId) {
+      // Metadado MINIMO do lote - so pra permitir confirmar depois se um
+      // reenvio ja tinha sido aplicado, sem guardar nenhum dado de paciente.
+      await db.collection(SYNC_BATCHES_COLLECTION).doc(batchId).set({
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        status: 'completed',
+        counts: {
+          checkinsAplicados: result.checkins,
+          pesosAplicados: result.pesos,
+          observacoesAplicadas: result.observacoes,
+          pulados: result.skipped.length,
+          divergenciasPeso: result.divergenciasPeso.length,
+        },
+      });
+    }
+
+    res.status(200).json(respostaCounts);
   } catch (err) {
-    logger.error(err);
+    logger.error('Erro em syncCheckins: ' + err.message);
     res.status(500).send('Erro: ' + err.message);
   }
 });

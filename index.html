@@ -1491,6 +1491,10 @@
     securityError: null,
     settingsTab: 'seguranca',
     passwordResetSent: false,
+    syncTokenValue: null,
+    syncTokenExpiresAt: null,
+    syncTokenError: null,
+    syncTokenLoading: false,
     patients: [],
     tab: 'dashboard',
     sidebarCollapsed: false,   // computador: barra estreita so com icones
@@ -11050,13 +11054,46 @@
       '<button type="button" class="btn btn-primary" id="passwordResetBtn">Enviar link de troca de senha</button>'+
       errHtml;
   }
+  var MINT_SYNC_TOKEN_URL = 'https://southamerica-east1-agcentralcrm.cloudfunctions.net/mintSyncCheckinsToken';
+  /* Mesma trava do SENHA_EMAIL_PERMITIDO: so essa conta pode gerar codigo de
+     sincronizacao. A funcao no backend confirma de novo pelo UID do Firebase
+     Auth (nao da pra falsificar so mudando o front-end) - essa checagem aqui
+     e so pra nem mostrar o botao pra quem nao pode usar. */
+  function syncTokenTabBodyHtml(){
+    var user = mfa && mfa.auth ? mfa.auth.currentUser : null;
+    var email = user ? user.email : null;
+    var errHtml = state.syncTokenError ? '<div class="login-error show">'+esc(state.syncTokenError)+'</div>' : '';
+    if(email !== SENHA_EMAIL_PERMITIDO){
+      return '<p>Por segurança, gerar código de sincronização só é permitido para <b>'+esc(SENHA_EMAIL_PERMITIDO)+'</b>. Esta conta ('+esc(email||'—')+') não tem essa permissão.</p>';
+    }
+    var explicacao = '<p>Gera um código de uso único, válido por 10 minutos, pra colar numa conversa com o ChatGPT e autorizar o envio de UM lote de check-ins/pesos pro CRM — sem guardar nenhuma senha ou sessão em lugar nenhum.</p>';
+    if(state.syncTokenLoading){
+      return explicacao+'<p class="cell-muted">Gerando código…</p>'+errHtml;
+    }
+    if(state.syncTokenValue){
+      var restanteMs = state.syncTokenExpiresAt - Date.now();
+      if(restanteMs > 0){
+        var restanteMin = Math.max(1, Math.ceil(restanteMs/60000));
+        return explicacao+
+          '<div class="security-secret-key" id="syncTokenValueBox">'+esc(state.syncTokenValue)+'</div>'+
+          '<p class="cell-muted">Expira em até '+restanteMin+' min, ou assim que for usado uma vez.</p>'+
+          '<button type="button" class="btn btn-secondary" id="syncTokenCopyBtn">Copiar código</button> '+
+          '<button type="button" class="btn btn-secondary" id="syncTokenGenerateBtn">Gerar novo</button>'+
+          errHtml;
+      }
+    }
+    return explicacao+
+      '<button type="button" class="btn btn-primary" id="syncTokenGenerateBtn">Gerar código de sincronização</button>'+
+      errHtml;
+  }
   function settingsModalHtml(){
     var tabsHtml = ''+
       '<div class="meta-type-toggle">'+
         '<button type="button" class="meta-type-btn'+(state.settingsTab==='seguranca'?' active':'')+'" data-settings-tab="seguranca">🔒 Segurança</button>'+
         '<button type="button" class="meta-type-btn'+(state.settingsTab==='senha'?' active':'')+'" data-settings-tab="senha">🔑 Senha</button>'+
+        '<button type="button" class="meta-type-btn'+(state.settingsTab==='sync'?' active':'')+'" data-settings-tab="sync">🔄 Sincronização</button>'+
       '</div>';
-    var body = state.settingsTab === 'senha' ? passwordTabBodyHtml() : securityTabBodyHtml();
+    var body = state.settingsTab === 'senha' ? passwordTabBodyHtml() : (state.settingsTab === 'sync' ? syncTokenTabBodyHtml() : securityTabBodyHtml());
     return ''+
     '<div class="modal">'+
       '<div class="modal-header">'+
@@ -11407,6 +11444,47 @@
           }).catch(function(err){
             state.securityError = 'Não foi possível enviar: ' + err.message;
             renderModal();
+          });
+        });
+      }
+      var syncTokenGenerateBtn = document.getElementById('syncTokenGenerateBtn');
+      if(syncTokenGenerateBtn){
+        syncTokenGenerateBtn.addEventListener('click', function(){
+          state.syncTokenError = null;
+          var user = mfa.auth.currentUser;
+          if(!user || user.email !== SENHA_EMAIL_PERMITIDO){
+            state.syncTokenError = 'Conta não autorizada a gerar código de sincronização.';
+            renderModal();
+            return;
+          }
+          state.syncTokenLoading = true;
+          renderModal();
+          user.getIdToken().then(function(idToken){
+            return fetch(MINT_SYNC_TOKEN_URL, {
+              method: 'POST',
+              headers: { 'Authorization': 'Bearer ' + idToken }
+            });
+          }).then(function(resp){
+            if(!resp.ok){ return resp.text().then(function(t){ throw new Error(t || ('Erro ' + resp.status)); }); }
+            return resp.json();
+          }).then(function(data){
+            state.syncTokenLoading = false;
+            state.syncTokenValue = data.token;
+            state.syncTokenExpiresAt = data.expiresAt;
+            renderModal();
+          }).catch(function(err){
+            state.syncTokenLoading = false;
+            state.syncTokenError = 'Não foi possível gerar o código: ' + err.message;
+            renderModal();
+          });
+        });
+      }
+      var syncTokenCopyBtn = document.getElementById('syncTokenCopyBtn');
+      if(syncTokenCopyBtn){
+        syncTokenCopyBtn.addEventListener('click', function(){
+          if(!state.syncTokenValue) return;
+          navigator.clipboard.writeText(state.syncTokenValue).then(function(){
+            showToast('Código copiado.', 'success');
           });
         });
       }
