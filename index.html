@@ -785,6 +785,32 @@
     font-size:12.5px;font-weight:600;color:var(--text-muted);cursor:pointer;font-family:inherit;
   }
   .meta-type-btn.active{border-color:var(--primary);color:var(--primary);background:var(--primary-light);}
+  /* Dashboard — Atencao de hoje */
+  .atencao-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:8px 0 10px;}
+  .atencao-subtitle{font-size:13.5px;color:var(--text-muted);margin-top:2px;}
+  .atencao-data{font-size:13px;color:var(--text-muted);font-weight:600;}
+  .atencao-card{padding:0;overflow:hidden;margin-bottom:28px;}
+  .atencao-grid-head,.atencao-row{display:grid;grid-template-columns:minmax(190px,1.1fr) minmax(220px,1.6fr) minmax(150px,1fr) auto;gap:14px;align-items:center;padding:12px 16px;}
+  .atencao-grid-head{font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);border-bottom:1px solid var(--border);background:var(--bg);}
+  .atencao-row{border-bottom:1px solid var(--border);}
+  .atencao-row:last-child{border-bottom:none;}
+  .atencao-row.is-done{opacity:.5;}
+  .atencao-row.is-observar .atencao-nome{font-weight:600;}
+  .atencao-grupo{padding:8px 16px;font-size:12px;font-weight:700;color:var(--text-muted);background:var(--bg);border-bottom:1px solid var(--border);}
+  .atencao-cell-nome{display:flex;align-items:center;gap:12px;min-width:0;}
+  .atencao-check{width:20px;height:20px;flex:0 0 auto;accent-color:var(--primary);cursor:pointer;margin:0;}
+  .atencao-nome{font-weight:700;font-size:14.5px;color:var(--text);}
+  .atencao-sub{font-size:12.5px;color:var(--text-muted);}
+  .atencao-cell-motivos{display:flex;flex-direction:column;gap:6px;align-items:flex-start;min-width:0;}
+  .atencao-motivo{display:flex;flex-direction:column;gap:2px;}
+  .atencao-motivo-det{font-size:12px;color:var(--text-muted);}
+  .atencao-cell-acao{font-size:13.5px;color:var(--text);}
+  .atencao-empty{padding:24px 16px;text-align:center;color:var(--text-muted);}
+  @media (max-width: 700px){
+    .atencao-grid-head{display:none;}
+    .atencao-row{grid-template-columns:1fr;gap:8px;}
+    .atencao-cell-motivos,.atencao-cell-acao,.atencao-cell-perfil{padding-left:32px;}
+  }
   .monthly-trend-value{font-size:11px;font-weight:700;color:var(--text);white-space:nowrap;}
   .monthly-trend-track{width:100%;height:90px;display:flex;align-items:flex-end;background:var(--bg);border-radius:5px;overflow:hidden;}
   .monthly-trend-fill{width:100%;border-radius:4px 4px 0 0;background:var(--gray-badge);opacity:.55;}
@@ -1007,7 +1033,6 @@
     padding:8px 10px;font-size:12.5px;color:var(--text);line-height:1.4;
     min-width:220px;max-width:320px;white-space:normal;
   }
-  .material-status{display:flex;align-items:center;gap:10px;}
 
   .confirm-text{font-size:14.5px;color:var(--text);line-height:1.5;}
   .confirm-text b{color:var(--text);}
@@ -1551,7 +1576,9 @@
     dashQuickTreinoUnit: 'semanas',
     dashQuickDietaUnit: 'dias',
     dashQuickConsultaSort: 'desc',
-    dashCollapsed: {},
+    dashCollapsed: { outrosIndicadores: true },
+    atencaoView: 'todos',
+    atencaoMarks: { date: '', marks: {} },
     dashboardTrendDrill: null,
     pesoHistoryOpen: {},
     pesoEditingKey: null,
@@ -1590,7 +1617,6 @@
     jornadaAfazeresCollapsed: true,
     pacientesTableCollapsed: true,
     visaoGeralCollapsed: false,
-    materialPendenteCollapsed: true,
     jornadaAfazeresCollapsedPatients: {},
     jornadaArquivoCollapsedPatients: {},
     jornadaKanbanSortBy: 'prioridade',
@@ -2949,7 +2975,7 @@
   function consultaBadge(p){
     var status = consultaStatus(p);
     var diff = consultaDiffDays(p);
-    var map = { proximo:['Próximo','badge-warning'], emdia:['Em dia','badge-success'], atrasado:['Atrasado','badge-danger'], semdata:['Sem data','badge-gray'] };
+    var map = { proximo:['Próximo','badge-warning'], emdia:['Em dia','badge-success'], atrasado:['Agendar retorno','badge-danger'], semdata:['Sem data','badge-gray'] };
     var e = map[status] || [status,'badge-gray'];
     var label = e[0] + (diff !== null ? ' (' + diff + ')' : '');
     return '<span class="badge '+e[1]+'">'+esc(label)+'</span>';
@@ -4341,9 +4367,6 @@
     refreshJornadaResumoTable();
     window.scrollTo(window.scrollX, savedScrollY);
   }
-  function materialBadge(v){
-    return v ? '<span class="badge badge-success">Enviado</span>' : '<span class="badge badge-gray">Pendente</span>';
-  }
 
   /* ---------------- render root ---------------- */
   function render(){
@@ -4362,13 +4385,14 @@
     attachAppEvents();
   }
   function loadAllDataAndRender(){
-    Promise.all([loadPatientsAsync(), loadJornadaTemplatesAsync(), loadGrupoMuscularListAsync(), loadCaptacaoAsync(), loadCaptacaoTemplatesAsync(), loadFinanceiroAsync()]).then(function(results){
+    Promise.all([loadPatientsAsync(), loadJornadaTemplatesAsync(), loadGrupoMuscularListAsync(), loadCaptacaoAsync(), loadCaptacaoTemplatesAsync(), loadFinanceiroAsync(), loadAtencaoMarksAsync()]).then(function(results){
       state.patients = results[0];
       state.jornadaTemplates = results[1];
       state.grupoMuscularList = results[2];
       state.captacao = results[3];
       state.captacaoTemplates = results[4];
       state.financeiro = results[5];
+      state.atencaoMarks = results[6];
       state.booting = false;
       render();
     }).catch(function(err){
@@ -7509,7 +7533,7 @@
         ])+
         '<th class="th-sort" data-sort="vencimento">Vencimento'+sortArrow('vencimento')+'</th>'+
         filterThHtml('consultaFilter', 'Status Consulta', 'Todos', [
-          {value:'emdia', label:'Em dia'}, {value:'proximo', label:'Próximo'}, {value:'atrasado', label:'Atrasado'}, {value:'semdata', label:'Sem data'}
+          {value:'emdia', label:'Em dia'}, {value:'proximo', label:'Próximo'}, {value:'atrasado', label:'Agendar retorno'}, {value:'semdata', label:'Sem data'}
         ])+
       '</tr></thead><tbody id="dashAtivosTableBody">'+dashboardAtivosRows()+'</tbody></table>';
   }
@@ -7673,6 +7697,369 @@
         trendPanelHtml('novos', 'Novos Pacientes', months, monthlyNovosCount, function(v){ return String(v); }, 'trend-primary')+
       '</div>';
   }
+  /* ================= Atencao de hoje (Dashboard) =================
+     Junta num lugar so quem precisa de atencao hoje, o motivo e a acao sugerida.
+     So le dados que ja existem; o quadradinho do dia nunca altera registro de paciente. */
+  var ATENCAO_PREPARAR_DIAS = 7;
+  var ATENCAO_QUINZENAL_DIAS = 16; // 14 dias + 2 de folga
+  var ATENCAO_ESSENCIAL_DIAS = 33; // 30 dias + 3 de folga
+  var ATENCAO_ENG_CORTE = 7;
+  var ATENCAO_CAT_ORDEM = { atencao: 0, preparar: 1, observar: 2 };
+
+  function atencaoMonthKeys(hoje, mesesAtras){
+    var base = new Date(hoje + 'T00:00:00');
+    var keys = [];
+    for(var i = mesesAtras; i >= 0; i--) keys.push(monthKeyOf(new Date(base.getFullYear(), base.getMonth() - i, 1)));
+    return keys;
+  }
+  function atencaoDataCurta(iso){
+    return iso ? iso.slice(8,10) + '/' + iso.slice(5,7) : '';
+  }
+  function atencaoDiasTxt(n){
+    return n + (n === 1 ? ' dia' : ' dias');
+  }
+  function atencaoInicio(p){
+    return p.inicioPlano || p.createdDate || null;
+  }
+  /* Data em que um check-in enviado aconteceu. Usa a data real de envio quando uma
+     integracao gravar meses[mes].checkinData; sem ela, aproxima pela sexta da semana
+     (no Essencial, pelo ultimo dia do mes: melhor avisar uns dias depois do que semanas
+     antes). Nunca usa o dia em que o check-in foi registrado no CRM. */
+  function atencaoDataCheckin(p, monthKey, i){
+    var m = p.meses && p.meses[monthKey];
+    var real = m && Array.isArray(m.checkinData) ? m.checkinData[i] : null;
+    if(real) return String(real).slice(0, 10);
+    if(isEssencialMensal(p)){
+      var pk = parseMonthKey(monthKey);
+      return isoDate(new Date(pk.year, pk.month + 1, 0));
+    }
+    return nthFridayDate(monthKey, i);
+  }
+  function atencaoMotivo(key, cat, label, detalhe, acao, extra){
+    var m = { key: key, cat: cat, label: label, detalhe: detalhe || '', acao: acao || '', dias: 0, hoje: false, tom: '' };
+    if(extra) Object.assign(m, extra);
+    return m;
+  }
+  function atencaoMotivosCheckin(p, hoje){
+    var inicio = atencaoInicio(p);
+    if(isEssencialMensal(p) || isTreinoQuinzenal(p)){
+      var ultima = null;
+      atencaoMonthKeys(hoje, 6).forEach(function(key){
+        var data = getMonthData(p, key);
+        activeWeekIndexes(p, key).forEach(function(i){
+          if(data.checkin[i] !== true) return;
+          var d = atencaoDataCheckin(p, key, i);
+          if(d && d > hoje) d = hoje;
+          if(d && (!ultima || d > ultima)) ultima = d;
+        });
+      });
+      var base = ultima || inicio;
+      if(!base) return [];
+      var dias = daysBetween(base, hoje);
+      var limite = isEssencialMensal(p) ? ATENCAO_ESSENCIAL_DIAS : ATENCAO_QUINZENAL_DIAS;
+      if(dias === null || dias <= limite) return [];
+      var label = isEssencialMensal(p) ? 'Check-in mensal atrasado' : 'Check-in quinzenal atrasado';
+      var detalhe = ultima ? ('último em ' + atencaoDataCurta(ultima) + ' · ' + atencaoDiasTxt(dias)) : ('nenhum registrado · ' + atencaoDiasTxt(dias) + ' desde o início');
+      var acao = isEssencialMensal(p) ? 'Pedir feedback no WhatsApp' : 'Cobrar check-in';
+      return [atencaoMotivo('checkin', 'atencao', label, detalhe, acao, { dias: dias - limite })];
+    }
+    // Semanal: prazo e sexta ou sabado; a partir de domingo, sem check-in conta como nao enviado.
+    var semanas = [];
+    atencaoMonthKeys(hoje, 1).forEach(function(key){
+      var data = getMonthData(p, key);
+      activeWeekIndexes(p, key).forEach(function(i){
+        var sexta = nthFridayDate(key, i);
+        if(!sexta || addDaysIso(sexta, 2) > hoje) return;
+        if(inicio && sexta < inicio) return;
+        semanas.push({ sexta: sexta, enviou: data.checkin[i] === true });
+      });
+    });
+    if(!semanas.length) return [];
+    semanas.sort(function(a,b){ return a.sexta < b.sexta ? 1 : -1; });
+    if(semanas[0].enviou) return [];
+    var seguidas = 0;
+    while(seguidas < semanas.length && !semanas[seguidas].enviou) seguidas++;
+    var det = 'semana de ' + atencaoDataCurta(semanas[0].sexta) + (seguidas > 1 ? ' · ' + seguidas + ' seguidas' : '');
+    return [atencaoMotivo('checkin', 'atencao', 'Check-in não enviado', det, 'Cobrar check-in', { dias: daysBetween(semanas[0].sexta, hoje) })];
+  }
+  /* Preparado pra integracao de fotos/medidas: so dispara se ela gravar
+     meses[mes].fotosCheckin === false. Sem esse dado, nunca afirma que falta foto. */
+  function atencaoMotivosFotos(p, hoje){
+    var semFotos = atencaoMonthKeys(hoje, 1).filter(function(key){
+      var m = p.meses && p.meses[key];
+      return !!m && m.fotosCheckin === false;
+    });
+    if(!semFotos.length) return [];
+    return [atencaoMotivo('fotos', 'atencao', 'Check-in sem fotos', monthLabel(semFotos[semFotos.length - 1]), 'Solicitar fotos')];
+  }
+  /* Olha a ultima nota e a anterior (nao so a media do mes). Nota 0 e nota real:
+     semana sem interacao no WhatsApp. Campo vazio nunca entra como nota. */
+  function atencaoMotivosEngajamento(p, hoje){
+    if(isEssencialMensal(p)) return [];
+    var notas = [];
+    atencaoMonthKeys(hoje, 2).forEach(function(key){
+      var data = getMonthData(p, key);
+      activeEngagementIndexes(p, key).forEach(function(i){
+        var v = data.engajamento[i];
+        if(v === null || v === undefined || v === '') return;
+        notas.push({ v: Number(v), d: nthFridayDate(key, i) });
+      });
+    });
+    if(!notas.length) return [];
+    notas.sort(function(a,b){ return a.d < b.d ? -1 : a.d > b.d ? 1 : 0; });
+    var ult = notas[notas.length - 1];
+    var ant = notas.length > 1 ? notas[notas.length - 2] : null;
+    var seq = notas.slice(-3).map(function(n){ return n.v; }).join(' → ');
+    var media = engagementRisk(p, monthKeyOf(new Date(hoje + 'T00:00:00'))).avg;
+    var detalhe = 'notas ' + seq + ' (última ' + atencaoDataCurta(ult.d) + ')' + (media === null ? '' : ' · média do mês ' + media.toFixed(1).replace('.', ','));
+    if(ult.v < ATENCAO_ENG_CORTE){
+      var label = ant && ant.v < ATENCAO_ENG_CORTE ? 'Engajamento baixo persistente' : 'Engajamento baixo';
+      return [atencaoMotivo('engajamento', 'atencao', label, detalhe, 'Entender a dificuldade')];
+    }
+    if(ant && ant.v < ATENCAO_ENG_CORTE){
+      return [atencaoMotivo('engajamento', 'observar', 'Engajamento em recuperação', detalhe, 'Observar próximo check-in', { tom: 'success' })];
+    }
+    if(ant && ant.v >= 9 && ult.v < 9){
+      return [atencaoMotivo('engajamento', 'observar', 'Engajamento caiu', detalhe, 'Observar próximo check-in')];
+    }
+    return [];
+  }
+  function atencaoMotivosTreino(p, hoje){
+    if(!temServicoTreino(p)) return [];
+    var f = currentFichaTreino(p);
+    if(!f || !f.dataVencimento) return [];
+    var diff = daysBetween(hoje, f.dataVencimento);
+    if(diff < 0) return [atencaoMotivo('treino', 'atencao', 'Treino vencido', 'há ' + atencaoDiasTxt(-diff), 'Revisar treino', { dias: -diff })];
+    if(diff <= 15){
+      var label = diff === 0 ? 'Treino vence hoje' : 'Treino vence em ' + atencaoDiasTxt(diff);
+      return [atencaoMotivo('treino', 'preparar', label, formatDate(f.dataVencimento), 'Revisar treino', { dias: diff, hoje: diff === 0 })];
+    }
+    return [];
+  }
+  function atencaoMotivosConsulta(p, hoje){
+    if(!p.consulta) return [atencaoMotivo('consulta', 'atencao', 'Sem consulta marcada', '', 'Agendar consulta')];
+    var diff = daysBetween(hoje, p.consulta);
+    if(diff < 0) return [atencaoMotivo('consulta', 'atencao', 'Agendar retorno (' + diff + ')', 'consulta foi em ' + atencaoDataCurta(p.consulta), 'Agendar retorno', { dias: -diff })];
+    if(diff <= ATENCAO_PREPARAR_DIAS){
+      var label = diff === 0 ? 'Consulta hoje' : diff === 1 ? 'Consulta amanhã' : 'Consulta em ' + diff + ' dias';
+      return [atencaoMotivo('consulta', 'preparar', label, formatDate(p.consulta), 'Preparar consulta', { dias: diff, hoje: diff === 0 })];
+    }
+    return [];
+  }
+  /* Consulta proxima que cai dentro da janela de renovacao (Renovacao proxima ou
+     antecipada) e antes do vencimento. Estar na janela nao significa renovado. */
+  function atencaoMotivosRenovacao(p, hoje){
+    var st = renovacaoStatus(p);
+    if(st !== 'Renovação próxima' && st !== 'Renovação antecipada') return [];
+    if(!p.consulta || !p.vencimento || p.consulta > p.vencimento) return [];
+    var diffConsulta = daysBetween(hoje, p.consulta);
+    if(diffConsulta < 0 || diffConsulta > ATENCAO_PREPARAR_DIAS) return [];
+    return [atencaoMotivo('renovacao', 'preparar', 'Preparar renovação', 'plano vence em ' + atencaoDiasTxt(daysBetween(hoje, p.vencimento)), 'Preparar renovação', { dias: diffConsulta, hoje: diffConsulta === 0 })];
+  }
+  function atencaoItens(hoje){
+    var itens = [];
+    state.patients.forEach(function(p){
+      if(renovacaoStatus(p) === 'Vencido') return;
+      var motivos = [].concat(
+        atencaoMotivosCheckin(p, hoje),
+        atencaoMotivosFotos(p, hoje),
+        atencaoMotivosEngajamento(p, hoje),
+        atencaoMotivosTreino(p, hoje),
+        atencaoMotivosConsulta(p, hoje),
+        atencaoMotivosRenovacao(p, hoje)
+      );
+      if(!motivos.length) return;
+      motivos.sort(function(a,b){ return ATENCAO_CAT_ORDEM[a.cat] - ATENCAO_CAT_ORDEM[b.cat]; });
+      var acoes = [];
+      motivos.forEach(function(m){ if(m.acao && acoes.indexOf(m.acao) === -1) acoes.push(m.acao); });
+      var deAtencao = motivos.filter(function(m){ return m.cat === 'atencao'; });
+      var dePreparar = motivos.filter(function(m){ return m.cat === 'preparar'; });
+      itens.push({
+        p: p,
+        cat: motivos[0].cat,
+        motivos: motivos,
+        acoes: acoes,
+        chavesAtencao: deAtencao.map(function(m){ return m.key; }),
+        diasAtencao: deAtencao.reduce(function(mx, m){ return Math.max(mx, m.dias); }, 0),
+        diasPreparar: dePreparar.reduce(function(mn, m){ return Math.min(mn, m.dias); }, 9999),
+        hoje: dePreparar.some(function(m){ return m.hoje; }),
+        marcado: false
+      });
+    });
+    return itens;
+  }
+
+  /* Quadradinho do dia: salvo por usuario (celular e computador veem o mesmo) com a
+     data do dia. Em outro dia, tudo volta desmarcado, mesmo se o CRM ficou fechado. */
+  function atencaoMarksDocId(){
+    var u = mfa && mfa.auth ? mfa.auth.currentUser : null;
+    return 'atencaoHoje_' + (u && u.uid ? u.uid : 'anon');
+  }
+  function atencaoMarksLocalKey(){
+    return 'crm_' + atencaoMarksDocId();
+  }
+  function atencaoMarksValidas(x){
+    return !!x && typeof x.date === 'string' && !!x.marks && typeof x.marks === 'object';
+  }
+  function loadAtencaoMarksAsync(){
+    var local = null;
+    try { local = JSON.parse(localStorage.getItem(atencaoMarksLocalKey()) || 'null'); } catch(e){}
+    function escolher(remoto){
+      if(atencaoMarksValidas(remoto) && atencaoMarksValidas(local)) return (local.updatedAt || 0) > (remoto.updatedAt || 0) ? local : remoto;
+      if(atencaoMarksValidas(remoto)) return remoto;
+      if(atencaoMarksValidas(local)) return local;
+      return { date: '', marks: {} };
+    }
+    return mfa.getDoc(mfa.doc(mfa.db, 'crmData', atencaoMarksDocId())).then(function(snap){
+      return escolher(snap.exists() ? snap.data() : null);
+    }).catch(function(){ return escolher(null); });
+  }
+  function saveAtencaoMarks(){
+    state.atencaoMarks.updatedAt = Date.now();
+    var payload = JSON.parse(JSON.stringify(state.atencaoMarks));
+    try { localStorage.setItem(atencaoMarksLocalKey(), JSON.stringify(payload)); } catch(e){}
+    mfa.setDoc(mfa.doc(mfa.db, 'crmData', atencaoMarksDocId()), payload).catch(function(err){
+      console.warn('Marcações do dia salvas só neste aparelho:', err && err.message);
+    });
+  }
+  function atencaoMarcasHoje(){
+    var hoje = todayISODate();
+    if(!atencaoMarksValidas(state.atencaoMarks) || state.atencaoMarks.date !== hoje){
+      state.atencaoMarks = { date: hoje, marks: {} };
+    }
+    return state.atencaoMarks.marks;
+  }
+  /* Se surgiu motivo de Atencao que nao existia quando o paciente foi marcado,
+     a marca cai e ele volta pra parte pendente da fila. */
+  function atencaoAplicarMarcas(itens){
+    var marks = atencaoMarcasHoje();
+    var mudou = false;
+    itens.forEach(function(it){
+      var m = marks[it.p.id];
+      if(!m) return;
+      var guardadas = Array.isArray(m.chaves) ? m.chaves : [];
+      var nova = it.chavesAtencao.some(function(k){ return guardadas.indexOf(k) === -1; });
+      if(nova){ delete marks[it.p.id]; mudou = true; }
+      else it.marcado = true;
+    });
+    if(mudou) saveAtencaoMarks();
+    return itens;
+  }
+  function atencaoOrdenar(lista){
+    return lista.slice().sort(function(a,b){
+      if(a.marcado !== b.marcado) return a.marcado ? 1 : -1;
+      if(a.cat === 'atencao'){
+        if(a.chavesAtencao.length !== b.chavesAtencao.length) return b.chavesAtencao.length - a.chavesAtencao.length;
+        if(a.diasAtencao !== b.diasAtencao) return b.diasAtencao - a.diasAtencao;
+      } else if(a.cat === 'preparar'){
+        if(a.diasPreparar !== b.diasPreparar) return a.diasPreparar - b.diasPreparar;
+      }
+      return a.p.nome.localeCompare(b.p.nome, 'pt-BR');
+    });
+  }
+  function atencaoBadgeClass(m){
+    if(m.cat === 'atencao') return 'badge-danger';
+    if(m.cat === 'preparar') return 'badge-warning';
+    return m.tom === 'success' ? 'badge-success' : 'badge-gray';
+  }
+  function atencaoRowHtml(it){
+    var p = it.p;
+    var sub = esc(p.servico || '') + (isEssencialMensal(p) ? ' · ' + esc(p.plano) : '');
+    var motivos = it.motivos.map(function(m){
+      return '<div class="atencao-motivo">'+
+        '<span class="badge '+atencaoBadgeClass(m)+'">'+esc(m.label)+(m.hoje && m.label.indexOf('hoje') === -1 ? ' · hoje' : '')+'</span>'+
+        (m.detalhe ? '<span class="atencao-motivo-det">'+esc(m.detalhe)+'</span>' : '')+
+      '</div>';
+    }).join('');
+    return '<div class="atencao-row'+(it.marcado ? ' is-done' : '')+(it.cat === 'observar' ? ' is-observar' : '')+'">'+
+      '<div class="atencao-cell-nome">'+
+        '<input type="checkbox" class="atencao-check" data-atencao-check="'+p.id+'"'+(it.marcado ? ' checked' : '')+' aria-label="Já olhei '+esc(p.nome)+' hoje">'+
+        '<div><div class="atencao-nome">'+esc(p.nome)+'</div><div class="atencao-sub">'+sub+'</div></div>'+
+      '</div>'+
+      '<div class="atencao-cell-motivos">'+motivos+'</div>'+
+      '<div class="atencao-cell-acao">'+esc(it.acoes.slice(0, 3).join(' · '))+'</div>'+
+      '<div class="atencao-cell-perfil"><button type="button" class="btn-icon" data-open-profile="'+p.id+'">Ver perfil →</button></div>'+
+    '</div>';
+  }
+  function atencaoHojeInnerHtml(){
+    var hoje = todayISODate();
+    var itens = atencaoAplicarMarcas(atencaoItens(hoje));
+    var grupos = { atencao: [], preparar: [], observar: [] };
+    itens.forEach(function(it){ grupos[it.cat].push(it); });
+    Object.keys(grupos).forEach(function(k){ grupos[k] = atencaoOrdenar(grupos[k]); });
+    var pendentesAtencao = grupos.atencao.filter(function(it){ return !it.marcado; }).length;
+    var prepararHoje = grupos.preparar.some(function(it){ return it.hoje && !it.marcado; });
+    var view = state.atencaoView || 'todos';
+    function tab(key, label){
+      return '<button type="button" class="meta-type-btn'+(view === key ? ' active' : '')+'" data-atencao-view="'+key+'">'+label+'</button>';
+    }
+    var tabs = tab('todos', 'Todos · '+itens.length)+
+      tab('atencao', 'Atenção · '+(grupos.atencao.length && !pendentesAtencao ? '✓' : pendentesAtencao))+
+      tab('preparar', 'Preparar · '+grupos.preparar.length+(prepararHoje ? ' · hoje' : ''))+
+      tab('observar', 'Observar · '+grupos.observar.length);
+    var nomesGrupo = { atencao: 'Atenção', preparar: 'Preparar', observar: 'Observar' };
+    var corpo = '';
+    ['atencao', 'preparar', 'observar'].forEach(function(k){
+      if(view !== 'todos' && view !== k) return;
+      if(!grupos[k].length) return;
+      if(view === 'todos') corpo += '<div class="atencao-grupo">'+nomesGrupo[k]+'</div>';
+      corpo += grupos[k].map(atencaoRowHtml).join('');
+    });
+    if(!corpo) corpo = '<div class="atencao-empty">Nada por aqui hoje. 🎉</div>';
+    var dataLonga = new Date(hoje + 'T00:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
+    return ''+
+      '<div class="atencao-head">'+
+        '<div><h2 class="section-title" style="margin:0;">Atenção de hoje</h2><div class="atencao-subtitle">Quem precisa de você, por quê e qual o próximo passo.</div></div>'+
+        '<div class="atencao-data">'+esc(dataLonga)+'</div>'+
+      '</div>'+
+      '<div class="meta-type-toggle">'+tabs+'</div>'+
+      '<div class="card atencao-card">'+
+        '<div class="atencao-grid-head"><div>Paciente</div><div>Por que aparece</div><div>Ação sugerida</div><div></div></div>'+
+        corpo+
+      '</div>';
+  }
+  function bindAtencaoControls(wrap){
+    var views = wrap.querySelectorAll('[data-atencao-view]');
+    for(var v=0; v<views.length; v++){
+      views[v].addEventListener('click', function(){
+        state.atencaoView = this.getAttribute('data-atencao-view');
+        refreshAtencaoHoje();
+      });
+    }
+    var checks = wrap.querySelectorAll('[data-atencao-check]');
+    for(var c=0; c<checks.length; c++){
+      checks[c].addEventListener('change', function(){
+        var id = this.getAttribute('data-atencao-check');
+        var marks = atencaoMarcasHoje();
+        if(this.checked){
+          var item = atencaoItens(todayISODate()).filter(function(it){ return String(it.p.id) === id; })[0];
+          marks[id] = { chaves: item ? item.chavesAtencao : [], em: Date.now() };
+        } else {
+          delete marks[id];
+        }
+        saveAtencaoMarks();
+        refreshAtencaoHoje();
+      });
+    }
+  }
+  function refreshAtencaoHoje(){
+    var wrap = document.getElementById('atencaoHojeWrap');
+    if(!wrap) return;
+    wrap.innerHTML = atencaoHojeInnerHtml();
+    bindProfileOpeners(wrap);
+    bindAtencaoControls(wrap);
+  }
+  /* Virada do dia com o CRM aberto: re-renderiza o Dashboard pra zerar os quadradinhos. */
+  var atencaoDiaVisto = todayISODate();
+  function atencaoChecarVirada(){
+    var hoje = todayISODate();
+    if(atencaoDiaVisto === hoje) return;
+    atencaoDiaVisto = hoje;
+    if(state.loggedIn && !state.booting && state.tab === 'dashboard' && !state.modal) render();
+  }
+  setInterval(atencaoChecarVirada, 60000);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) atencaoChecarVirada(); });
+
   function dashboardTemplate(){
     var monthKey = state.competencia;
     var k = computeKPIs();
@@ -7696,8 +8083,14 @@
     return ''+
     '<div class="profile-top" style="margin-bottom:4px;">'+
       '<div><h1 class="page-title" style="margin-bottom:0;">Dashboard</h1></div>'+
-      '<div class="form-group" style="min-width:220px;"><label>Competência</label><select id="competenciaSelect" class="filter-select">'+monthSelectOptions(monthKey)+'</select></div>'+
     '</div>'+
+    '<div id="atencaoHojeWrap">'+atencaoHojeInnerHtml()+'</div>'+
+    '<div class="section-header-row">'+
+      '<div><h2 class="section-title" style="margin:0;">Outros indicadores e listas</h2><div class="atencao-subtitle">Visão mensal, vencimentos e histórico</div></div>'+
+      dashToggleBtnHtml('outrosIndicadores')+
+    '</div>'+
+    dashWrapOpenHtml('outrosIndicadores')+
+    '<div class="form-group" style="max-width:260px;margin:12px 0 16px;"><label>Competência</label><select id="competenciaSelect" class="filter-select">'+monthSelectOptions(monthKey)+'</select></div>'+
     '<div class="kpi-grid">'+
       '<button class="kpi-card'+(state.dashboardFilter==='ativos'?' selected':'')+'" data-kpi="ativos">'+
         '<div class="kpi-label">Pacientes Ativos</div>'+
@@ -7792,7 +8185,8 @@
     dashWrapOpenHtml('comparacao')+
       '<div class="card" style="padding:16px;margin-bottom:32px;">'+comparacaoMensalHtml()+'</div>'+
     '</div>'+
-    dashboardQuickAccessHtml();
+    dashboardQuickAccessHtml()+
+    '</div>';
   }
   function bindInfoIcons(container){
     var btns = container.querySelectorAll('[data-info-toggle]');
@@ -7810,6 +8204,8 @@
   function attachDashboardEvents(){
     bindProfileOpeners(document.getElementById('content'));
     bindInfoIcons(document.getElementById('content'));
+    var atencaoWrap = document.getElementById('atencaoHojeWrap');
+    if(atencaoWrap) bindAtencaoControls(atencaoWrap);
     var sel = document.getElementById('competenciaSelect');
     if(sel){
       sel.addEventListener('change', function(){
@@ -9470,24 +9866,6 @@
     var mark = chkVal===true?'✓':chkVal===false?'✗':'—';
     return '<div class="week-cell '+cls+'"><div class="num'+(numTone?' '+numTone:'')+'">'+(engVal===null?'—':engVal)+'</div><div class="mark">'+mark+'</div></div>';
   }
-  function materialPendenteList(){
-    return state.patients.filter(function(p){ return renovacaoStatus(p) !== 'Vencido' && !p.materialPos; })
-      .sort(function(a,b){ return a.nome.localeCompare(b.nome, 'pt-BR'); });
-  }
-  function materialPendenteRows(){
-    var list = materialPendenteList();
-    if(!list.length){
-      return '<tr><td colspan="4"><div class="empty-state">Nenhum material pós-consulta pendente. 🎉</div></td></tr>';
-    }
-    return list.map(function(p){
-      return '<tr>'+
-        '<td><button class="link-btn" data-open-profile="'+p.id+'">'+esc(p.nome)+'</button></td>'+
-        '<td class="cell-muted">'+formatDateWithDiff(p.consulta)+'</td>'+
-        '<td>'+consultaBadge(p)+'</td>'+
-        '<td>'+priorityBadge(computePrioridade(p))+'</td>'+
-      '</tr>';
-    }).join('');
-  }
   /* Sem acento e sem diferenca de maiusc./minusc., pra comparar nomes na busca. */
   function normalizeNomeBusca(str){
     return String(str||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
@@ -9634,7 +10012,7 @@
     return searchHtml + '<table><thead><tr>'+
       '<th class="th-sort-overview" id="overviewNomeSortTh">Nome <span class="sort-arrow">'+arrow+'</span></th>'+
       filterThHtml('overviewConsultaFilter', 'Status Consulta', 'Todos', [
-        {value:'emdia', label:'Em dia'}, {value:'proximo', label:'Próximo'}, {value:'atrasado', label:'Atrasado'}
+        {value:'emdia', label:'Em dia'}, {value:'proximo', label:'Próximo'}, {value:'atrasado', label:'Agendar retorno'}
       ])+
       '<th>Meta da Próxima Consulta</th>'+headerCells+
       filterThHtml('overviewMediaFilter', 'Média', 'Todas', [
@@ -9668,18 +10046,6 @@
     '<div class="info-popover" id="info-week-calendar">'+weekMiniCalendarHtml(state.competencia)+'</div>'+
     '<div id="visaoGeralWrap" style="'+(state.visaoGeralCollapsed?'display:none;':'')+'">'+
       '<div class="card table-scroll">'+overviewTableHtml(state.competencia)+'</div>'+
-    '</div>'+
-    '<div class="section-header-row" style="margin-top:32px;">'+
-      '<h2 class="section-title">Material Pós-Consulta Pendente</h2>'+
-      '<button class="info-icon-btn" type="button" data-info-toggle="info-material">i</button>'+
-      '<button class="btn-icon" type="button" id="materialPendenteToggleBtn" style="margin-left:auto;">'+(state.materialPendenteCollapsed?'Mostrar':'Recolher')+'</button>'+
-    '</div>'+
-    '<div class="info-popover" id="info-material">Pacientes que ainda não receberam o material/dossiê pós-consulta.</div>'+
-    '<div id="materialPendenteWrap" style="'+(state.materialPendenteCollapsed?'display:none;':'')+'">'+
-      '<div class="card">'+
-        '<table><thead><tr><th>Nome</th><th>Data da Consulta</th><th>Status Consulta</th><th>Prioridade</th></tr></thead>'+
-        '<tbody>'+materialPendenteRows()+'</tbody></table>'+
-      '</div>'+
     '</div>';
   }
   function refreshOverviewTable(){
@@ -9697,11 +10063,6 @@
       state.visaoGeralCollapsed = !state.visaoGeralCollapsed;
       document.getElementById('visaoGeralWrap').style.display = state.visaoGeralCollapsed ? 'none' : '';
       this.textContent = state.visaoGeralCollapsed ? 'Mostrar' : 'Recolher';
-    });
-    document.getElementById('materialPendenteToggleBtn').addEventListener('click', function(){
-      state.materialPendenteCollapsed = !state.materialPendenteCollapsed;
-      document.getElementById('materialPendenteWrap').style.display = state.materialPendenteCollapsed ? 'none' : '';
-      this.textContent = state.materialPendenteCollapsed ? 'Mostrar' : 'Recolher';
     });
     var overviewNomeInput = document.getElementById('overviewNomeFilterInput');
     if(overviewNomeInput){
@@ -10592,10 +10953,6 @@
           '<h3>Observações</h3>'+
           '<div class="obs-box">'+esc(data.observacoes || 'Sem observações.')+'</div>'+
         '</div>'+
-        '<div class="profile-section">'+
-          '<h3>Material Pós-Consulta</h3>'+
-          '<div class="material-status">'+materialBadge(p.materialPos)+'</div>'+
-        '</div>'+
         fichaTreinoSectionHtml(p)+
         fichaDietaSectionHtml(p)+
         jornadaSectionHtml(p)+
@@ -10839,11 +11196,8 @@
           '<div class="form-group"><label>Prioridade</label><div style="margin-top:6px;">'+priorityBadge(computePrioridade(p))+'</div><div class="mini-label" style="text-align:left;margin-top:4px;">Calculada automaticamente pelo engajamento (não se aplica ao Plano Essencial).</div></div>'+
           '<div class="form-group"><label>Vigência do Plano <button class="info-icon-btn" type="button" data-info-toggle="info-venc-plano" style="margin-left:4px;">i</button></label><input type="date" id="f_venc" value="'+esc(p.vencimento)+'"><div class="info-popover" id="info-venc-plano">Status é calculado automaticamente a partir desta data: Renovação próxima de 31 a 40 dias antes, Renovação antecipada nos últimos 30 dias, Vencido depois dele.</div></div>'+
           '<div class="form-group"><label>Início do Plano</label><input type="date" id="f_inicioPlano" value="'+esc(p.inicioPlano||'')+'"><div class="mini-label" style="text-align:left;margin-top:4px;">A partir dessa data, entra em Modo Bebezinho automaticamente por 30 dias (não se aplica ao Plano Essencial).</div></div>'+
-          '<div class="form-group"><label>Data da Consulta</label><input type="date" id="f_consulta" value="'+esc(p.consulta)+'"><div class="mini-label" style="text-align:left;margin-top:4px;">Status (Em dia/Próximo/Atrasado) é calculado automaticamente: verde ≥16 dias, amarelo ≤15 dias, vermelho se já passou.</div></div>'+
+          '<div class="form-group"><label>Data da Consulta</label><input type="date" id="f_consulta" value="'+esc(p.consulta)+'"><div class="mini-label" style="text-align:left;margin-top:4px;">Status (Em dia/Próximo/Agendar retorno) é calculado automaticamente: verde ≥16 dias, amarelo ≤15 dias, vermelho se já passou.</div></div>'+
           '<div class="form-group"><label>Data de Nascimento</label><input type="date" id="f_nascimento" value="'+esc(p.nascimento)+'"></div>'+
-          '<div class="form-group"><label>Material Pós-Consulta</label>'+
-            '<div class="checkbox-inline"><input type="checkbox" id="f_material" '+(p.materialPos?'checked':'')+'><label for="f_material">Enviado</label></div>'+
-          '</div>'+
           '<div class="form-group full"><label>Paciente Novo</label>'+
             '<div class="checkbox-inline"><input type="checkbox" id="f_novo_paciente" '+(p.isNovoPaciente!==false?'checked':'')+'><label for="f_novo_paciente">Sim, é cliente novo</label></div>'+
             '<div class="mini-label" style="text-align:left;margin-top:4px;">Desmarque se esse paciente já era seu cliente antes de você começar a usar o CRM — evita contar ele como "novo" na Comparação Mensal do Dashboard.</div>'+
@@ -10905,7 +11259,6 @@
         inicioPlano: document.getElementById('f_inicioPlano').value,
         consulta: document.getElementById('f_consulta').value,
         nascimento: document.getElementById('f_nascimento').value,
-        materialPos: document.getElementById('f_material').checked,
         isNovoPaciente: document.getElementById('f_novo_paciente').checked,
         fichasTreino: JSON.parse(JSON.stringify(state.formDraftFichas)),
         fichasDieta: JSON.parse(JSON.stringify(state.formDraftFichasDieta))

@@ -214,7 +214,7 @@ patient = {
   prioridade: 'Modo Bebezinho' | 'Urgente' | 'Moderada' | 'Sem urgência',
   vencimento (data),           // vigência do plano — status é sempre calculado, nunca manual
   consulta (data),              // próxima consulta — status também calculado
-  materialPos (bool),           // material pós-consulta enviado?
+  materialPos (bool),           // legado: fora da interface desde 23/09/2026, dado preservado
   isNovoPaciente (bool),         // desmarcar exclui da contagem de "novo" na Comparação Mensal
   createdAt (contador),  createdDate (ISO — usado p/ "Últimos Pacientes" 30 dias reais),
 
@@ -413,9 +413,9 @@ diferente).
 - **Últimos Pacientes**: quem foi cadastrado nos últimos 30 dias reais
   (`createdDate`) **mais** quem está em "Modo Bebezinho" (fica indefinidamente
   até sair dessa prioridade) — não é mais um "últimos 5" simples.
-- **Material Pós-Consulta Pendente**: lista dedicada (mesmo padrão de
-  "Pacientes em Risco"), não uma coluna a mais na Visão Geral (decisão
-  consciente pra não poluir a tabela já densa).
+- ~~**Material Pós-Consulta Pendente**~~: removido em 23/09/2026 (ver §22).
+- **Atenção de hoje** (23/09/2026) virou a área principal do Dashboard; tudo
+  desta seção fica em "Outros indicadores e listas", recolhido — ver §22.
 - **"Ver semanas" (mini calendário)**: dia de hoje ganha borda laranja pra
   identificar rápido, mesmo quando coincide com uma sexta (as duas bordas
   convivem, testado).
@@ -1164,3 +1164,71 @@ tudo misturado na mesma tela.
   desktop e mobile 375px: separação da migração, lista/calendário/modal
   das duas abas, concluir/editar/excluir isolado (não vaza pra lista
   errada), Agenda com os dois blocos — zero erro de console.
+
+---
+
+## 22. Dashboard "Atenção de hoje" + saída do Material Pós-Consulta (23/09/2026)
+
+Fila única no topo do Dashboard: cada paciente ativo aparece **uma vez**, com
+todos os motivos na mesma linha, ação sugerida curta e "Ver perfil". Os
+indicadores antigos (KPIs, Fichas, Risco, Comparação, Acesso Rápido,
+Competência) continuam iguais, dentro de "Outros indicadores e listas",
+recolhido por padrão. Código: bloco `atencao*` logo antes de
+`dashboardTemplate()`.
+
+**Categorias** (a do paciente é a mais alta entre os motivos dele):
+- **Atenção**: check-in não enviado; engajamento baixo; treino vencido;
+  "Agendar retorno" (consulta passou); sem consulta marcada; check-in sem
+  fotos (só se uma integração gravar `fotosCheckin === false`).
+- **Preparar**: consulta em até 7 dias; treino vence em até 15 dias;
+  "Preparar renovação" = consulta em até 7 dias, dentro da janela de
+  renovação (≤40 dias) e antes do vencimento. Marca "hoje" quando é hoje.
+- **Observar**: engajamento em recuperação (anterior < 7, última ≥ 7) ou
+  queda de 9-10 para 7-8.
+- Ordem: Atenção por nº de motivos e dias de atraso; Preparar pela data
+  mais próxima; marcados vão pro fim da categoria, atenuados.
+
+**Regras de negócio confirmadas pelo Ângelo nesta conversa:**
+- **Nota 0 de engajamento é nota real**: semana sem interação relevante no
+  WhatsApp. Campo vazio (`null`) nunca vira 0 (nenhuma entrada do CRM grava
+  0 sozinha — verificado).
+- Engajamento em Atenção quando a **última nota < 7** (corte vermelho).
+  Usa última nota + anterior; média do mês só como contexto.
+- **Check-in semanal**: prazo sexta ou sábado; a partir de domingo, sem
+  check-in = não enviado → Atenção. (A janela sexta→segunda de
+  `weekIndexForDate` continua valendo pra *atribuir* envio atrasado à semana.)
+- **Quinzenal (só Treino)** e **Essencial** não têm dia fixo: contam a
+  partir do último check-in recebido (ou do início do plano). Atenção após
+  **16 dias** (14 + folga) no quinzenal e **33 dias** (30 + folga) no
+  Essencial, com ação "Pedir feedback no WhatsApp".
+- A data do check-in é a **do envio, nunca a do registro no CRM**. O CRM só
+  guarda a semana, então: usa `meses[mes].checkinData[i]` se alguma
+  integração gravar; senão aproxima pela sexta da semana (quinzenal) ou pelo
+  último dia do mês (Essencial — prefere avisar dias depois a semanas antes).
+  **Decisão do Ângelo (23/09/2026)**: quinzenal e Essencial ficam com
+  preenchimento manual — ele vai criar uma skill pra preencher. O servidor
+  (`syncCheckins`) NÃO foi alterado pra gravar `checkinData`; o CRM só lê
+  esse campo se algum dia ele existir.
+- **Consulta**: status "Atrasado" renomeado pra **"Agendar retorno"** (com
+  os dias entre parênteses), no badge e nos filtros — regra inalterada.
+  Limitação conhecida (já existia no "Atrasado"): a sincronização do Google
+  Agenda só recalcula a data quando um evento muda, então no dia seguinte a
+  uma consulta pode aparecer "Agendar retorno" mesmo com retorno já marcado.
+
+**Quadradinho do dia** (sem texto visível): só registra "já olhei hoje".
+Salvo por usuário em `crmData/atencaoHoje_<uid>` (+ cópia em localStorage),
+com a data do dia; em outro dia tudo volta desmarcado (inclusive se o CRM
+ficou fechado; com o CRM aberto, um timer de 1 min re-renderiza na virada).
+Guarda as chaves dos motivos de Atenção no momento da marca: se surgir motivo
+de Atenção novo no mesmo dia, desmarca sozinho. Nunca altera paciente.
+
+**Material Pós-Consulta**: removido do Dashboard/aba Pacientes/Perfil/
+formulário a pedido (processo não é mais usado). O campo `materialPos`
+continua gravado nos pacientes antigos (salvar o formulário não apaga).
+
+Testado com 16 pacientes fictícios e relógio simulado (app inteiro, Firebase
+falso): vários motivos numa linha, marcar/desmarcar, persistência no reload
+e em "outro aparelho", novo motivo desmarcando, resolver um motivo mantendo
+os outros, virada da meia-noite aberta e fechada, consulta remarcada,
+Essencial ignorando engajamento, recuperação 4→0→9 em Observar, mobile
+375px, modo escuro, zero erro de console.
