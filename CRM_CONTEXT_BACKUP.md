@@ -1178,8 +1178,8 @@ recolhido por padrão. Código: bloco `atencao*` logo antes de
 
 **Categorias** (a do paciente é a mais alta entre os motivos dele):
 - **Atenção**: check-in não enviado; engajamento baixo; treino vencido;
-  "Agendar retorno" (consulta passou); sem consulta marcada; check-in sem
-  fotos (só se uma integração gravar `fotosCheckin === false`).
+  "Agendar retorno" (consulta passou); sem consulta marcada; check-in mensal
+  do Essencial atrasado (ciclo de 30 dias — ver §23).
 - **Preparar**: consulta em até 7 dias; treino vence em até 15 dias;
   "Preparar renovação" = consulta em até 7 dias, dentro da janela de
   renovação (≤40 dias) e antes do vencimento. Marca "hoje" quando é hoje.
@@ -1197,14 +1197,12 @@ recolhido por padrão. Código: bloco `atencao*` logo antes de
 - **Check-in semanal**: prazo sexta ou sábado; a partir de domingo, sem
   check-in = não enviado → Atenção. (A janela sexta→segunda de
   `weekIndexForDate` continua valendo pra *atribuir* envio atrasado à semana.)
-- **Quinzenal (só Treino)** e **Essencial** não têm dia fixo: contam a
-  partir do último check-in recebido (ou do início do plano). Atenção após
-  **16 dias** (14 + folga) no quinzenal e **33 dias** (30 + folga) no
-  Essencial, com ação "Pedir feedback no WhatsApp".
+- **Quinzenal (só Treino)** não tem dia fixo: conta a partir do último
+  check-in recebido (ou do início do plano). Atenção após **16 dias** (14 +
+  folga). **Essencial** mudou pro ciclo de 30 dias do Treino IO — ver §23.
 - A data do check-in é a **do envio, nunca a do registro no CRM**. O CRM só
   guarda a semana, então: usa `meses[mes].checkinData[i]` se alguma
-  integração gravar; senão aproxima pela sexta da semana (quinzenal) ou pelo
-  último dia do mês (Essencial — prefere avisar dias depois a semanas antes).
+  integração gravar; senão aproxima pela sexta da semana (quinzenal).
   **Decisão do Ângelo (23/09/2026)**: quinzenal e Essencial ficam com
   preenchimento manual — ele vai criar uma skill pra preencher. O servidor
   (`syncCheckins`) NÃO foi alterado pra gravar `checkinData`; o CRM só lê
@@ -1232,3 +1230,47 @@ e em "outro aparelho", novo motivo desmarcando, resolver um motivo mantendo
 os outros, virada da meia-noite aberta e fechada, consulta remarcada,
 Essencial ignorando engajamento, recuperação 4→0→9 em Observar, mobile
 375px, modo escuro, zero erro de console.
+
+---
+
+## 23. Fotos, medidas e check-in mensal do Essencial por ciclo de 30 dias (23/09/2026)
+
+**Premium** (Avulso/Trimestral/Semestral/Anual): check-ins semanais/quinzenais
+continuam iguais. Novos campos no paciente `ultimasFotos` e `ultimasMedidas`
+(datas), mostrados no Perfil em "Fotos e Medidas" (data + "há N dias"). Fotos
+prioritárias, medidas opcionais. **Sem alerta no Dashboard** pra fotos do
+Premium — cadência de fotos do Premium não foi definida (não inventar).
+
+**Essencial** (hoje só o Gabriel Salles): o check-in mensal = fotos +
+"Formulário de atualização (Coach Completo)" no ciclo de 30 dias do Treino IO;
+"Medidas em jejum" opcionais. Campos: `ultimasFotos`, `ultimoFormulario`,
+`ultimasMedidas`, `essencialProximoCheckin` (data programada no Treino IO,
+"Atualizações programadas"). Lógica em `essencialCicloStatus(p)`:
+- Prazo = `essencialProximoCheckin`; sem ele, 30 dias após o último check-in
+  completo (fotos e formulário até 30 dias um do outro). Nunca 1º/último dia
+  do mês.
+- Janela do ciclo = (prazo − 30, hoje]. Fotos + formulário na janela →
+  **Recebido** (+ "· sem medidas" se não houver medidas na janela). Ciclo atual
+  ainda antes do prazo e o anterior completo → também "Recebido" (do anterior).
+- Faltando algo e passou prazo + 3 dias → **Atrasado** ("falta fotos" /
+  "falta formulário" / "faltam fotos e formulário") → Dashboard "Atenção de
+  hoje" com "Pedir feedback no WhatsApp". Falta de medidas nunca vira atraso.
+- Dentro da tolerância → "Aguardando · prazo". Sem nenhuma data → "Sem datas
+  registradas" (sem alerta — nada é afirmado sem evidência). Só fotos ou só
+  formulário e sem prazo programado → "Incompleto".
+- O check-in manual antigo do mês (`checkin[0]`, caixa "Check-in do mês") e o
+  "Pacientes em Risco" do Essencial ficaram **intocados**.
+- Removidos o placeholder `fotosCheckin` e a aproximação "último dia do mês"
+  do §22.
+
+**Onde a automação futura grava**: formulário Editar Paciente, bloco "Fotos e
+medidas (Treino IO)" (os 2 campos do Essencial só aparecem se o plano for
+Essencial; alterna ao trocar o plano). Integração com o Treino IO **não** foi
+feita nesta etapa.
+
+Testado (25 pacientes fictícios): Premium com fotos e sem medidas; Essencial
+com fotos+formulário sem medidas (com e sem data programada); adiantado;
+fotos sem formulário; sem fotos; atualização antiga fora do ciclo; dentro da
+tolerância; sem dados; Essencial antigo só com a marcação mensal (não gera
+alerta); gravar data pelo formulário tira o paciente da fila; cancelar não
+salva; mobile 375px; zero erro de console.

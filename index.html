@@ -7702,7 +7702,6 @@
      So le dados que ja existem; o quadradinho do dia nunca altera registro de paciente. */
   var ATENCAO_PREPARAR_DIAS = 7;
   var ATENCAO_QUINZENAL_DIAS = 16; // 14 dias + 2 de folga
-  var ATENCAO_ESSENCIAL_DIAS = 33; // 30 dias + 3 de folga
   var ATENCAO_ENG_CORTE = 7;
   var ATENCAO_CAT_ORDEM = { atencao: 0, preparar: 1, observar: 2 };
 
@@ -7721,19 +7720,66 @@
   function atencaoInicio(p){
     return p.inicioPlano || p.createdDate || null;
   }
-  /* Data em que um check-in enviado aconteceu. Usa a data real de envio quando uma
-     integracao gravar meses[mes].checkinData; sem ela, aproxima pela sexta da semana
-     (no Essencial, pelo ultimo dia do mes: melhor avisar uns dias depois do que semanas
-     antes). Nunca usa o dia em que o check-in foi registrado no CRM. */
+  /* Data em que um check-in quinzenal enviado aconteceu. Usa a data real de envio quando
+     uma integracao gravar meses[mes].checkinData; sem ela, aproxima pela sexta da semana.
+     Nunca usa o dia em que o check-in foi registrado no CRM. */
   function atencaoDataCheckin(p, monthKey, i){
     var m = p.meses && p.meses[monthKey];
     var real = m && Array.isArray(m.checkinData) ? m.checkinData[i] : null;
     if(real) return String(real).slice(0, 10);
-    if(isEssencialMensal(p)){
-      var pk = parseMonthKey(monthKey);
-      return isoDate(new Date(pk.year, pk.month + 1, 0));
-    }
     return nthFridayDate(monthKey, i);
+  }
+  /* Check-in mensal do Essencial = fotos + "Formulario de atualizacao (Coach Completo)"
+     dentro do ciclo de 30 dias do Treino IO. Medidas em jejum sao opcionais: faltar
+     medida nunca vira atraso. So usa datas registradas no paciente (ultimasFotos,
+     ultimoFormulario, ultimasMedidas, essencialProximoCheckin) — sem data, sem status.
+     Prazo = data programada no Treino IO; sem ela, 30 dias depois do ultimo check-in
+     completo. Nunca usa o primeiro/ultimo dia do mes. */
+  var ESSENCIAL_CICLO_DIAS = 30;
+  var ESSENCIAL_TOLERANCIA_DIAS = 3;
+  function essencialCicloStatus(p, hoje){
+    hoje = hoje || todayISODate();
+    var fotos = p.ultimasFotos || null, form = p.ultimoFormulario || null, medidas = p.ultimasMedidas || null;
+    var st = { estado: 'semdados', fotos: fotos, form: form, medidas: medidas, prazo: null, recebidoEm: null, semMedidas: false, faltando: [] };
+    var completo = (fotos && form && Math.abs(daysBetween(fotos, form)) <= ESSENCIAL_CICLO_DIAS) ? (fotos > form ? fotos : form) : null;
+    var prazo = p.essencialProximoCheckin || (completo ? addDaysIso(completo, ESSENCIAL_CICLO_DIAS) : null);
+    if(!prazo){
+      if(fotos || form){
+        st.estado = 'incompleto';
+        if(!fotos) st.faltando.push('fotos');
+        if(!form) st.faltando.push('formulário');
+      }
+      return st;
+    }
+    st.prazo = prazo;
+    var inicio = addDaysIso(prazo, -ESSENCIAL_CICLO_DIAS);
+    function entre(d, de, ate){ return !!d && d > de && d <= ate; }
+    var fotosOk = entre(fotos, inicio, hoje), formOk = entre(form, inicio, hoje);
+    if(fotosOk && formOk){
+      st.estado = 'recebido';
+      st.recebidoEm = fotos > form ? fotos : form;
+      st.semMedidas = !entre(medidas, inicio, hoje);
+      return st;
+    }
+    if(!fotosOk) st.faltando.push('fotos');
+    if(!formOk) st.faltando.push('formulário');
+    if(daysBetween(prazo, hoje) > ESSENCIAL_TOLERANCIA_DIAS){
+      st.estado = 'atrasado';
+      return st;
+    }
+    // ciclo atual ainda no prazo: se o ciclo anterior chegou completo, esta em dia
+    if(hoje <= prazo && completo && completo <= inicio && completo > addDaysIso(inicio, -ESSENCIAL_CICLO_DIAS)){
+      st.estado = 'recebido';
+      st.recebidoEm = completo;
+      st.semMedidas = !(medidas && Math.abs(daysBetween(medidas, completo)) <= ESSENCIAL_CICLO_DIAS);
+      st.faltando = [];
+      return st;
+    }
+    st.estado = 'aguardando';
+    return st;
+  }
+  function essencialFaltandoTxt(lista){
+    return lista.length === 2 ? 'faltam fotos e formulário' : 'falta ' + lista[0];
   }
   function atencaoMotivo(key, cat, label, detalhe, acao, extra){
     var m = { key: key, cat: cat, label: label, detalhe: detalhe || '', acao: acao || '', dias: 0, hoje: false, tom: '' };
@@ -7742,7 +7788,13 @@
   }
   function atencaoMotivosCheckin(p, hoje){
     var inicio = atencaoInicio(p);
-    if(isEssencialMensal(p) || isTreinoQuinzenal(p)){
+    if(isEssencialMensal(p)){
+      var ciclo = essencialCicloStatus(p, hoje);
+      if(ciclo.estado !== 'atrasado') return [];
+      var atraso = daysBetween(ciclo.prazo, hoje);
+      return [atencaoMotivo('checkin', 'atencao', 'Check-in mensal atrasado', 'prazo ' + atencaoDataCurta(ciclo.prazo) + ' · ' + essencialFaltandoTxt(ciclo.faltando), 'Pedir feedback no WhatsApp', { dias: atraso })];
+    }
+    if(isTreinoQuinzenal(p)){
       var ultima = null;
       atencaoMonthKeys(hoje, 6).forEach(function(key){
         var data = getMonthData(p, key);
@@ -7756,12 +7808,9 @@
       var base = ultima || inicio;
       if(!base) return [];
       var dias = daysBetween(base, hoje);
-      var limite = isEssencialMensal(p) ? ATENCAO_ESSENCIAL_DIAS : ATENCAO_QUINZENAL_DIAS;
-      if(dias === null || dias <= limite) return [];
-      var label = isEssencialMensal(p) ? 'Check-in mensal atrasado' : 'Check-in quinzenal atrasado';
+      if(dias === null || dias <= ATENCAO_QUINZENAL_DIAS) return [];
       var detalhe = ultima ? ('último em ' + atencaoDataCurta(ultima) + ' · ' + atencaoDiasTxt(dias)) : ('nenhum registrado · ' + atencaoDiasTxt(dias) + ' desde o início');
-      var acao = isEssencialMensal(p) ? 'Pedir feedback no WhatsApp' : 'Cobrar check-in';
-      return [atencaoMotivo('checkin', 'atencao', label, detalhe, acao, { dias: dias - limite })];
+      return [atencaoMotivo('checkin', 'atencao', 'Check-in quinzenal atrasado', detalhe, 'Cobrar check-in', { dias: dias - ATENCAO_QUINZENAL_DIAS })];
     }
     // Semanal: prazo e sexta ou sabado; a partir de domingo, sem check-in conta como nao enviado.
     var semanas = [];
@@ -7781,16 +7830,6 @@
     while(seguidas < semanas.length && !semanas[seguidas].enviou) seguidas++;
     var det = 'semana de ' + atencaoDataCurta(semanas[0].sexta) + (seguidas > 1 ? ' · ' + seguidas + ' seguidas' : '');
     return [atencaoMotivo('checkin', 'atencao', 'Check-in não enviado', det, 'Cobrar check-in', { dias: daysBetween(semanas[0].sexta, hoje) })];
-  }
-  /* Preparado pra integracao de fotos/medidas: so dispara se ela gravar
-     meses[mes].fotosCheckin === false. Sem esse dado, nunca afirma que falta foto. */
-  function atencaoMotivosFotos(p, hoje){
-    var semFotos = atencaoMonthKeys(hoje, 1).filter(function(key){
-      var m = p.meses && p.meses[key];
-      return !!m && m.fotosCheckin === false;
-    });
-    if(!semFotos.length) return [];
-    return [atencaoMotivo('fotos', 'atencao', 'Check-in sem fotos', monthLabel(semFotos[semFotos.length - 1]), 'Solicitar fotos')];
   }
   /* Olha a ultima nota e a anterior (nao so a media do mes). Nota 0 e nota real:
      semana sem interacao no WhatsApp. Campo vazio nunca entra como nota. */
@@ -7862,7 +7901,6 @@
       if(renovacaoStatus(p) === 'Vencido') return;
       var motivos = [].concat(
         atencaoMotivosCheckin(p, hoje),
-        atencaoMotivosFotos(p, hoje),
         atencaoMotivosEngajamento(p, hoje),
         atencaoMotivosTreino(p, hoje),
         atencaoMotivosConsulta(p, hoje),
@@ -10873,6 +10911,44 @@
     if(p) seedDefaultCompareSelections(p);
     renderModal();
   }
+  function dataComDiasHtml(d, vazio){
+    if(!d) return '<span class="cell-muted">'+esc(vazio)+'</span>';
+    var dias = daysBetween(d, todayISODate());
+    var rel = dias === null || dias < 0 ? '' : dias === 0 ? ' · hoje' : ' · há ' + atencaoDiasTxt(dias);
+    return esc(formatDate(d)) + '<span class="cell-muted">' + rel + '</span>';
+  }
+  /* Premium: so as datas das ultimas fotos e medidas (fotos prioritarias, medidas podem
+     faltar). Essencial: o check-in mensal do ciclo de 30 dias (ver essencialCicloStatus). */
+  function fotosMedidasSectionHtml(p){
+    if(!isEssencialMensal(p)){
+      return ''+
+        '<div class="profile-section">'+
+          '<h3>Fotos e Medidas</h3>'+
+          '<div class="info-grid">'+
+            '<div class="info-item"><div class="lab">Últimas fotos</div><div class="val">'+dataComDiasHtml(p.ultimasFotos, 'Sem registro')+'</div></div>'+
+            '<div class="info-item"><div class="lab">Últimas medidas em jejum</div><div class="val">'+dataComDiasHtml(p.ultimasMedidas, 'Sem registro (opcional)')+'</div></div>'+
+          '</div>'+
+        '</div>';
+    }
+    var c = essencialCicloStatus(p);
+    var badge;
+    if(c.estado === 'recebido') badge = '<span class="badge badge-success">Recebido em '+esc(atencaoDataCurta(c.recebidoEm))+(c.semMedidas ? ' · sem medidas' : '')+'</span>';
+    else if(c.estado === 'atrasado') badge = '<span class="badge badge-danger">Atrasado · '+esc(essencialFaltandoTxt(c.faltando))+'</span>';
+    else if(c.estado === 'aguardando') badge = '<span class="badge badge-warning">Aguardando · prazo '+esc(atencaoDataCurta(c.prazo))+' · '+esc(essencialFaltandoTxt(c.faltando))+'</span>';
+    else if(c.estado === 'incompleto') badge = '<span class="badge badge-gray">Incompleto · '+esc(essencialFaltandoTxt(c.faltando))+' · sem prazo registrado</span>';
+    else badge = '<span class="badge badge-gray">Sem datas registradas</span>';
+    return ''+
+      '<div class="profile-section">'+
+        '<h3>Check-in Mensal · Ciclo de 30 dias (Treino IO)</h3>'+
+        '<div style="margin-bottom:10px;">'+badge+'</div>'+
+        '<div class="info-grid">'+
+          '<div class="info-item"><div class="lab">Fotos</div><div class="val">'+dataComDiasHtml(c.fotos, 'Sem registro')+'</div></div>'+
+          '<div class="info-item"><div class="lab">Formulário de atualização</div><div class="val">'+dataComDiasHtml(c.form, 'Sem registro')+'</div></div>'+
+          '<div class="info-item"><div class="lab">Medidas em jejum</div><div class="val">'+dataComDiasHtml(c.medidas, 'Sem registro (opcional)')+'</div></div>'+
+          '<div class="info-item"><div class="lab">Prazo do ciclo</div><div class="val">'+(c.prazo ? esc(formatDate(c.prazo)) : '<span class="cell-muted">—</span>')+'</div></div>'+
+        '</div>'+
+      '</div>';
+  }
   function profileModalHtml(p, monthKey){
     var data = getMonthData(p, monthKey);
     var wk = data.engajamento.length;
@@ -10945,6 +11021,7 @@
           essencialNota+
           '<div class="checkin-grid" style="grid-template-columns:repeat('+activeIdx.length+',1fr);">'+chkHtml+'</div>'+
         '</div>'+
+        fotosMedidasSectionHtml(p)+
         '<div class="profile-section">'+
           '<h3>Observações do Check-in</h3>'+
           '<div class="obs-box">'+(obsCheckinHtml || 'Sem observações de check-in.')+'</div>'+
@@ -11133,6 +11210,8 @@
     }
     var aviso = document.getElementById('quinzenalFormAviso');
     if(aviso) aviso.style.display = (!essencial && isTreinoQuinzenal(mock)) ? '' : 'none';
+    var camposEssencial = document.querySelectorAll('.essencial-only');
+    for(var ce=0; ce<camposEssencial.length; ce++) camposEssencial[ce].style.display = essencial ? '' : 'none';
     var avisoMensal = document.getElementById('mensalFormAviso');
     if(avisoMensal) avisoMensal.style.display = essencial ? '' : 'none';
   }
@@ -11198,6 +11277,11 @@
           '<div class="form-group"><label>Início do Plano</label><input type="date" id="f_inicioPlano" value="'+esc(p.inicioPlano||'')+'"><div class="mini-label" style="text-align:left;margin-top:4px;">A partir dessa data, entra em Modo Bebezinho automaticamente por 30 dias (não se aplica ao Plano Essencial).</div></div>'+
           '<div class="form-group"><label>Data da Consulta</label><input type="date" id="f_consulta" value="'+esc(p.consulta)+'"><div class="mini-label" style="text-align:left;margin-top:4px;">Status (Em dia/Próximo/Agendar retorno) é calculado automaticamente: verde ≥16 dias, amarelo ≤15 dias, vermelho se já passou.</div></div>'+
           '<div class="form-group"><label>Data de Nascimento</label><input type="date" id="f_nascimento" value="'+esc(p.nascimento)+'"></div>'+
+          '<div class="form-group full"><label>Fotos e medidas (Treino IO)</label><div class="mini-label" style="text-align:left;margin-top:2px;">Preenchido pela automação de coleta. Só registre uma data quando houver envio no Treino IO.</div></div>'+
+          '<div class="form-group"><label>Data das últimas fotos</label><input type="date" id="f_ultimasFotos" value="'+esc(p.ultimasFotos||'')+'"></div>'+
+          '<div class="form-group"><label>Data das últimas medidas em jejum</label><input type="date" id="f_ultimasMedidas" value="'+esc(p.ultimasMedidas||'')+'"></div>'+
+          '<div class="form-group essencial-only"'+(isEssencialMensal(p)?'':' style="display:none;"')+'><label>Data do último Formulário de atualização</label><input type="date" id="f_ultimoFormulario" value="'+esc(p.ultimoFormulario||'')+'"></div>'+
+          '<div class="form-group essencial-only"'+(isEssencialMensal(p)?'':' style="display:none;"')+'><label>Próximo check-in programado (Treino IO)</label><input type="date" id="f_essencialProximoCheckin" value="'+esc(p.essencialProximoCheckin||'')+'"></div>'+
           '<div class="form-group full"><label>Paciente Novo</label>'+
             '<div class="checkbox-inline"><input type="checkbox" id="f_novo_paciente" '+(p.isNovoPaciente!==false?'checked':'')+'><label for="f_novo_paciente">Sim, é cliente novo</label></div>'+
             '<div class="mini-label" style="text-align:left;margin-top:4px;">Desmarque se esse paciente já era seu cliente antes de você começar a usar o CRM — evita contar ele como "novo" na Comparação Mensal do Dashboard.</div>'+
@@ -11259,6 +11343,10 @@
         inicioPlano: document.getElementById('f_inicioPlano').value,
         consulta: document.getElementById('f_consulta').value,
         nascimento: document.getElementById('f_nascimento').value,
+        ultimasFotos: document.getElementById('f_ultimasFotos').value,
+        ultimasMedidas: document.getElementById('f_ultimasMedidas').value,
+        ultimoFormulario: document.getElementById('f_ultimoFormulario').value,
+        essencialProximoCheckin: document.getElementById('f_essencialProximoCheckin').value,
         isNovoPaciente: document.getElementById('f_novo_paciente').checked,
         fichasTreino: JSON.parse(JSON.stringify(state.formDraftFichas)),
         fichasDieta: JSON.parse(JSON.stringify(state.formDraftFichasDieta))
