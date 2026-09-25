@@ -1274,3 +1274,31 @@ fotos sem formulário; sem fotos; atualização antiga fora do ciclo; dentro da
 tolerância; sem dados; Essencial antigo só com a marcação mensal (não gera
 alerta); gravar data pelo formulário tira o paciente da fila; cancelar não
 salva; mobile 375px; zero erro de console.
+
+---
+
+## 24. Carência de 3 dias depois do vencimento do plano (25/09/2026)
+
+Antes: `vencimento < hoje` = **Vencido** (inativo) logo no dia seguinte. Agora o
+paciente continua **ativo** por `DIAS_CARENCIA = 3` dias após o vencimento.
+Vencimento dia 20 → "Em carência" nos dias 21, 22 e 23; **Vencido** (inativo)
+a partir do dia 24. Decisão do Ângelo: **fixo em 3 dias** (não editável em
+Configurações; pra mudar, trocar a constante nos dois lugares abaixo).
+
+- **Site** (`index.html`): `DIAS_CARENCIA` + `renovacaoStatus` devolve o novo
+  status **'Em carência'** (badge vermelho). Conta como ativo em todo o CRM
+  (só 'Vencido' sai das telas). Filtro de Status da lista de ativos ganhou
+  "Em carência"; `RENOVACAO_RANK` ordena logo depois de Vencido.
+- **Servidor** (`functions/index.js`): `isVencido` usa a mesma carência
+  (`vencimento < hoje − 3 dias`). **Mudar o número nos dois arquivos**, senão
+  o paciente em carência aparece ativo mas deixa de sincronizar a consulta do
+  Google Agenda (e o gatilho de reativação usa a mesma função).
+- **Atenção de hoje**: paciente em carência entra em Atenção com "Plano
+  vencido · em carência — fica ativo mais N dias / último dia ativo" e ação
+  "Renovar plano" (adicionado pra quem está em carência não sumir da vista).
+- Reativar continua igual: atualizar a Vigência do Plano.
+
+Testado (servidor extraído do arquivo real + site inteiro com relógio
+simulado): vence hoje, venceu ontem, há 3 dias (ativo), há 4 dias (inativo),
+virada de mês, virada do dia 23→24, reativação por renovação, filtro,
+contadores Ativos/Inativos, mobile 375px, zero erro de console.

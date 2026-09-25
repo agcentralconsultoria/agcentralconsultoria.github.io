@@ -2751,7 +2751,11 @@
     var cls = v==='Modo Bebezinho' ? 'badge-baby' : v==='Urgente' ? 'badge-danger' : v==='Moderada' ? 'badge-warning' : 'badge-gray';
     return '<span class="badge '+cls+'">'+esc(v)+'</span>';
   }
-  var RENOVACAO_RANK = { 'Vencido': 0, 'Renovação antecipada': 1, 'Renovação próxima': 2, 'Ativo': 3, 'Sem vencimento': 4 };
+  var RENOVACAO_RANK = { 'Vencido': 0, 'Em carência': 0.5, 'Renovação antecipada': 1, 'Renovação próxima': 2, 'Ativo': 3, 'Sem vencimento': 4 };
+  /* Dias em que o paciente continua ativo depois do vencimento do plano. Vencimento dia 20:
+     ativo (Em carência) nos dias 21, 22 e 23; inativo (Vencido) a partir do dia 24.
+     O servidor tem a mesma regra em functions/index.js (isVencido) — mudar nos dois. */
+  var DIAS_CARENCIA = 3;
   /* Dois avisos antes do vencimento: "Renovação próxima" (31-40 dias, amarelo — fica de
      olho) e "Renovação antecipada" (0-30 dias, azul no status; no Kanban vira o selo azul
      nas tarefas). A faixa de 31-40 ja existiu antes como "Atenção", mas o nome sozinho nao
@@ -2764,14 +2768,15 @@
     today.setHours(0,0,0,0);
     var v = new Date(p.vencimento + 'T00:00:00');
     var diff = Math.ceil((v - today) / 86400000);
-    if(diff < 0) return 'Vencido';
+    if(diff < -DIAS_CARENCIA) return 'Vencido';
+    if(diff < 0) return 'Em carência';
     if(diff <= DIAS_RENOVACAO_ANTECIPADA) return 'Renovação antecipada';
     if(diff <= DIAS_RENOVACAO_PROXIMA) return 'Renovação próxima';
     return 'Ativo';
   }
   function renovacaoBadge(p){
     var status = renovacaoStatus(p);
-    var map = { 'Ativo':'badge-success', 'Renovação próxima':'badge-warning', 'Renovação antecipada':'badge-info', 'Vencido':'badge-danger', 'Sem vencimento':'badge-gray' };
+    var map = { 'Ativo':'badge-success', 'Renovação próxima':'badge-warning', 'Renovação antecipada':'badge-info', 'Em carência':'badge-danger', 'Vencido':'badge-danger', 'Sem vencimento':'badge-gray' };
     return '<span class="badge '+(map[status]||'badge-gray')+'">'+esc(status)+'</span>';
   }
   function renovacaoStatusSimplified(p){
@@ -7529,7 +7534,7 @@
         filterThHtml('planoFilter', 'Plano', 'Todos os Planos', ['Avulso','Trimestral','Semestral','Anual','Essencial Trimestral','Essencial Semestral'])+
         filterThHtml('prioridadeFilter', 'Prioridade', 'Todas as Prioridades', ['Modo Bebezinho','Urgente','Moderada','Sem urgência'])+
         filterThHtml('statusFilter', 'Status', 'Todos os Status', [
-          {value:'Ativo', label:'Ativo'}, {value:'Renovação próxima', label:'Renovação próxima'}, {value:'Renovação antecipada', label:'Renovação antecipada'}
+          {value:'Ativo', label:'Ativo'}, {value:'Renovação próxima', label:'Renovação próxima'}, {value:'Renovação antecipada', label:'Renovação antecipada'}, {value:'Em carência', label:'Em carência'}
         ])+
         '<th class="th-sort" data-sort="vencimento">Vencimento'+sortArrow('vencimento')+'</th>'+
         filterThHtml('consultaFilter', 'Status Consulta', 'Todos', [
@@ -7889,6 +7894,10 @@
      antecipada) e antes do vencimento. Estar na janela nao significa renovado. */
   function atencaoMotivosRenovacao(p, hoje){
     var st = renovacaoStatus(p);
+    if(st === 'Em carência'){
+      var restam = DIAS_CARENCIA + daysBetween(hoje, p.vencimento);
+      return [atencaoMotivo('carencia', 'atencao', 'Plano vencido · em carência', 'venceu em ' + atencaoDataCurta(p.vencimento) + (restam > 0 ? ' · fica ativo mais ' + atencaoDiasTxt(restam) : ' · último dia ativo'), 'Renovar plano', { dias: DIAS_CARENCIA - restam + 1 })];
+    }
     if(st !== 'Renovação próxima' && st !== 'Renovação antecipada') return [];
     if(!p.consulta || !p.vencimento || p.consulta > p.vencimento) return [];
     var diffConsulta = daysBetween(hoje, p.consulta);
@@ -11273,7 +11282,7 @@
             ['Treino','Dieta','Treino + Dieta'].map(function(o){ return '<option value="'+o+'"'+(p.servico===o?' selected':'')+'>'+o+'</option>'; }).join('')+
           '</select></div>'+
           '<div class="form-group"><label>Prioridade</label><div style="margin-top:6px;">'+priorityBadge(computePrioridade(p))+'</div><div class="mini-label" style="text-align:left;margin-top:4px;">Calculada automaticamente pelo engajamento (não se aplica ao Plano Essencial).</div></div>'+
-          '<div class="form-group"><label>Vigência do Plano <button class="info-icon-btn" type="button" data-info-toggle="info-venc-plano" style="margin-left:4px;">i</button></label><input type="date" id="f_venc" value="'+esc(p.vencimento)+'"><div class="info-popover" id="info-venc-plano">Status é calculado automaticamente a partir desta data: Renovação próxima de 31 a 40 dias antes, Renovação antecipada nos últimos 30 dias, Vencido depois dele.</div></div>'+
+          '<div class="form-group"><label>Vigência do Plano <button class="info-icon-btn" type="button" data-info-toggle="info-venc-plano" style="margin-left:4px;">i</button></label><input type="date" id="f_venc" value="'+esc(p.vencimento)+'"><div class="info-popover" id="info-venc-plano">Status é calculado automaticamente a partir desta data: Renovação próxima de 31 a 40 dias antes, Renovação antecipada nos últimos 30 dias, Em carência nos 3 dias seguintes ao vencimento (ainda ativo), Vencido depois disso.</div></div>'+
           '<div class="form-group"><label>Início do Plano</label><input type="date" id="f_inicioPlano" value="'+esc(p.inicioPlano||'')+'"><div class="mini-label" style="text-align:left;margin-top:4px;">A partir dessa data, entra em Modo Bebezinho automaticamente por 30 dias (não se aplica ao Plano Essencial).</div></div>'+
           '<div class="form-group"><label>Data da Consulta</label><input type="date" id="f_consulta" value="'+esc(p.consulta)+'"><div class="mini-label" style="text-align:left;margin-top:4px;">Status (Em dia/Próximo/Agendar retorno) é calculado automaticamente: verde ≥16 dias, amarelo ≤15 dias, vermelho se já passou.</div></div>'+
           '<div class="form-group"><label>Data de Nascimento</label><input type="date" id="f_nascimento" value="'+esc(p.nascimento)+'"></div>'+

@@ -70,10 +70,12 @@ function todayIso() {
 }
 
 // Mesma regra de "Vencido" usada no CRM (renovacaoStatus em index.html):
-// vencimento antes de hoje = vencido. So olha a data, nao outros campos.
+// vencido so depois de DIAS_CARENCIA dias do vencimento (nesse periodo o
+// paciente continua ativo, "Em carencia"). So olha a data, nao outros campos.
+const DIAS_CARENCIA = 3;
 function isVencido(p, todayStr) {
   if (!p || !p.vencimento) return false;
-  return p.vencimento < todayStr;
+  return p.vencimento < addDaysIso(todayStr, -DIAS_CARENCIA);
 }
 
 // ---- Mesma logica de semanas/check-in do index.html (copiada, nao reinventada) ----
