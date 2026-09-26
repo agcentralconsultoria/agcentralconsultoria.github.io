@@ -8765,11 +8765,9 @@
 
     if(temServicoTreino(p)){
       if(!fichasTreinoOrdenadas(p).length) faltas.push('Ficha de treino');
-      else if(!fichasTreinoComVolume(p).length) faltas.push('Volume por grupo');
     }
     if(temServicoDieta(p)){
       if(!fichasDietaOrdenadas(p).length) faltas.push('Ficha de dieta');
-      else if(!fichasDietaComMacro(p).length) faltas.push('Macros da dieta');
     }
     if(!(p.jornada && Array.isArray(p.jornada.tarefas) && p.jornada.tarefas.length)) faltas.push('Jornada');
     return faltas;
@@ -9093,18 +9091,6 @@
           fichaHeaderInnerHtml(f, isCurrent, isOpen, kind)+
         '</button>';
       var extraFieldsHtml = '';
-      if(isOpen){
-        if(kind === 'dieta'){
-          extraFieldsHtml = dietaMacroFieldsHtml(f, attrPrefix, pesoAtual);
-        } else {
-          var grupoInputs = state.grupoMuscularList.slice().sort(function(a,b){ return a.localeCompare(b, 'pt-BR'); }).map(function(g){
-            var val = (f.volumePorGrupo && f.volumePorGrupo[g] !== undefined) ? f.volumePorGrupo[g] : '';
-            return '<div><div class="mini-label">'+esc(g)+'</div><input type="number" min="0" step="0.5" data-'+attrPrefix+'-grupo="'+esc(g)+'" data-'+attrPrefix+'-id="'+f.id+'" value="'+esc(String(val))+'" placeholder="séries"></div>';
-          }).join('');
-          extraFieldsHtml = '<div class="mini-label" style="text-align:left;margin-top:10px;">Volume por grupo muscular (séries de trabalho válidas)</div>'+
-            '<div class="volume-grupo-grid">'+grupoInputs+'</div>';
-        }
-      }
       var body = !isOpen ? '' : (''+
         '<div class="ficha-treino-body">'+
           '<div class="jornada-select-row">'+
@@ -9431,9 +9417,7 @@
     });
   }
   function fichaTreinoListHtml(p){
-    return grupoMuscularManagerHtml() +
-      fichaTreinoItemsHtml(fichasTreinoOrdenadas(p), state.fichaTreinoOpen[p.id] || {}, 'ficha') +
-      volumeCompareChartHtml(p);
+    return fichaTreinoItemsHtml(fichasTreinoOrdenadas(p), state.fichaTreinoOpen[p.id] || {}, 'ficha');
   }
   function fichaTreinoSectionHtml(p){
     if(!temServicoTreino(p)) return '';
@@ -9616,8 +9600,7 @@
     });
   }
   function fichaDietaListHtml(p){
-    return fichaDietaItemsHtml(fichasDietaOrdenadas(p), state.fichaDietaOpen[p.id] || {}, 'ficha-dieta', latestPesoAtual(p)) +
-      dietaCompareChartHtml(p);
+    return fichaDietaItemsHtml(fichasDietaOrdenadas(p), state.fichaDietaOpen[p.id] || {}, 'ficha-dieta', latestPesoAtual(p));
   }
   function fichaDietaSectionHtml(p){
     if(!temServicoDieta(p)) return '';

@@ -1302,3 +1302,33 @@ Testado (servidor extraído do arquivo real + site inteiro com relógio
 simulado): vence hoje, venceu ontem, há 3 dias (ativo), há 4 dias (inativo),
 virada de mês, virada do dia 23→24, reativação por renovação, filtro,
 contadores Ativos/Inativos, mobile 375px, zero erro de console.
+
+---
+
+## 25. Saída do volume por grupo muscular e dos macros da dieta (25/09/2026)
+
+O Ângelo se arrependeu: não fazia sentido e atrapalhava. **Saiu da tela**:
+- **Treino:** tabela "Volume por grupo muscular (séries)" dentro da ficha, o
+  gerenciador de "Grupos musculares" e o gráfico "Volume por grupamento
+  muscular — comparação". A pendência "Volume por grupo" também saiu do
+  resumo de entrega.
+- **Dieta:** "Formato da dieta" (linear / ciclo de carboidrato), calorias e
+  macronutrientes, refeição livre, "Total da semana em kcal" e o gráfico de
+  comparação de macros (com g/kg). A pendência "Macros da dieta" saiu junto.
+
+**Continua igual:** data em que o treino/dieta foi passado, vencimento do
+treino, histórico de fichas e o campo de observação (`expectativa`) de cada
+ficha.
+
+**Os dados NÃO foram apagados.** `volumePorGrupo`, macros, `variacoes` e
+`grupoMuscularList` continuam guardados no Firestore (só não aparecem). As
+funções de desenho/gráfico continuam no código, sem uso (código morto de
+propósito, pra facilitar a volta).
+
+**Pra voltar um dia:** o estado anterior está no commit `7598c83`
+(`git show 7598c83:index.html`). Os pontos alterados foram
+`fichaItemsHtml` (o `extraFieldsHtml` de treino e de dieta),
+`fichaTreinoListHtml`, `fichaDietaListHtml` e a lista de pendências
+(`resumoEntrega`). Reativar = recolocar essas chamadas
+(`dietaMacroFieldsHtml`, `volumeCompareChartHtml`, `dietaCompareChartHtml`,
+`grupoMuscularManagerHtml`).
