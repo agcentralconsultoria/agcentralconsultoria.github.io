@@ -9064,7 +9064,7 @@
   function fichaHeaderInnerHtml(f, isCurrent, isOpen, kind){
     var statusBadge = kind === 'dieta' ? '' : (f.dataVencimento ? prazoBadge(f.dataVencimento) : '<span class="badge badge-gray">Sem vencimento</span>');
     var diasPassado = daysBetween(f.dataPassado, todayISODate());
-    var summaryText = 'Passado ' + formatDate(f.dataPassado) + (kind !== 'dieta' && f.dataVencimento ? (' · vence ' + formatDate(f.dataVencimento)) : '');
+    var summaryText = 'Atualizada em ' + formatDate(f.dataPassado) + (kind !== 'dieta' && f.dataVencimento ? (' · vence ' + formatDate(f.dataVencimento)) : '');
     var tempoBadge = kind !== 'dieta' ? ' <span class="badge '+fichaTreinoTempoClass(diasPassado)+'">'+esc(elapsedWeeksText(diasPassado))+'</span>' : '';
     return '<span class="ficha-treino-summary">'+esc(summaryText)+'</span>'+tempoBadge+
       '<span class="badge '+(isCurrent?'badge-info':'badge-gray')+'">'+(isCurrent?'Atual':'Substituída')+'</span>'+
