@@ -1332,3 +1332,18 @@ propósito, pra facilitar a volta).
 (`resumoEntrega`). Reativar = recolocar essas chamadas
 (`dietaMacroFieldsHtml`, `volumeCompareChartHtml`, `dietaCompareChartHtml`,
 `grupoMuscularManagerHtml`).
+
+---
+
+## 26. Busca por nome em "Atenção de hoje" (29/09/2026)
+
+Mesmo mecanismo de busca por nome já usado em Pacientes/Visão Geral
+(`nomeMatchesBusca` — sem acento, sem diferenciar maiúscula, aceita palavras
+fora de ordem), agora também em "Atenção de hoje" (campo
+`atencaoBuscaInput`, estado `state.atencaoBusca`, não compartilhado com a
+busca da tabela de Pacientes Ativos do Dashboard). Filtra os itens antes de
+dividir em Atenção/Preparar/Observar, então as contagens das abas já vêm
+filtradas. Só o corpo (abas + linhas) é re-renderizado a cada letra digitada
+— função nova `atencaoHojeBodyHtml()` isolada de `atencaoHojeInnerHtml()` —
+pra não perder o foco do campo a cada tecla, igual já era feito na tabela de
+Pacientes Ativos (`refreshDashboardAtivosTable`).

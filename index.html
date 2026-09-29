@@ -1578,6 +1578,7 @@
     dashQuickConsultaSort: 'desc',
     dashCollapsed: { outrosIndicadores: true },
     atencaoView: 'todos',
+    atencaoBusca: '',
     atencaoMarks: { date: '', marks: {} },
     dashboardTrendDrill: null,
     pesoHistoryOpen: {},
@@ -8028,9 +8029,11 @@
       '<div class="atencao-cell-perfil"><button type="button" class="btn-icon" data-open-profile="'+p.id+'">Ver perfil →</button></div>'+
     '</div>';
   }
-  function atencaoHojeInnerHtml(){
-    var hoje = todayISODate();
+  function atencaoHojeBodyHtml(hoje){
     var itens = atencaoAplicarMarcas(atencaoItens(hoje));
+    if(state.atencaoBusca){
+      itens = itens.filter(function(it){ return nomeMatchesBusca(it.p.nome, state.atencaoBusca); });
+    }
     var grupos = { atencao: [], preparar: [], observar: [] };
     itens.forEach(function(it){ grupos[it.cat].push(it); });
     Object.keys(grupos).forEach(function(k){ grupos[k] = atencaoOrdenar(grupos[k]); });
@@ -8052,25 +8055,31 @@
       if(view === 'todos') corpo += '<div class="atencao-grupo">'+nomesGrupo[k]+'</div>';
       corpo += grupos[k].map(atencaoRowHtml).join('');
     });
-    if(!corpo) corpo = '<div class="atencao-empty">Nada por aqui hoje. 🎉</div>';
-    var dataLonga = new Date(hoje + 'T00:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
+    if(!corpo) corpo = '<div class="atencao-empty">'+(state.atencaoBusca ? 'Nenhum paciente encontrado.' : 'Nada por aqui hoje. 🎉')+'</div>';
     return ''+
-      '<div class="atencao-head">'+
-        '<div><h2 class="section-title" style="margin:0;">Atenção de hoje</h2><div class="atencao-subtitle">Quem precisa de você, por quê e qual o próximo passo.</div></div>'+
-        '<div class="atencao-data">'+esc(dataLonga)+'</div>'+
-      '</div>'+
       '<div class="meta-type-toggle">'+tabs+'</div>'+
       '<div class="card atencao-card">'+
         '<div class="atencao-grid-head"><div>Paciente</div><div>Por que aparece</div><div>Ação sugerida</div><div></div></div>'+
         corpo+
       '</div>';
   }
+  function atencaoHojeInnerHtml(){
+    var hoje = todayISODate();
+    var dataLonga = new Date(hoje + 'T00:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
+    return ''+
+      '<div class="atencao-head">'+
+        '<div><h2 class="section-title" style="margin:0;">Atenção de hoje</h2><div class="atencao-subtitle">Quem precisa de você, por quê e qual o próximo passo.</div></div>'+
+        '<div class="atencao-data">'+esc(dataLonga)+'</div>'+
+      '</div>'+
+      '<input type="text" id="atencaoBuscaInput" class="search-input" style="margin-bottom:12px;max-width:320px;" placeholder="Buscar por nome..." value="'+esc(state.atencaoBusca)+'">'+
+      '<div id="atencaoBodyWrap">'+atencaoHojeBodyHtml(hoje)+'</div>';
+  }
   function bindAtencaoControls(wrap){
     var views = wrap.querySelectorAll('[data-atencao-view]');
     for(var v=0; v<views.length; v++){
       views[v].addEventListener('click', function(){
         state.atencaoView = this.getAttribute('data-atencao-view');
-        refreshAtencaoHoje();
+        refreshAtencaoHojeBody();
       });
     }
     var checks = wrap.querySelectorAll('[data-atencao-check]');
@@ -8085,9 +8094,16 @@
           delete marks[id];
         }
         saveAtencaoMarks();
-        refreshAtencaoHoje();
+        refreshAtencaoHojeBody();
       });
     }
+  }
+  function refreshAtencaoHojeBody(){
+    var body = document.getElementById('atencaoBodyWrap');
+    if(!body) return;
+    body.innerHTML = atencaoHojeBodyHtml(todayISODate());
+    bindProfileOpeners(body);
+    bindAtencaoControls(body);
   }
   function refreshAtencaoHoje(){
     var wrap = document.getElementById('atencaoHojeWrap');
@@ -8095,6 +8111,13 @@
     wrap.innerHTML = atencaoHojeInnerHtml();
     bindProfileOpeners(wrap);
     bindAtencaoControls(wrap);
+    var buscaInput = document.getElementById('atencaoBuscaInput');
+    if(buscaInput){
+      buscaInput.addEventListener('input', function(e){
+        state.atencaoBusca = e.target.value;
+        refreshAtencaoHojeBody();
+      });
+    }
   }
   /* Virada do dia com o CRM aberto: re-renderiza o Dashboard pra zerar os quadradinhos. */
   var atencaoDiaVisto = todayISODate();
@@ -8253,6 +8276,13 @@
     bindInfoIcons(document.getElementById('content'));
     var atencaoWrap = document.getElementById('atencaoHojeWrap');
     if(atencaoWrap) bindAtencaoControls(atencaoWrap);
+    var atencaoBusca = document.getElementById('atencaoBuscaInput');
+    if(atencaoBusca){
+      atencaoBusca.addEventListener('input', function(e){
+        state.atencaoBusca = e.target.value;
+        refreshAtencaoHojeBody();
+      });
+    }
     var sel = document.getElementById('competenciaSelect');
     if(sel){
       sel.addEventListener('change', function(){
