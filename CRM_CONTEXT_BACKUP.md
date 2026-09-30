@@ -1347,3 +1347,25 @@ filtradas. Só o corpo (abas + linhas) é re-renderizado a cada letra digitada
 — função nova `atencaoHojeBodyHtml()` isolada de `atencaoHojeInnerHtml()` —
 pra não perder o foco do campo a cada tecla, igual já era feito na tabela de
 Pacientes Ativos (`refreshDashboardAtivosTable`).
+
+---
+
+## 27. Fotos e medidas a cada 30 dias em "Atenção de hoje" (30/09/2026)
+
+Regra do Ângelo: fotos e medidas em jejum são programadas a cada 30 dias
+(às vezes passa um pouco: 31, 35…). Não é "cobrança de atraso", é pra ele
+**ver** há quantos dias o paciente não manda. Vale pra **todos os planos**
+(Premium e Essencial), cada uma com sua própria data (`ultimasFotos`,
+`ultimasMedidas`).
+
+- Dia 27, 28 ou 29 desde o último envio → **Preparar**: "Fotos completam 30
+  dias em 3 dias / amanhã".
+- Dia 30 em diante → **Atenção**: "Fotos há 32 dias", embaixo "últimas
+  enviadas em 24/08". Mesmo formato pras medidas.
+- Ação sugerida: "Pedir fotos", "Pedir medidas" ou "Pedir fotos e medidas".
+- Sem data cadastrada (ou data no futuro) → não aparece.
+- Constantes `FOTOS_MEDIDAS_DIAS = 30` e `FOTOS_MEDIDAS_AVISO_ANTES = 3`,
+  função `atencaoMotivosFotosMedidas`.
+- Essa regra muda a de §23 só em "Atenção de hoje": lá, medidas faltando
+  nunca atrasavam o check-in do Essencial, e isso continua igual no status do
+  ciclo. O aviso novo é à parte e conta só os dias desde a última medida.

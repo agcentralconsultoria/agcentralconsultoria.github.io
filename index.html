@@ -7905,12 +7905,37 @@
     if(diffConsulta < 0 || diffConsulta > ATENCAO_PREPARAR_DIAS) return [];
     return [atencaoMotivo('renovacao', 'preparar', 'Preparar renovação', 'plano vence em ' + atencaoDiasTxt(daysBetween(hoje, p.vencimento)), 'Preparar renovação', { dias: diffConsulta, hoje: diffConsulta === 0 })];
   }
+  var FOTOS_MEDIDAS_DIAS = 30;
+  var FOTOS_MEDIDAS_AVISO_ANTES = 3;
+  function atencaoMotivosFotosMedidas(p, hoje){
+    var tipos = [
+      { key: 'fotos', data: p.ultimasFotos, nome: 'Fotos', det: 'últimas enviadas em ' },
+      { key: 'medidas', data: p.ultimasMedidas, nome: 'Medidas', det: 'últimas enviadas em ' }
+    ];
+    var motivos = [];
+    tipos.forEach(function(t){
+      if(!t.data) return;
+      var dias = daysBetween(t.data, hoje);
+      if(dias === null || dias < FOTOS_MEDIDAS_DIAS - FOTOS_MEDIDAS_AVISO_ANTES) return;
+      var detalhe = t.det + atencaoDataCurta(t.data);
+      if(dias >= FOTOS_MEDIDAS_DIAS){
+        motivos.push(atencaoMotivo(t.key, 'atencao', t.nome + ' há ' + atencaoDiasTxt(dias), detalhe, '', { dias: dias - FOTOS_MEDIDAS_DIAS }));
+      } else {
+        var faltam = FOTOS_MEDIDAS_DIAS - dias;
+        motivos.push(atencaoMotivo(t.key, 'preparar', t.nome + ' completam 30 dias ' + (faltam === 1 ? 'amanhã' : 'em ' + atencaoDiasTxt(faltam)), detalhe, '', { dias: faltam }));
+      }
+    });
+    var acao = motivos.length === 2 ? 'Pedir fotos e medidas' : motivos.length ? 'Pedir ' + motivos[0].key : '';
+    motivos.forEach(function(m){ m.acao = acao; });
+    return motivos;
+  }
   function atencaoItens(hoje){
     var itens = [];
     state.patients.forEach(function(p){
       if(renovacaoStatus(p) === 'Vencido') return;
       var motivos = [].concat(
         atencaoMotivosCheckin(p, hoje),
+        atencaoMotivosFotosMedidas(p, hoje),
         atencaoMotivosEngajamento(p, hoje),
         atencaoMotivosTreino(p, hoje),
         atencaoMotivosConsulta(p, hoje),
