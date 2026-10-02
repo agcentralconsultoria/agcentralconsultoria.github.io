@@ -4621,10 +4621,10 @@
   }
   function tabContentHtml(){
     if(state.tab === 'dashboard') return '<div class="dash-novo">'+dashboardTemplate()+'</div>';
-    if(state.tab === 'pacientes') return pacientesTemplate();
-    if(state.tab === 'jornada') return jornadaTabTemplate();
-    if(isCaptacaoTab(state.tab)) return captacaoTemplate(state.tab);
-    if(state.tab === 'financeiro') return financeiroTemplate();
+    if(state.tab === 'pacientes') return '<div class="dash-novo">'+pacientesTemplate()+'</div>';
+    if(state.tab === 'jornada') return '<div class="dash-novo">'+jornadaTabTemplate()+'</div>';
+    if(isCaptacaoTab(state.tab)) return '<div class="dash-novo">'+captacaoTemplate(state.tab)+'</div>';
+    if(state.tab === 'financeiro') return '<div class="dash-novo">'+financeiroTemplate()+'</div>';
     return dashboardTemplate();
   }
   function appTemplate(){
