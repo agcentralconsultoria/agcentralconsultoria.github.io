@@ -8153,9 +8153,13 @@
       corpo += grupos[k].map(atencaoRowHtml).join('');
     });
     if(!corpo) corpo = '<div class="atencao-empty">'+(state.atencaoBusca ? 'Nenhum paciente encontrado.' : 'Nada por aqui hoje. 🎉')+'</div>';
+    var recolhida = !!state.dashCollapsed.atencaoHoje;
     return ''+
-      '<div class="meta-type-toggle">'+tabs+'</div>'+
-      '<div class="card atencao-card">'+
+      '<div style="display:flex;align-items:flex-start;gap:10px;">'+
+        '<div class="meta-type-toggle">'+tabs+'</div>'+
+        '<button class="btn-icon" type="button" data-atencao-toggle style="margin:6px 0 10px auto;flex:0 0 auto;">'+(recolhida ? 'Mostrar' : 'Recolher')+'</button>'+
+      '</div>'+
+      '<div class="card atencao-card"'+(recolhida ? ' style="display:none;"' : '')+'>'+
         '<div class="atencao-grid-head"><div>Paciente</div><div>Por que aparece</div><div>Ação sugerida</div><div></div></div>'+
         corpo+
       '</div>';
@@ -8173,6 +8177,13 @@
       '<div id="atencaoBodyWrap">'+atencaoHojeBodyHtml(hoje)+'</div>';
   }
   function bindAtencaoControls(wrap){
+    var toggle = wrap.querySelector('[data-atencao-toggle]');
+    if(toggle){
+      toggle.addEventListener('click', function(){
+        state.dashCollapsed.atencaoHoje = !state.dashCollapsed.atencaoHoje;
+        refreshAtencaoHojeBody();
+      });
+    }
     var views = wrap.querySelectorAll('[data-atencao-view]');
     for(var v=0; v<views.length; v++){
       views[v].addEventListener('click', function(){
