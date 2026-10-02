@@ -7995,9 +7995,16 @@
       console.warn('Marcações do dia salvas só neste aparelho:', err && err.message);
     });
   }
+  /* Marcas valem a semana toda: zeram na segunda-feira. */
+  function atencaoSegundaDa(iso){
+    var d = new Date(String(iso).slice(0, 10) + 'T12:00:00');
+    if(isNaN(d)) return '';
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
   function atencaoMarcasHoje(){
     var hoje = todayISODate();
-    if(!atencaoMarksValidas(state.atencaoMarks) || state.atencaoMarks.date !== hoje){
+    if(!atencaoMarksValidas(state.atencaoMarks) || atencaoSegundaDa(state.atencaoMarks.date) !== atencaoSegundaDa(hoje)){
       state.atencaoMarks = { date: hoje, marks: {} };
     }
     return state.atencaoMarks.marks;
@@ -8046,7 +8053,7 @@
     }).join('');
     return '<div class="atencao-row'+(it.marcado ? ' is-done' : '')+(it.cat === 'observar' ? ' is-observar' : '')+'">'+
       '<div class="atencao-cell-nome">'+
-        '<input type="checkbox" class="atencao-check" data-atencao-check="'+p.id+'"'+(it.marcado ? ' checked' : '')+' aria-label="Já olhei '+esc(p.nome)+' hoje">'+
+        '<input type="checkbox" class="atencao-check" data-atencao-check="'+p.id+'"'+(it.marcado ? ' checked' : '')+' aria-label="Já olhei '+esc(p.nome)+' esta semana">'+
         '<div><div class="atencao-nome">'+esc(p.nome)+'</div><div class="atencao-sub">'+sub+'</div></div>'+
       '</div>'+
       '<div class="atencao-cell-motivos">'+motivos+'</div>'+
