@@ -8,6 +8,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <meta name="theme-color" content="#EA580C">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1279,6 +1280,38 @@
     .jornada-arquivo-row-body,.jornada-afazer-body{flex:1 1 100%;}
 
     .container{padding:14px 12px 40px;}
+  }
+  /* Dashboard — visual novo (referencia design-inspiration) */
+  .dash-novo,.dash-novo button,.dash-novo input,.dash-novo select{font-family:"Plus Jakarta Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .dash-novo{--radius:20px;}
+  .dash-novo .page-title{font-weight:600;letter-spacing:-.8px;}
+  .dash-novo .section-title{font-weight:600;letter-spacing:-.3px;}
+  .dash-novo .card,.dash-novo .kpi-card{border-radius:20px;box-shadow:none;border:1px solid var(--border);}
+  .dash-novo .kpi-card{position:relative;padding:18px 18px 20px;border-left:1px solid var(--border);background-image:none;}
+  .dash-novo .kpi-card.selected{outline:2px solid var(--primary);outline-offset:-1px;}
+  .dash-novo .kpi-card::after{content:"↗";position:absolute;top:14px;right:14px;width:28px;height:28px;border-radius:50%;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--text);}
+  .dash-novo .kpi-label{text-transform:none;letter-spacing:0;font-size:14px;color:var(--text);font-weight:500;padding-right:34px;display:flex;align-items:center;gap:7px;}
+  .dash-novo .kpi-label::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--dot,var(--primary));flex:0 0 auto;}
+  .dash-novo .kpi-card.alt{--dot:var(--warning);}
+  .dash-novo .kpi-card.info{--dot:var(--info);}
+  .dash-novo .kpi-card.pink{--dot:var(--baby);}
+  .dash-novo .kpi-card.muted{--dot:var(--gray-badge);}
+  .dash-novo .kpi-card.danger,.dash-novo .kpi-card.dual-priority{--dot:var(--danger);}
+  .dash-novo .kpi-value{font-size:40px;font-weight:600;letter-spacing:-1px;margin-top:14px;}
+  .dash-novo .kpi-card.destaque{background:linear-gradient(135deg,#EA580C 0%,#C2410C 100%);border-color:transparent;}
+  .dash-novo .kpi-card.destaque .kpi-label,.dash-novo .kpi-card.destaque .kpi-value{color:#fff;}
+  .dash-novo .kpi-card.destaque .kpi-label::before{background:#fff;}
+  .dash-novo .kpi-card.destaque::after{background:#fff;color:#C2410C;border-color:#fff;}
+  .dash-novo .kpi-card.destaque.selected{outline-color:#7C2D12;}
+  .dash-novo .btn,.dash-novo .meta-type-btn,.dash-novo .badge,.dash-novo .search-input,.dash-novo .info-icon-btn{border-radius:999px;}
+  .dash-novo .atencao-nome{font-weight:600;}
+  .dash-novo .atencao-grid-head{background:transparent;}
+  .dash-novo .atencao-grupo{background:var(--primary-light);color:var(--primary-dark);}
+  html[data-theme="dark"] .dash-novo .atencao-grupo{background:rgba(234,88,12,.15);color:#FDBA74;}
+  @media(max-width:600px){
+    .dash-novo .kpi-value{font-size:30px;margin-top:10px;}
+    .dash-novo .kpi-card::after{width:22px;height:22px;font-size:12px;top:10px;right:10px;}
+    .dash-novo .kpi-label{font-size:12px;padding-right:26px;}
   }
 </style>
 </head>
@@ -4555,7 +4588,7 @@
     '</aside>';
   }
   function tabContentHtml(){
-    if(state.tab === 'dashboard') return dashboardTemplate();
+    if(state.tab === 'dashboard') return '<div class="dash-novo">'+dashboardTemplate()+'</div>';
     if(state.tab === 'pacientes') return pacientesTemplate();
     if(state.tab === 'jornada') return jornadaTabTemplate();
     if(isCaptacaoTab(state.tab)) return captacaoTemplate(state.tab);
@@ -8196,7 +8229,7 @@
     dashWrapOpenHtml('outrosIndicadores')+
     '<div class="form-group" style="max-width:260px;margin:12px 0 16px;"><label>Competência</label><select id="competenciaSelect" class="filter-select">'+monthSelectOptions(monthKey)+'</select></div>'+
     '<div class="kpi-grid">'+
-      '<button class="kpi-card'+(state.dashboardFilter==='ativos'?' selected':'')+'" data-kpi="ativos">'+
+      '<button class="kpi-card destaque'+(state.dashboardFilter==='ativos'?' selected':'')+'" data-kpi="ativos">'+
         '<div class="kpi-label">Pacientes Ativos</div>'+
         '<div class="kpi-value">'+k.ativos+'</div>'+
       '</button>'+
