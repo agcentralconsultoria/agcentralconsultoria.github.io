@@ -350,6 +350,7 @@
   }
   .side-sub .side-item.active{background:rgba(234,88,12,.18);color:#FDBA74;}
   .sidebar.collapsed .side-sub{display:none;}
+  .side-sub .side-label{white-space:normal;line-height:1.25;}
   .sidebar-foot{padding:10px 8px;border-top:1px solid #262626;}
   .sidebar-foot .side-item{font-size:13px;font-weight:600;}
   /* Aba de recolher/expandir, presa na borda da barra lateral, no meio da altura.
@@ -1337,7 +1338,7 @@
     getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut,
     sendEmailVerification, sendPasswordResetEmail, multiFactor, TotpMultiFactorGenerator, getMultiFactorResolver
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, setDoc, collection, getDocs, query, where, orderBy, limit, startAfter, addDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
   var appConfig = {
     apiKey: "AIzaSyCFCfuzcJ2SfF_eV9imX7VDlzPH_ZChFDc",
     authDomain: "agcentralcrm.firebaseapp.com",
@@ -1355,6 +1356,15 @@
     doc: doc,
     getDoc: getDoc,
     setDoc: setDoc,
+    collection: collection,
+    getDocs: getDocs,
+    query: query,
+    where: where,
+    orderBy: orderBy,
+    limit: limit,
+    startAfter: startAfter,
+    addDoc: addDoc,
+    runTransaction: runTransaction,
     onAuthStateChanged: onAuthStateChanged,
     signInWithEmailAndPassword: signInWithEmailAndPassword,
     signOut: signOut,
@@ -2303,10 +2313,11 @@
     return p;
   }
   function loadPatientsAsync(){
-    return mfa.getDoc(mfa.doc(mfa.db, 'crmData', 'patients')).then(function(snap){
+    return mfa.getDoc(crmRef('patients')).then(function(snap){
       if(snap.exists() && Array.isArray(snap.data().list)){
         return snap.data().list.map(migratePatient);
       }
+      if(eqMembro()) return [];
       var list;
       var raw = localStorage.getItem(STORAGE_KEY);
       if(raw){
@@ -2320,9 +2331,7 @@
     });
   }
   function savePatients(){
-    mfa.setDoc(mfa.doc(mfa.db, 'crmData', 'patients'), { list: state.patients }).catch(function(err){
-      showToast('Erro ao salvar dados: ' + err.message, 'danger');
-    });
+    eqEnfileirar('patients', eqSalvarPacientesAgora);
   }
   var jornadaTemplateIdSeq = 1;
   var jornadaVariantIdSeq = 1;
@@ -2364,11 +2373,12 @@
     return parsed;
   }
   function loadJornadaTemplatesAsync(){
-    return mfa.getDoc(mfa.doc(mfa.db, 'crmData', 'jornadaTemplates')).then(function(snap){
+    return mfa.getDoc(crmRef('jornadaTemplates')).then(function(snap){
       if(snap.exists() && snap.data().data){
         var fromFirestore = parseJornadaTemplatesRaw(snap.data().data);
         if(fromFirestore) return fromFirestore;
       }
+      if(eqMembro()) return seedJornadaTemplates(JORNADA_TEMPLATES_DEFAULT);
       var result = null;
       var raw = localStorage.getItem(JORNADA_TEMPLATES_KEY);
       if(raw){
@@ -2379,9 +2389,7 @@
     });
   }
   function saveJornadaTemplates(){
-    mfa.setDoc(mfa.doc(mfa.db, 'crmData', 'jornadaTemplates'), { data: state.jornadaTemplates }).catch(function(err){
-      showToast('Erro ao salvar modelos: ' + err.message, 'danger');
-    });
+    eqEnfileirar('jornadaTemplates', function(){ return eqSalvarDocAgora('jornadaTemplates'); });
   }
 
   /* ---------- Captação ----------
@@ -2461,16 +2469,15 @@
     return c;
   }
   function loadCaptacaoAsync(){
-    return mfa.getDoc(mfa.doc(mfa.db, 'crmData', 'captacao')).then(function(snap){
+    return mfa.getDoc(crmRef('captacao')).then(function(snap){
       if(snap.exists() && snap.data().data) return normalizeCaptacao(snap.data().data);
+      if(eqMembro()) return captacaoVazia();
       var vazia = captacaoVazia();
       return mfa.setDoc(mfa.doc(mfa.db, 'crmData', 'captacao'), { data: vazia }).then(function(){ return vazia; });
     });
   }
   function saveCaptacao(){
-    mfa.setDoc(mfa.doc(mfa.db, 'crmData', 'captacao'), { data: state.captacao }).catch(function(err){
-      showToast('Erro ao salvar captação: ' + err.message, 'danger');
-    });
+    eqEnfileirar('captacao', function(){ return eqSalvarDocAgora('captacao'); });
   }
   function getLead(id){
     if(!state.captacao) return null;
@@ -2608,16 +2615,15 @@
     return t;
   }
   function loadCaptacaoTemplatesAsync(){
-    return mfa.getDoc(mfa.doc(mfa.db, 'crmData', 'captacaoTemplates')).then(function(snap){
+    return mfa.getDoc(crmRef('captacaoTemplates')).then(function(snap){
       if(snap.exists() && snap.data().data) return normalizeCaptacaoTemplates(snap.data().data);
+      if(eqMembro()) return captacaoTemplatesVazio();
       var novo = captacaoTemplatesVazio();
       return mfa.setDoc(mfa.doc(mfa.db, 'crmData', 'captacaoTemplates'), { data: novo }).then(function(){ return novo; });
     });
   }
   function saveCaptacaoTemplates(){
-    mfa.setDoc(mfa.doc(mfa.db, 'crmData', 'captacaoTemplates'), { data: state.captacaoTemplates }).catch(function(err){
-      showToast('Erro ao salvar modelos de captação: ' + err.message, 'danger');
-    });
+    eqEnfileirar('captacaoTemplates', function(){ return eqSalvarDocAgora('captacaoTemplates'); });
   }
   function getLeadTemplate(id){
     if(!state.captacaoTemplates) return null;
@@ -2722,9 +2728,10 @@
     return list;
   }
   function loadGrupoMuscularListAsync(){
-    return mfa.getDoc(mfa.doc(mfa.db, 'crmData', 'grupoMuscularList')).then(function(snap){
+    return mfa.getDoc(crmRef('grupoMuscularList')).then(function(snap){
       if(snap.exists() && Array.isArray(snap.data().list) && snap.data().list.length){
         var fromFirestore = backfillGluteoMedio(snap.data().list.slice());
+        if(eqMembro()) return fromFirestore;
         return mfa.setDoc(mfa.doc(mfa.db, 'crmData', 'grupoMuscularList'), { list: fromFirestore }).then(function(){ return fromFirestore; });
       }
       var list;
@@ -2737,13 +2744,12 @@
       }
       if(!list) list = DEFAULT_GRUPOS_MUSCULARES.slice();
       backfillGluteoMedio(list);
+      if(eqMembro()) return list;
       return mfa.setDoc(mfa.doc(mfa.db, 'crmData', 'grupoMuscularList'), { list: list }).then(function(){ return list; });
     });
   }
   function saveGrupoMuscularList(){
-    mfa.setDoc(mfa.doc(mfa.db, 'crmData', 'grupoMuscularList'), { list: state.grupoMuscularList }).catch(function(err){
-      showToast('Erro ao salvar grupos musculares: ' + err.message, 'danger');
-    });
+    eqEnfileirar('grupoMuscularList', function(){ return eqSalvarDocAgora('grupoMuscularList'); });
   }
   function getJornadaVariant(tipo, foco, variantId){
     return state.jornadaTemplates[tipo][foco].find(function(v){ return v.id === variantId; });
@@ -4430,11 +4436,43 @@
       closeModal(true);
       return;
     }
+    if(state.eq && state.eq.papel === 'semMfa'){
+      app.innerHTML = eqConfigurarMfaTemplate();
+      document.getElementById('eqMfaConfigBtn').addEventListener('click', function(){
+        state.modal = 'settings';
+        state.settingsTab = 'seguranca';
+        state.securityEmailSent = false;
+        state.mfaEnrollStep = 'idle';
+        state.securityError = null;
+        renderModal();
+      });
+      document.getElementById('eqSairBtn').addEventListener('click', function(){
+        mfa.signOut(mfa.auth).then(function(){ state.loggedIn = false; state.patients = []; state.eq = null; closeModal(true); render(); });
+      });
+      return;
+    }
+    if(state.eq && !eqAdmin() && !eqMembro()){
+      app.innerHTML = eqSemAcessoTemplate();
+      document.getElementById('eqSairBtn').addEventListener('click', function(){
+        mfa.signOut(mfa.auth).then(function(){
+          state.loggedIn = false;
+          state.patients = [];
+          state.eq = null;
+          render();
+        });
+      });
+      return;
+    }
     app.innerHTML = appTemplate();
     attachAppEvents();
   }
   function loadAllDataAndRender(){
-    Promise.all([loadPatientsAsync(), loadJornadaTemplatesAsync(), loadGrupoMuscularListAsync(), loadCaptacaoAsync(), loadCaptacaoTemplatesAsync(), loadFinanceiroAsync(), loadAtencaoMarksAsync()]).then(function(results){
+    eqCarregarContexto().then(function(){
+      if(state.eq && state.eq.papel === 'relogar'){ state.eq = null; return null; }
+      if(!eqAdmin() && !eqMembro()) return null;
+      return Promise.all([loadPatientsAsync(), loadJornadaTemplatesAsync(), loadGrupoMuscularListAsync(), loadCaptacaoAsync(), loadCaptacaoTemplatesAsync(), loadFinanceiroAsync(), loadAtencaoMarksAsync()]);
+    }).then(function(results){
+      if(!results){ state.booting = false; render(); return; }
       state.patients = results[0];
       state.jornadaTemplates = results[1];
       state.grupoMuscularList = results[2];
@@ -4442,6 +4480,8 @@
       state.captacaoTemplates = results[4];
       state.financeiro = results[5];
       state.atencaoMarks = results[6];
+      eqFotografarTudo();
+      if(!eqPodeAba(state.tab)) state.tab = eqPrimeiraAba() || 'dashboard';
       state.booting = false;
       render();
     }).catch(function(err){
@@ -4450,6 +4490,998 @@
       render();
       alert('Erro ao carregar dados: ' + err.message);
     });
+  }
+
+  /* ================= EQUIPE: quem esta logado e o que pode =================
+     - Angelo (EQ_ADMIN_UID) le e grava crmData/* direto, como sempre.
+     - Funcionario le so a propria visao filtrada (equipeVisao/{uid}/dados/*),
+       montada pelo servidor (functions/equipe.js), e grava pelo servidor
+       (equipeSalvar), que confere a permissao de novo. As regras do Firestore
+       (firestore.rules) barram qualquer outra leitura/gravacao.
+     - Salvar agora manda so o que mudou (por paciente e por parte, ou por lista),
+       em cima da versao mais nova do banco: assim o que o funcionario (ou a
+       sincronizacao de check-ins) gravou nao e apagado por uma tela aberta ha horas. */
+  var EQ_ADMIN_UID = 'uLicObTjbnZS5D3uIRKHLFlxhcO2';
+  var EQ_FUNCOES_URL = 'https://southamerica-east1-agcentralcrm.cloudfunctions.net/';
+  var EQ_AREAS = [
+    { key:'dashboard',      label:'Dashboard',              desc:'Tela inicial: Atenção de hoje e indicadores' },
+    { key:'pacientes',      label:'Pacientes',              desc:'Cadastro dos pacientes (dados, plano, vencimento, consulta)' },
+    { key:'treino',         label:'Fichas de Treino',       desc:'Fichas de treino dos pacientes' },
+    { key:'dieta',          label:'Fichas de Dieta',        desc:'Fichas de dieta dos pacientes' },
+    { key:'checkins',       label:'Check-ins',              desc:'Check-ins, engajamento e observações de cada semana' },
+    { key:'jornada',        label:'Jornada',                desc:'Jornada do paciente e modelos de jornada' },
+    { key:'cap-visao',      label:'Captação · Visão Geral', desc:'Resumo de toda a captação (mostra números de todas as sub-abas)' },
+    { key:'cap-leads',      label:'Captação · Leads',       desc:'Funil de leads' },
+    { key:'cap-parcerias',  label:'Captação · Parcerias',   desc:'Parcerias' },
+    { key:'cap-indica',     label:'Captação · Indicações',  desc:'Indicações e conquistas' },
+    { key:'cap-comunidade', label:'Captação · Comunidade',  desc:'Comunidade (WhatsApp)' },
+    { key:'cap-instagram',  label:'Captação · Instagram',   desc:'Instagram' },
+    { key:'financeiro',     label:'Financeiro',             desc:'Entradas, saídas e resultados' }
+  ];
+  var EQ_AREAS_PACIENTE = ['dashboard','pacientes','treino','dieta','checkins','jornada'];
+  var EQ_PARTES = { treino:['fichasTreino'], dieta:['fichasDieta'], checkins:['meses'], jornada:['jornada'] };
+  var EQ_TABELA = {
+    base:'Paciente · cadastro', treino:'Paciente · ficha de treino', dieta:'Paciente · ficha de dieta',
+    checkins:'Paciente · check-ins', jornada:'Paciente · jornada',
+    captacao:'Captação', financeiro:'Financeiro', jornadaTemplates:'Modelos de jornada',
+    captacaoTemplates:'Modelos de captação', grupoMuscularList:'Grupos musculares'
+  };
+
+  function eqAdmin(){ return !!(state.eq && state.eq.papel === 'admin'); }
+  function eqMembro(){ return !!(state.eq && state.eq.papel === 'membro'); }
+  function eqPode(area, nivel){
+    if(!eqMembro()) return true;
+    var v = ((state.eq.perfil && state.eq.perfil.perms) || {})[area];
+    return nivel === 'editar' ? v === 'editar' : (v === 'ver' || v === 'editar');
+  }
+  function eqVePacientes(){ return EQ_AREAS_PACIENTE.some(function(a){ return eqPode(a, 'ver'); }); }
+  function eqPodeCriarPaciente(){
+    return eqPode('pacientes', 'editar') && !(eqMembro() && Array.isArray(state.eq.perfil.pacientes));
+  }
+  function eqAreaDaAba(tab){
+    return tab; // dashboard, pacientes, jornada, financeiro e cap-* tem o mesmo nome da area
+  }
+  function eqPodeAba(tab){
+    if(isEquipeTab(tab)) return eqAdmin();
+    if(!eqMembro()) return true;
+    if(tab === 'pacientes') return eqPode('pacientes','ver') || eqPode('checkins','ver');
+    return eqPode(eqAreaDaAba(tab), 'ver');
+  }
+  function eqPrimeiraAba(){
+    var ordem = ['dashboard','pacientes','jornada','cap-visao','cap-leads','cap-parcerias','cap-indica','cap-comunidade','cap-instagram','financeiro'];
+    for(var i=0;i<ordem.length;i++) if(eqPodeAba(ordem[i])) return ordem[i];
+    return null;
+  }
+  function crmRef(nome){
+    if(eqMembro()) return mfa.doc(mfa.db, 'equipeVisao', state.eq.uid, 'dados', nome);
+    return mfa.doc(mfa.db, 'crmData', nome);
+  }
+  function eqEsperar(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+  /* Descobre o papel de quem entrou. Funcionario: o servidor monta a visao dele
+     alguns segundos depois de ser cadastrado — espera um pouco se ainda nao existir. */
+  function eqCarregarContexto(){
+    var user = mfa.auth.currentUser;
+    state.eq = { papel:'semAcesso', uid: user ? user.uid : null, email: user ? user.email : '', perfil:null };
+    state.eqCarregado = false; state.eqMembros = []; state.eqGrupos = [];
+    state.eqLogs = []; state.eqLogsBuscado = false; state.eqLogsFiltro = {};
+    if(!user) return Promise.resolve();
+    return user.getIdTokenResult().then(function(tr){
+      var fator = tr && tr.claims && tr.claims.firebase ? tr.claims.firebase.sign_in_second_factor : null;
+      if(fator === 'totp') return eqCarregarPapel(user);
+      var temTotp = mfa.multiFactor(user).enrolledFactors.length > 0;
+      if(temTotp){
+        // sessao antiga, de antes do Authenticator: entra de novo com o codigo
+        state.eq.papel = 'relogar';
+        return mfa.signOut(mfa.auth).then(function(){
+          state.loggedIn = false;
+          state.loginAviso = 'Por segurança, entre de novo usando o código do Google Authenticator.';
+        });
+      }
+      state.eq.papel = 'semMfa';
+    });
+  }
+  function eqCarregarPapel(user){
+    if(user.uid === EQ_ADMIN_UID){ state.eq.papel = 'admin'; return Promise.resolve(); }
+    return mfa.getDoc(mfa.doc(mfa.db, 'equipe', user.uid)).then(function(snap){
+      if(!snap.exists()) return;
+      if(snap.data().ativo !== true){ state.eq.papel = 'desativado'; return; }
+      var tentativas = 0;
+      function lerPerfil(){
+        return mfa.getDoc(mfa.doc(mfa.db, 'equipeVisao', user.uid, 'dados', 'perfil')).then(function(ps){
+          if(ps.exists()){
+            state.eq.papel = 'membro';
+            state.eq.perfil = ps.data();
+            return;
+          }
+          if(++tentativas >= 8) return;
+          return eqEsperar(1500).then(lerPerfil);
+        });
+      }
+      return lerPerfil();
+    }).catch(function(){ /* sem permissao = sem acesso */ });
+  }
+
+  /* ---------- comparacao estavel (ordem das chaves nao importa) ---------- */
+  function eqJson(v){
+    if(v === undefined) return 'null';
+    if(v === null || typeof v !== 'object') return JSON.stringify(v);
+    if(Array.isArray(v)) return '[' + v.map(eqJson).join(',') + ']';
+    return '{' + Object.keys(v).filter(function(k){ return v[k] !== undefined; }).sort().map(function(k){
+      return JSON.stringify(k) + ':' + eqJson(v[k]);
+    }).join(',') + '}';
+  }
+  function eqClone(v){ return v === undefined ? undefined : JSON.parse(JSON.stringify(v)); }
+  function eqSolto(json){
+    var o = JSON.parse(json || '{}');
+    Object.keys(o).forEach(function(k){
+      var v = o[k];
+      if(v === null || v === '' || (Array.isArray(v) && !v.length) || (v && typeof v === 'object' && !Array.isArray(v) && !Object.keys(v).length)) delete o[k];
+    });
+    return eqJson(o);
+  }
+  function eqParteDoCampo(campo){
+    for(var parte in EQ_PARTES) if(EQ_PARTES[parte].indexOf(campo) !== -1) return parte;
+    return 'base';
+  }
+  function eqPartesPaciente(p){
+    var out = { base:{} };
+    Object.keys(EQ_PARTES).forEach(function(k){ out[k] = {}; });
+    Object.keys(p || {}).forEach(function(c){ if(p[c] !== undefined) out[eqParteDoCampo(c)][c] = p[c]; });
+    return out;
+  }
+  function eqSnapDoPaciente(p){
+    var partes = eqPartesPaciente(p), s = { _id: p.id };
+    Object.keys(partes).forEach(function(k){ s[k] = eqJson(partes[k]); });
+    return s;
+  }
+
+  /* ---------- fotografia do que esta salvo no banco ---------- */
+  var eqSnap = { patients:{}, docs:{} };
+  var EQ_DOCS_CHAVES = {
+    captacao:          { campo:'data', ler:function(){ return state.captacao || {}; },          gravar:function(o){ state.captacao = normalizeCaptacao(o); } },
+    financeiro:        { campo:'data', ler:function(){ return state.financeiro || {}; },        gravar:function(o){ state.financeiro = normalizeFinanceiro(o); } },
+    jornadaTemplates:  { campo:'data', ler:function(){ return state.jornadaTemplates || {}; },  gravar:function(o){ state.jornadaTemplates = parseJornadaTemplatesRaw(o) || state.jornadaTemplates; } },
+    captacaoTemplates: { campo:'data', ler:function(){ return state.captacaoTemplates || {}; }, gravar:function(o){ state.captacaoTemplates = normalizeCaptacaoTemplates(o); } },
+    grupoMuscularList: { campo:'list', ler:function(){ return { list: state.grupoMuscularList || [] }; }, gravar:function(o){ state.grupoMuscularList = o.list || []; } }
+  };
+  function eqFotografarTudo(){
+    eqSnap.patients = {};
+    (state.patients || []).forEach(function(p){ eqSnap.patients[String(p.id)] = eqSnapDoPaciente(p); });
+    Object.keys(EQ_DOCS_CHAVES).forEach(function(nome){
+      var obj = EQ_DOCS_CHAVES[nome].ler(), s = {};
+      Object.keys(obj).forEach(function(k){ s[k] = eqJson(obj[k]); });
+      eqSnap.docs[nome] = s;
+    });
+  }
+
+  /* ---------- fila: um salvamento de cada vez por documento ---------- */
+  var eqFila = {};
+  function eqEnfileirar(nome, fn){
+    eqFila[nome] = (eqFila[nome] || Promise.resolve()).then(fn).catch(function(err){
+      console.error('Erro ao salvar ' + nome, err);
+    });
+    return eqFila[nome];
+  }
+  function eqPost(funcao, corpo){
+    return mfa.auth.currentUser.getIdToken().then(function(token){
+      return fetch(EQ_FUNCOES_URL + funcao, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + token },
+        body: JSON.stringify(corpo)
+      });
+    }).then(function(r){
+      return r.json().catch(function(){ return {}; }).then(function(j){
+        if(!r.ok) throw new Error(j.erro || ('Erro ' + r.status));
+        return j;
+      });
+    });
+  }
+  function eqRegistrarLogs(logs){
+    if((!eqAdmin() && !eqMembro()) || !logs.length) return;
+    var user = mfa.auth.currentUser;
+    logs.forEach(function(l){
+      l.em = Date.now();
+      l.uid = user ? user.uid : '';
+      l.usuario = eqMembro() ? ((state.eq.perfil && state.eq.perfil.nome) || (user && user.email) || '') : 'Angelo Garcia';
+      l.funcionario = eqMembro();
+      var txt = JSON.stringify(l);
+      if(txt.length > 900000){ l.antes = { resumo:'(grande demais para guardar)' }; l.depois = { resumo:'(grande demais para guardar)' }; }
+      mfa.addDoc(mfa.collection(mfa.db, 'auditoria'), l).catch(function(err){ console.error('log', err); });
+    });
+  }
+  function eqDiffCampos(antes, depois){
+    var a = antes || {}, d = depois || {}, out = { antes:{}, depois:{} };
+    var chaves = {};
+    Object.keys(a).forEach(function(k){ chaves[k] = 1; });
+    Object.keys(d).forEach(function(k){ chaves[k] = 1; });
+    function vazio(v){ return v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length); }
+    Object.keys(chaves).forEach(function(k){
+      if(eqJson(a[k]) === eqJson(d[k]) || (vazio(a[k]) && vazio(d[k]))) return;
+      if(a[k] !== undefined) out.antes[k] = a[k];
+      if(d[k] !== undefined) out.depois[k] = d[k];
+    });
+    return out;
+  }
+
+  /* ---------- pacientes ---------- */
+  function eqDiffPacientes(){
+    var antes = eqSnap.patients, ops = [], vistos = {};
+    (state.patients || []).forEach(function(p){
+      var id = String(p.id), s = antes[id], atual = eqSnapDoPaciente(p);
+      vistos[id] = 1;
+      if(!s){ ops.push({ tipo:'criar', id:p.id, paciente:eqClone(p) }); return; }
+      Object.keys(atual).forEach(function(k){
+        if(k === '_id' || atual[k] === s[k]) return;
+        // parte que o funcionario nem recebeu (sem permissao de ver): nunca e enviada
+        if(k !== 'base' && eqMembro() && !eqPode(k, 'ver')) return;
+        // vazio x ausente ('' / [] / null) nao conta como mudanca
+        if(eqSolto(atual[k]) === eqSolto(s[k])) return;
+        ops.push({ tipo:'parte', id:p.id, parte:k, valor:JSON.parse(atual[k]) });
+      });
+    });
+    Object.keys(antes).forEach(function(id){ if(!vistos[id]) ops.push({ tipo:'excluir', id:antes[id]._id }); });
+    return ops;
+  }
+  function eqPacienteDoSnap(s){
+    var p = {};
+    Object.keys(s).forEach(function(k){ if(k !== '_id') Object.assign(p, JSON.parse(s[k])); });
+    return p;
+  }
+  function eqAplicarOpsNaLista(list, ops){
+    ops.forEach(function(op){
+      var idx = list.findIndex(function(p){ return String(p.id) === String(op.id); });
+      if(op.tipo === 'criar'){ if(idx === -1) list.push(eqClone(op.paciente)); else list[idx] = eqClone(op.paciente); return; }
+      if(idx === -1) return;
+      if(op.tipo === 'excluir'){ list.splice(idx, 1); return; }
+      var p = Object.assign({}, list[idx]);
+      if(op.parte === 'base'){
+        Object.keys(p).forEach(function(c){ if(eqParteDoCampo(c) === 'base') delete p[c]; });
+        Object.assign(p, eqClone(op.valor));
+        p.id = list[idx].id;
+      } else {
+        EQ_PARTES[op.parte].forEach(function(c){ if(op.valor[c] === undefined) delete p[c]; else p[c] = eqClone(op.valor[c]); });
+      }
+      list[idx] = p;
+    });
+  }
+  function eqAtualizarSnapComOps(ops){
+    ops.forEach(function(op){
+      var id = String(op.id);
+      if(op.tipo === 'criar'){ eqSnap.patients[id] = eqSnapDoPaciente(op.paciente); return; }
+      if(op.tipo === 'excluir'){ delete eqSnap.patients[id]; return; }
+      if(eqSnap.patients[id]) eqSnap.patients[id][op.parte] = eqJson(op.valor);
+    });
+  }
+  function eqLogsDePacientes(ops){
+    return ops.map(function(op){
+      var s = eqSnap.patients[String(op.id)];
+      var antigo = s ? eqPacienteDoSnap(s) : {};
+      if(op.tipo === 'criar') return { tabela:EQ_TABELA.base, acao:'criacao', registroId:String(op.id), registroNome:op.paciente.nome || '', antes:{}, depois:op.paciente };
+      if(op.tipo === 'excluir') return { tabela:EQ_TABELA.base, acao:'exclusao', registroId:String(op.id), registroNome:antigo.nome || '', antes:antigo, depois:{} };
+      var d = eqDiffCampos(s ? JSON.parse(s[op.parte]) : {}, op.valor);
+      return { tabela:EQ_TABELA[op.parte], acao:'atualizacao', registroId:String(op.id), registroNome:(op.parte === 'base' ? op.valor.nome : antigo.nome) || antigo.nome || '', antes:d.antes, depois:d.depois };
+    }).filter(function(l){ return l.acao !== 'atualizacao' || Object.keys(l.antes).length || Object.keys(l.depois).length; });
+  }
+  /* Volta a tela pro que esta salvo (quando o servidor recusa uma mudanca). */
+  function eqDesfazerPacientes(ops){
+    ops.forEach(function(op){
+      var id = String(op.id), s = eqSnap.patients[id];
+      var idx = state.patients.findIndex(function(p){ return String(p.id) === id; });
+      if(op.tipo === 'criar'){ if(idx !== -1) state.patients.splice(idx, 1); return; }
+      if(!s) return;
+      var original = eqPacienteDoSnap(s);
+      if(op.tipo === 'excluir'){ if(idx === -1) state.patients.push(original); return; }
+      if(idx !== -1){
+        Object.keys(state.patients[idx]).forEach(function(c){ if(eqParteDoCampo(c) === op.parte) delete state.patients[idx][c]; });
+        Object.assign(state.patients[idx], JSON.parse(s[op.parte]));
+      }
+    });
+  }
+  /* Traz pra tela o que outra pessoa mudou no banco, sem mexer no que esta sendo editado aqui. */
+  function eqPuxarPacientes(remota){
+    var mudou = false, porId = {};
+    remota.forEach(function(p){ porId[String(p.id)] = p; });
+    remota.forEach(function(r){
+      var id = String(r.id), s = eqSnap.patients[id];
+      var idx = state.patients.findIndex(function(p){ return String(p.id) === id; });
+      var rs = eqSnapDoPaciente(r);
+      if(idx === -1){
+        if(!s){ state.patients.push(migratePatient(eqClone(r))); mudou = true; }
+        eqSnap.patients[id] = rs;
+        return;
+      }
+      var local = eqSnapDoPaciente(state.patients[idx]);
+      Object.keys(rs).forEach(function(k){
+        if(k === '_id') return;
+        var limpo = !s || local[k] === s[k];
+        if(limpo && local[k] !== rs[k]){
+          var alvo = state.patients[idx];
+          Object.keys(alvo).forEach(function(c){ if(eqParteDoCampo(c) === k) delete alvo[c]; });
+          Object.assign(alvo, JSON.parse(rs[k]));
+          mudou = true;
+        }
+      });
+      if(!s) eqSnap.patients[id] = rs;
+      else Object.keys(rs).forEach(function(k){ if(k !== '_id' && local[k] === s[k]) eqSnap.patients[id][k] = rs[k]; });
+    });
+    Object.keys(eqSnap.patients).forEach(function(id){
+      if(porId[id]) return;
+      var idx = state.patients.findIndex(function(p){ return String(p.id) === id; });
+      if(idx !== -1){
+        var local = eqSnapDoPaciente(state.patients[idx]), s = eqSnap.patients[id];
+        var limpo = Object.keys(s).every(function(k){ return k === '_id' || local[k] === s[k]; });
+        if(!limpo) return;
+        state.patients.splice(idx, 1);
+        mudou = true;
+      }
+      delete eqSnap.patients[id];
+    });
+    return mudou;
+  }
+  function eqSalvarPacientesAgora(){
+    var ops = eqDiffPacientes();
+    if(!ops.length) return Promise.resolve();
+    if(eqMembro()){
+      return eqPost('equipeSalvar', { alvo:'patients', ops:ops }).then(function(){
+        eqAtualizarSnapComOps(ops);
+      }).catch(function(err){
+        eqDesfazerPacientes(ops);
+        showToast(err.message || 'Não foi possível salvar.', 'danger');
+        render();
+        if(state.modal) renderModal();
+      });
+    }
+    var logs = eqLogsDePacientes(ops);
+    var ref = mfa.doc(mfa.db, 'crmData', 'patients');
+    return mfa.runTransaction(mfa.db, function(tx){
+      return tx.get(ref).then(function(snap){
+        var remota = snap.exists() && Array.isArray(snap.data().list) ? snap.data().list.slice() : [];
+        eqAplicarOpsNaLista(remota, ops);
+        tx.set(ref, { list: remota }, { merge:true });
+        return remota;
+      });
+    }).then(function(remota){
+      eqAtualizarSnapComOps(ops);
+      eqRegistrarLogs(logs);
+      if(eqPuxarPacientes(remota)){ render(); if(state.modal) renderModal(); }
+    }).catch(function(err){
+      // sem internet a transacao nao roda: grava do jeito antigo (fica na fila do navegador)
+      if(err && err.code === 'unavailable'){
+        return mfa.setDoc(ref, { list: state.patients }).then(function(){
+          eqFotografarTudo();
+          eqRegistrarLogs(logs);
+        });
+      }
+      showToast('Erro ao salvar dados: ' + err.message, 'danger');
+    });
+  }
+
+  /* ---------- documentos com listas por chave (captacao, financeiro, modelos...) ---------- */
+  function eqSalvarDocAgora(nome){
+    var cfg = EQ_DOCS_CHAVES[nome];
+    var local = cfg.ler(), snap = eqSnap.docs[nome] || {}, mudadas = {};
+    Object.keys(local).forEach(function(k){ if(eqJson(local[k]) !== snap[k]) mudadas[k] = eqClone(local[k]); });
+    Object.keys(snap).forEach(function(k){ if(!(k in local)) mudadas[k] = null; });
+    var chaves = Object.keys(mudadas);
+    if(!chaves.length) return Promise.resolve();
+    function marcarSalvas(){ chaves.forEach(function(k){ if(mudadas[k] === null) delete snap[k]; else snap[k] = eqJson(mudadas[k]); }); eqSnap.docs[nome] = snap; }
+    if(eqMembro()){
+      var corpo = cfg.campo === 'list' ? { alvo:nome, list:mudadas.list } : { alvo:nome, chaves:mudadas };
+      return eqPost('equipeSalvar', corpo).then(marcarSalvas).catch(function(err){
+        var volta = {};
+        Object.keys(local).forEach(function(k){ volta[k] = local[k]; });
+        chaves.forEach(function(k){ if(snap[k] === undefined) delete volta[k]; else volta[k] = JSON.parse(snap[k]); });
+        cfg.gravar(volta);
+        showToast(err.message || 'Não foi possível salvar.', 'danger');
+        render();
+        if(state.modal) renderModal();
+      });
+    }
+    var logs = chaves.map(function(k){
+      var antes = {}, depois = {};
+      if(snap[k] !== undefined) antes[k] = JSON.parse(snap[k]);
+      if(mudadas[k] !== null) depois[k] = mudadas[k];
+      return { tabela:EQ_TABELA[nome] + (cfg.campo === 'list' ? '' : ' · ' + k), acao:'atualizacao', registroId:k, registroNome:'', antes:antes, depois:depois };
+    });
+    var ref = mfa.doc(mfa.db, 'crmData', nome);
+    return mfa.runTransaction(mfa.db, function(tx){
+      return tx.get(ref).then(function(s){
+        var remoto = s.exists() ? (cfg.campo === 'list' ? { list: s.data().list || [] } : Object.assign({}, s.data().data || {})) : {};
+        chaves.forEach(function(k){ if(mudadas[k] === null) delete remoto[k]; else remoto[k] = mudadas[k]; });
+        tx.set(ref, cfg.campo === 'list' ? { list: remoto.list || [] } : { data: remoto }, { merge:true });
+        return remoto;
+      });
+    }).then(function(remoto){
+      marcarSalvas();
+      eqRegistrarLogs(logs);
+      // traz o que outra pessoa mudou nas chaves que nao foram mexidas aqui
+      var atual = cfg.ler(), puxou = false, novo = {};
+      Object.keys(atual).forEach(function(k){ novo[k] = atual[k]; });
+      Object.keys(remoto).forEach(function(k){
+        if(chaves.indexOf(k) !== -1) return;
+        var limpo = eqJson(atual[k]) === snap[k];
+        if(limpo && eqJson(remoto[k]) !== snap[k]){ novo[k] = remoto[k]; snap[k] = eqJson(remoto[k]); puxou = true; }
+      });
+      if(puxou){ cfg.gravar(novo); render(); }
+    }).catch(function(err){
+      if(err && err.code === 'unavailable'){
+        var payload = cfg.campo === 'list' ? { list: local.list } : { data: local };
+        return mfa.setDoc(ref, payload).then(function(){ marcarSalvas(); eqRegistrarLogs(logs); });
+      }
+      showToast('Erro ao salvar: ' + err.message, 'danger');
+    });
+  }
+
+  /* ================= EQUIPE: telas (so o administrador ve) ================= */
+  function eqDois(n){ return String(n).padStart(2, '0'); }
+  function eqDataHora(ms){
+    if(!ms) return '—';
+    var d = new Date(ms);
+    return eqDois(d.getDate())+'/'+eqDois(d.getMonth()+1)+'/'+d.getFullYear()+' '+eqDois(d.getHours())+':'+eqDois(d.getMinutes())+':'+eqDois(d.getSeconds());
+  }
+  function eqData(ms){
+    if(!ms) return '—';
+    var d = new Date(ms);
+    return eqDois(d.getDate())+'/'+eqDois(d.getMonth()+1)+'/'+d.getFullYear();
+  }
+  var EQ_ACAO_LABEL = { criacao:'Criação', atualizacao:'Atualização', exclusao:'Exclusão' };
+  var EQ_ACAO_CLS = { criacao:'badge-success', atualizacao:'badge-warning', exclusao:'badge-danger' };
+  function eqNomeGrupo(id){
+    var g = (state.eqGrupos || []).filter(function(x){ return x.id === id; })[0];
+    return g ? g.nome : '—';
+  }
+
+  function eqCarregarEquipe(){
+    state.eqCarregando = true;
+    return Promise.all([
+      mfa.getDocs(mfa.collection(mfa.db, 'equipe')),
+      mfa.getDocs(mfa.collection(mfa.db, 'equipeGrupos'))
+    ]).then(function(r){
+      state.eqMembros = r[0].docs.map(function(d){ return Object.assign({ uid:d.id }, d.data()); })
+        .sort(function(a,b){ return String(a.nome).localeCompare(String(b.nome)); });
+      state.eqGrupos = r[1].docs.map(function(d){ return Object.assign({ id:d.id }, d.data()); })
+        .sort(function(a,b){ return (a.criadoEm||0) - (b.criadoEm||0); });
+      state.eqCarregado = true;
+    }).catch(function(err){
+      showToast('Erro ao carregar a equipe: ' + err.message, 'danger');
+    }).then(function(){ state.eqCarregando = false; });
+  }
+
+  function equipeTemplate(){
+    var titulos = {
+      'eq-func': ['Funcionários', 'Quem tem acesso ao CRM, em qual grupo e com quais pacientes.'],
+      'eq-perm': ['Permissões de funcionário', 'Grupos de permissão: o que cada grupo pode ver e editar.'],
+      'eq-logs': ['Logs de auditoria', 'Registro automático de toda mudança feita no CRM, sua ou de funcionário.']
+    };
+    var t = titulos[state.tab] || titulos['eq-func'];
+    var corpo;
+    if(!state.eqCarregado) corpo = '<div class="card"><div class="empty-state">Carregando…</div></div>';
+    else if(state.tab === 'eq-perm') corpo = eqGruposHtml();
+    else if(state.tab === 'eq-logs') corpo = eqLogsHtml();
+    else corpo = eqFuncionariosHtml();
+    return ''+
+      '<h1 class="page-title" style="margin-bottom:0;">'+t[0]+'</h1>'+
+      '<div class="atencao-subtitle" style="margin-bottom:16px;">'+t[1]+'</div>'+
+      corpo;
+  }
+
+  function eqFuncionariosHtml(){
+    var rows = (state.eqMembros || []).map(function(m){
+      var pac = Array.isArray(m.pacientes) ? (m.pacientes.length + (m.pacientes.length === 1 ? ' paciente' : ' pacientes')) : 'Todos';
+      return '<tr>'+
+        '<td><b>'+esc(m.nome || '—')+'</b></td>'+
+        '<td>'+esc(m.email || '')+'</td>'+
+        '<td><span class="badge badge-gray">'+esc(eqNomeGrupo(m.grupoId))+'</span></td>'+
+        '<td>'+esc(pac)+'</td>'+
+        '<td>'+(m.ativo ? '<span class="badge badge-success">Ativo</span>' : '<span class="badge badge-warning">Inativo</span>')+'</td>'+
+        '<td style="text-align:right;"><button type="button" class="btn-icon" data-eq-func="'+esc(m.uid)+'">Editar</button></td>'+
+      '</tr>';
+    }).join('');
+    if(!rows) rows = '<tr><td colspan="6"><div class="empty-state">Nenhum funcionário cadastrado ainda.</div></td></tr>';
+    return ''+
+      '<div class="section-header-row" style="justify-content:flex-end;">'+
+        '<button type="button" class="btn btn-primary" id="eqNovoFuncBtn">+ Novo funcionário</button>'+
+      '</div>'+
+      '<div class="card" style="overflow-x:auto;">'+
+        '<table><thead><tr><th>Nome</th><th>E-mail</th><th>Grupo</th><th>Pacientes</th><th>Status</th><th></th></tr></thead>'+
+        '<tbody>'+rows+'</tbody></table>'+
+      '</div>';
+  }
+
+  function eqGruposHtml(){
+    var rows = (state.eqGrupos || []).map(function(g){
+      var qtd = (state.eqMembros || []).filter(function(m){ return m.grupoId === g.id; }).length;
+      return '<tr>'+
+        '<td><b>'+esc(g.nome || '—')+'</b></td>'+
+        '<td class="cell-muted">'+esc(g.descricao || 'Sem descrição')+'</td>'+
+        '<td>'+qtd+'</td>'+
+        '<td>'+(g.ativo ? '<span class="badge badge-success">Ativo</span>' : '<span class="badge badge-warning">Inativo</span>')+'</td>'+
+        '<td>'+esc(eqData(g.criadoEm))+'</td>'+
+        '<td style="text-align:right;"><button type="button" class="btn-icon" data-eq-grupo="'+esc(g.id)+'">Editar</button></td>'+
+      '</tr>';
+    }).join('');
+    if(!rows) rows = '<tr><td colspan="6"><div class="empty-state">Nenhum grupo criado ainda. Crie um (ex: "Estagiário") antes de cadastrar funcionários.</div></td></tr>';
+    return ''+
+      '<div class="section-header-row" style="justify-content:flex-end;">'+
+        '<button type="button" class="btn btn-primary" id="eqNovoGrupoBtn">+ Novo grupo</button>'+
+      '</div>'+
+      '<div class="card" style="overflow-x:auto;">'+
+        '<table><thead><tr><th>Nome</th><th>Descrição</th><th>Funcionários</th><th>Status</th><th>Criado em</th><th></th></tr></thead>'+
+        '<tbody>'+rows+'</tbody></table>'+
+      '</div>';
+  }
+
+  /* ---------- logs ---------- */
+  function eqLogsFiltrados(){
+    var f = state.eqLogsFiltro || {};
+    return (state.eqLogs || []).filter(function(l){
+      if(f.acao && l.acao !== f.acao) return false;
+      if(f.usuario && l.uid !== f.usuario) return false;
+      return true;
+    });
+  }
+  function eqLogsHtml(){
+    var f = state.eqLogsFiltro || {};
+    var usuarios = '<option value="">Todos</option><option value="'+EQ_ADMIN_UID+'"'+(f.usuario === EQ_ADMIN_UID ? ' selected' : '')+'>Angelo Garcia (você)</option>'+
+      (state.eqMembros || []).map(function(m){ return '<option value="'+esc(m.uid)+'"'+(f.usuario === m.uid ? ' selected' : '')+'>'+esc(m.nome)+'</option>'; }).join('');
+    var acoes = '<option value="">Todas</option>'+Object.keys(EQ_ACAO_LABEL).map(function(k){
+      return '<option value="'+k+'"'+(f.acao === k ? ' selected' : '')+'>'+EQ_ACAO_LABEL[k]+'</option>';
+    }).join('');
+    var lista = eqLogsFiltrados();
+    var rows = lista.map(function(l, i){
+      return '<tr>'+
+        '<td style="white-space:nowrap;">'+esc(eqDataHora(l.em))+'</td>'+
+        '<td><span class="badge badge-gray">'+esc(l.tabela || '')+'</span></td>'+
+        '<td><span class="badge '+(EQ_ACAO_CLS[l.acao] || 'badge-gray')+'">'+esc(EQ_ACAO_LABEL[l.acao] || l.acao || '')+'</span></td>'+
+        '<td>'+esc(l.registroNome || l.registroId || '')+'</td>'+
+        '<td>'+esc(l.usuario || '')+'</td>'+
+        '<td style="text-align:right;"><button type="button" class="btn-icon" data-eq-log="'+esc(l._id)+'">Ver detalhes</button></td>'+
+      '</tr>';
+    }).join('');
+    if(!rows) rows = '<tr><td colspan="6"><div class="empty-state">'+(state.eqLogsCarregando ? 'Carregando…' : 'Nenhum registro encontrado.')+'</div></td></tr>';
+    return ''+
+      '<div class="card" style="padding:14px 16px;margin-bottom:14px;">'+
+        '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">'+
+          '<div class="form-group" style="margin:0;"><label>Data de início</label><input type="date" id="eqLogDe" value="'+esc(f.de || '')+'"></div>'+
+          '<div class="form-group" style="margin:0;"><label>Data de fim</label><input type="date" id="eqLogAte" value="'+esc(f.ate || '')+'"></div>'+
+          '<div class="form-group" style="margin:0;"><label>Ação</label><select id="eqLogAcao" class="filter-select">'+acoes+'</select></div>'+
+          '<div class="form-group" style="margin:0;"><label>Funcionário</label><select id="eqLogUsuario" class="filter-select">'+usuarios+'</select></div>'+
+          '<button type="button" class="btn btn-primary" id="eqLogBuscarBtn">Buscar</button>'+
+          '<button type="button" class="btn btn-secondary" id="eqLogLimparBtn">Limpar filtros</button>'+
+        '</div>'+
+      '</div>'+
+      '<div class="card" style="overflow-x:auto;">'+
+        '<table><thead><tr><th>Data/Hora</th><th>Tabela</th><th>Ação</th><th>Registro</th><th>Usuário responsável</th><th></th></tr></thead>'+
+        '<tbody>'+rows+'</tbody></table>'+
+      '</div>'+
+      (state.eqLogsTemMais ? '<div style="text-align:center;margin-top:14px;"><button type="button" class="btn btn-secondary" id="eqLogMaisBtn">Carregar mais</button></div>' : '');
+  }
+  function eqBuscarLogs(continuar){
+    var f = state.eqLogsFiltro || {};
+    var partes = [mfa.collection(mfa.db, 'auditoria')];
+    if(f.de) partes.push(mfa.where('em', '>=', new Date(f.de + 'T00:00:00').getTime()));
+    if(f.ate) partes.push(mfa.where('em', '<=', new Date(f.ate + 'T23:59:59').getTime()));
+    partes.push(mfa.orderBy('em', 'desc'));
+    if(!continuar){ state.eqLogs = []; state.eqLogsUltimo = null; }
+    state.eqLogsCarregando = true;
+    refreshEquipe();
+    var POR_PAGINA = 200, inicioFiltrados = eqLogsFiltrados().length;
+    function pagina(){
+      var q = partes.slice();
+      if(state.eqLogsUltimo) q.push(mfa.startAfter(state.eqLogsUltimo));
+      q.push(mfa.limit(POR_PAGINA));
+      return mfa.getDocs(mfa.query.apply(null, q)).then(function(snap){
+        snap.docs.forEach(function(d){ state.eqLogs.push(Object.assign({ _id:d.id }, d.data())); });
+        if(snap.docs.length) state.eqLogsUltimo = snap.docs[snap.docs.length - 1];
+        state.eqLogsTemMais = snap.docs.length === POR_PAGINA;
+        if(state.eqLogsTemMais && eqLogsFiltrados().length - inicioFiltrados < 50) return pagina();
+      });
+    }
+    return pagina().catch(function(err){
+      showToast('Erro ao carregar logs: ' + err.message, 'danger');
+    }).then(function(){
+      state.eqLogsCarregando = false;
+      state.eqLogsBuscado = true;
+      refreshEquipe();
+    });
+  }
+
+  function refreshEquipe(){
+    if(!isEquipeTab(state.tab)) return;
+    var content = document.getElementById('content');
+    if(!content) return;
+    content.innerHTML = tabContentHtml();
+    attachEquipeEvents();
+  }
+  function attachEquipeEvents(){
+    if(!state.eqCarregado && !state.eqCarregando){
+      eqCarregarEquipe().then(refreshEquipe);
+    }
+    if(state.tab === 'eq-logs' && state.eqCarregado && !state.eqLogsBuscado && !state.eqLogsCarregando){
+      eqBuscarLogs(false);
+    }
+    document.querySelectorAll('[data-eq-aba]').forEach(function(b){
+      b.addEventListener('click', function(){ state.eqAba = this.getAttribute('data-eq-aba'); refreshEquipe(); });
+    });
+    var novoF = document.getElementById('eqNovoFuncBtn');
+    if(novoF) novoF.addEventListener('click', function(){
+      if(!(state.eqGrupos || []).length){ showToast('Crie um grupo primeiro em "Permissões de funcionário".', 'warning'); return; }
+      eqAbrirFuncionario(null);
+    });
+    document.querySelectorAll('[data-eq-func]').forEach(function(b){
+      b.addEventListener('click', function(){ eqAbrirFuncionario(this.getAttribute('data-eq-func')); });
+    });
+    var novoG = document.getElementById('eqNovoGrupoBtn');
+    if(novoG) novoG.addEventListener('click', function(){ eqAbrirGrupo(null); });
+    document.querySelectorAll('[data-eq-grupo]').forEach(function(b){
+      b.addEventListener('click', function(){ eqAbrirGrupo(this.getAttribute('data-eq-grupo')); });
+    });
+    document.querySelectorAll('[data-eq-log]').forEach(function(b){
+      b.addEventListener('click', function(){
+        var id = this.getAttribute('data-eq-log');
+        var log = (state.eqLogs || []).filter(function(l){ return l._id === id; })[0];
+        if(log) eqAbrirModal({ tipo:'log', log:log });
+      });
+    });
+    function lerFiltros(){
+      state.eqLogsFiltro = {
+        de: document.getElementById('eqLogDe').value,
+        ate: document.getElementById('eqLogAte').value,
+        acao: document.getElementById('eqLogAcao').value,
+        usuario: document.getElementById('eqLogUsuario').value
+      };
+    }
+    var buscar = document.getElementById('eqLogBuscarBtn');
+    if(buscar) buscar.addEventListener('click', function(){ lerFiltros(); eqBuscarLogs(false); });
+    var limpar = document.getElementById('eqLogLimparBtn');
+    if(limpar) limpar.addEventListener('click', function(){ state.eqLogsFiltro = {}; eqBuscarLogs(false); });
+    ['eqLogAcao','eqLogUsuario','eqLogDe','eqLogAte'].forEach(function(id){
+      var el = document.getElementById(id);
+      if(el) el.addEventListener('change', function(){ lerFiltros(); eqBuscarLogs(false); });
+    });
+    var mais = document.getElementById('eqLogMaisBtn');
+    if(mais) mais.addEventListener('click', function(){ eqBuscarLogs(true); });
+  }
+
+  /* ---------- janelas da Equipe ---------- */
+  function eqAbrirModal(m){
+    state.modal = 'equipe';
+    state.eqModal = m;
+    eqDesenharModal();
+  }
+  function eqDesenharModal(){
+    var m = state.eqModal;
+    if(!m){ closeModal(); return; }
+    var html = m.tipo === 'funcionario' ? eqFuncModalHtml(m) :
+      m.tipo === 'pacientes' ? eqPacModalHtml(m) :
+      m.tipo === 'grupo' ? eqGrupoModalHtml(m) : eqLogModalHtml(m.log);
+    var root = document.getElementById('modal-root');
+    root.innerHTML = '<div class="modal-overlay" id="modalOverlay">'+html+'</div>';
+    document.getElementById('modalOverlay').addEventListener('click', function(e){
+      if(e.target !== this) return;
+      if(m.tipo === 'log' || confirm('Sair sem salvar?')) closeModal();
+    });
+    root.querySelectorAll('[data-eq-fechar]').forEach(function(b){
+      b.addEventListener('click', function(){ closeModal(); });
+    });
+    if(m.tipo === 'funcionario') eqBindFunc(m);
+    else if(m.tipo === 'pacientes') eqBindPac(m);
+    else if(m.tipo === 'grupo') eqBindGrupo(m);
+  }
+  function eqCabecalho(titulo){
+    return '<div class="modal-header"><h2>'+esc(titulo)+'</h2><button class="modal-close" data-eq-fechar>&times;</button></div>';
+  }
+
+  /* Funcionario */
+  function eqAbrirFuncionario(uid){
+    var m = uid ? (state.eqMembros || []).filter(function(x){ return x.uid === uid; })[0] : null;
+    eqAbrirModal({ tipo:'funcionario', erro:'', salvando:false, d:{
+      uid: m ? m.uid : null,
+      nome: m ? m.nome || '' : '',
+      email: m ? m.email || '' : '',
+      senha: '',
+      ativo: m ? m.ativo === true : true,
+      grupoId: m ? m.grupoId || '' : ((state.eqGrupos || []).filter(function(g){ return g.ativo; })[0] || {}).id || '',
+      pacientes: m && Array.isArray(m.pacientes) ? m.pacientes.slice() : null
+    }});
+  }
+  function eqFuncModalHtml(m){
+    var d = m.d;
+    var grupos = (state.eqGrupos || []).map(function(g){
+      return '<option value="'+esc(g.id)+'"'+(d.grupoId === g.id ? ' selected' : '')+'>'+esc(g.nome)+(g.ativo ? '' : ' (inativo)')+'</option>';
+    }).join('');
+    var pacTxt = Array.isArray(d.pacientes) && d.pacientes.length
+      ? d.pacientes.length + (d.pacientes.length === 1 ? ' paciente selecionado' : ' pacientes selecionados')
+      : 'Todos os pacientes (sem restrição)';
+    return '<div class="modal">'+
+      eqCabecalho(d.uid ? 'Editar funcionário' : 'Novo funcionário')+
+      '<div class="modal-body">'+
+        '<div class="form-grid">'+
+          '<div class="form-group"><label>Nome completo *</label><input type="text" id="eqFNome" value="'+esc(d.nome)+'" placeholder="Nome do funcionário"></div>'+
+          '<div class="form-group"><label>E-mail *</label><input type="email" id="eqFEmail" value="'+esc(d.email)+'" placeholder="email@exemplo.com"></div>'+
+          '<div class="form-group"><label>'+(d.uid ? 'Nova senha (deixe vazio para manter)' : 'Senha *')+'</label><input type="text" id="eqFSenha" value="'+esc(d.senha)+'" placeholder="Mínimo 6 caracteres" autocomplete="new-password"></div>'+
+          '<div class="form-group"><label>Status</label><select id="eqFAtivo" class="filter-select"><option value="1"'+(d.ativo ? ' selected' : '')+'>Ativo</option><option value="0"'+(!d.ativo ? ' selected' : '')+'>Inativo</option></select></div>'+
+          '<div class="form-group full"><label>Grupo de permissões *</label><select id="eqFGrupo" class="filter-select">'+grupos+'</select></div>'+
+          '<div class="form-group full"><label>Pacientes permitidos</label>'+
+            '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'+
+              '<button type="button" class="btn btn-secondary" id="eqFPacBtn">Gerenciar pacientes permitidos</button>'+
+              '<span class="cell-muted">'+esc(pacTxt)+'</span>'+
+            '</div>'+
+            '<div class="cell-muted" style="margin-top:6px;font-size:12.5px;">Sem nenhum selecionado, o funcionário vê todos os pacientes. Se selecionar, ele só vê e acessa os escolhidos.</div>'+
+          '</div>'+
+        '</div>'+
+        (m.erro ? '<div class="login-error show">'+esc(m.erro)+'</div>' : '')+
+      '</div>'+
+      '<div class="modal-footer">'+
+        '<button type="button" class="btn btn-secondary" data-eq-fechar>Cancelar</button>'+
+        '<button type="button" class="btn btn-primary" id="eqFSalvarBtn"'+(m.salvando ? ' disabled' : '')+'>'+(m.salvando ? 'Salvando…' : (d.uid ? 'Salvar' : 'Criar funcionário'))+'</button>'+
+      '</div>'+
+    '</div>';
+  }
+  function eqLerFunc(m){
+    var d = m.d;
+    d.nome = document.getElementById('eqFNome').value.trim();
+    d.email = document.getElementById('eqFEmail').value.trim();
+    d.senha = document.getElementById('eqFSenha').value;
+    d.ativo = document.getElementById('eqFAtivo').value === '1';
+    d.grupoId = document.getElementById('eqFGrupo').value;
+  }
+  function eqBindFunc(m){
+    document.getElementById('eqFPacBtn').addEventListener('click', function(){
+      eqLerFunc(m);
+      eqAbrirModal({ tipo:'pacientes', volta:m, sel:(m.d.pacientes || []).slice(), busca:'', filtro:'todos', inativos:false });
+    });
+    document.getElementById('eqFSalvarBtn').addEventListener('click', function(){
+      eqLerFunc(m);
+      var d = m.d;
+      if(!d.nome || !d.email){ m.erro = 'Preencha nome e e-mail.'; eqDesenharModal(); return; }
+      if(!d.uid && d.senha.length < 6){ m.erro = 'Defina uma senha com pelo menos 6 caracteres.'; eqDesenharModal(); return; }
+      if(d.senha && d.senha.length < 6){ m.erro = 'A senha precisa ter pelo menos 6 caracteres.'; eqDesenharModal(); return; }
+      if(!d.grupoId){ m.erro = 'Escolha o grupo de permissões.'; eqDesenharModal(); return; }
+      m.erro = ''; m.salvando = true; eqDesenharModal();
+      eqPost('equipeAdmin', { acao:'salvar', uid:d.uid, nome:d.nome, email:d.email, senha:d.senha || '', grupoId:d.grupoId, ativo:d.ativo, pacientes:d.pacientes })
+        .then(function(){
+          closeModal();
+          showToast(d.uid ? 'Funcionário atualizado.' : 'Funcionário criado.', 'success');
+          state.eqLogsBuscado = false;
+          return eqCarregarEquipe().then(refreshEquipe);
+        }).catch(function(err){
+          m.salvando = false; m.erro = err.message; eqDesenharModal();
+        });
+    });
+  }
+
+  /* Pacientes permitidos */
+  function eqPacLista(m){
+    var busca = (m.busca || '').trim();
+    return (state.patients || []).filter(function(p){
+      if(!m.inativos && renovacaoStatus(p) === 'Vencido') return false;
+      if(busca && !nomeMatchesBusca(p.nome || '', busca) && String(p.email || '').toLowerCase().indexOf(busca.toLowerCase()) === -1) return false;
+      var marcado = m.sel.indexOf(String(p.id)) !== -1;
+      if(m.filtro === 'selecionados' && !marcado) return false;
+      if(m.filtro === 'nao' && marcado) return false;
+      return true;
+    }).sort(function(a,b){ return String(a.nome).localeCompare(String(b.nome)); });
+  }
+  function eqPacModalHtml(m){
+    var lista = eqPacLista(m);
+    var todosMarcados = lista.length && lista.every(function(p){ return m.sel.indexOf(String(p.id)) !== -1; });
+    function chip(key, label){
+      return '<button type="button" class="meta-type-btn'+(m.filtro === key ? ' active' : '')+'" data-eq-pacfiltro="'+key+'">'+label+'</button>';
+    }
+    var rows = lista.map(function(p){
+      var id = String(p.id), marcado = m.sel.indexOf(id) !== -1;
+      return '<label style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;">'+
+        '<input type="checkbox" class="atencao-check" data-eq-pac="'+esc(id)+'"'+(marcado ? ' checked' : '')+'>'+
+        '<span style="flex:1;min-width:0;"><b>'+esc(p.nome || '—')+'</b>'+(p.email ? '<br><span class="cell-muted" style="font-size:12.5px;">'+esc(p.email)+'</span>' : '')+'</span>'+
+        (renovacaoStatus(p) === 'Vencido' ? '<span class="badge badge-gray">Inativo</span>' : '')+
+      '</label>';
+    }).join('');
+    if(!rows) rows = '<div class="empty-state">Nenhum paciente encontrado.</div>';
+    var aviso = m.sel.length
+      ? 'Este funcionário verá somente os '+m.sel.length+' paciente(s) selecionado(s).'
+      : 'Nenhum paciente selecionado: este funcionário verá TODOS os pacientes (sem restrição).';
+    return '<div class="modal modal-wide">'+
+      eqCabecalho('Gerenciar pacientes permitidos')+
+      '<div class="modal-body">'+
+        '<div class="card" style="padding:10px 14px;margin-bottom:12px;background:var(--primary-light);color:var(--primary-dark);box-shadow:none;">'+esc(aviso)+'</div>'+
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">'+
+          '<input type="text" id="eqPacBusca" class="search-input" style="flex:1;min-width:180px;max-width:320px;" placeholder="Buscar por nome ou e-mail" value="'+esc(m.busca)+'">'+
+          '<label style="display:flex;align-items:center;gap:6px;font-size:13px;"><input type="checkbox" id="eqPacInativos"'+(m.inativos ? ' checked' : '')+'> Mostrar inativos</label>'+
+        '</div>'+
+        '<div class="meta-type-toggle">'+chip('todos','Todos')+chip('selecionados','Selecionados ('+m.sel.length+')')+chip('nao','Não selecionados')+'</div>'+
+        '<div class="card" style="padding:0;">'+
+          '<label style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border);font-weight:700;font-size:13px;cursor:pointer;">'+
+            '<input type="checkbox" class="atencao-check" id="eqPacTodos"'+(todosMarcados ? ' checked' : '')+'> Marcar todos da lista'+
+          '</label>'+
+          '<div id="eqPacRows" style="max-height:46vh;overflow-y:auto;">'+rows+'</div>'+
+        '</div>'+
+      '</div>'+
+      '<div class="modal-footer">'+
+        '<button type="button" class="btn btn-secondary" id="eqPacVoltarBtn">Cancelar</button>'+
+        '<button type="button" class="btn btn-primary" id="eqPacAplicarBtn">Aplicar ('+m.sel.length+' pacientes)</button>'+
+      '</div>'+
+    '</div>';
+  }
+  function eqBindPac(m){
+    var busca = document.getElementById('eqPacBusca');
+    busca.addEventListener('input', function(){
+      m.busca = this.value;
+      var pos = this.selectionStart;
+      eqDesenharModal();
+      var b = document.getElementById('eqPacBusca');
+      b.focus(); b.setSelectionRange(pos, pos);
+    });
+    document.getElementById('eqPacInativos').addEventListener('change', function(){ m.inativos = this.checked; eqDesenharModal(); });
+    document.querySelectorAll('[data-eq-pacfiltro]').forEach(function(b){
+      b.addEventListener('click', function(){ m.filtro = this.getAttribute('data-eq-pacfiltro'); eqDesenharModal(); });
+    });
+    document.querySelectorAll('[data-eq-pac]').forEach(function(c){
+      c.addEventListener('change', function(){
+        var id = this.getAttribute('data-eq-pac'), i = m.sel.indexOf(id);
+        if(this.checked && i === -1) m.sel.push(id);
+        if(!this.checked && i !== -1) m.sel.splice(i, 1);
+        var scroll = document.getElementById('eqPacRows').scrollTop;
+        eqDesenharModal();
+        document.getElementById('eqPacRows').scrollTop = scroll;
+      });
+    });
+    document.getElementById('eqPacTodos').addEventListener('change', function(){
+      var marcar = this.checked;
+      eqPacLista(m).forEach(function(p){
+        var id = String(p.id), i = m.sel.indexOf(id);
+        if(marcar && i === -1) m.sel.push(id);
+        if(!marcar && i !== -1) m.sel.splice(i, 1);
+      });
+      eqDesenharModal();
+    });
+    document.getElementById('eqPacVoltarBtn').addEventListener('click', function(){ eqAbrirModal(m.volta); });
+    document.getElementById('eqPacAplicarBtn').addEventListener('click', function(){
+      m.volta.d.pacientes = m.sel.length ? m.sel.slice() : null;
+      eqAbrirModal(m.volta);
+    });
+  }
+
+  /* Grupo de permissoes */
+  function eqAbrirGrupo(id){
+    var g = id ? (state.eqGrupos || []).filter(function(x){ return x.id === id; })[0] : null;
+    var perms = {};
+    EQ_AREAS.forEach(function(a){ perms[a.key] = g && g.perms && g.perms[a.key] ? g.perms[a.key] : 'nenhum'; });
+    eqAbrirModal({ tipo:'grupo', erro:'', salvando:false, d:{
+      id: g ? g.id : null, nome: g ? g.nome || '' : '', descricao: g ? g.descricao || '' : '',
+      ativo: g ? g.ativo === true : true, perms: perms, criadoEm: g ? g.criadoEm : null
+    }});
+  }
+  function eqGrupoModalHtml(m){
+    var d = m.d;
+    var linhas = EQ_AREAS.map(function(a){
+      function op(v, label){
+        return '<button type="button" class="meta-type-btn'+(d.perms[a.key] === v ? ' active' : '')+'" data-eq-perm="'+a.key+'" data-eq-nivel="'+v+'">'+label+'</button>';
+      }
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--border);">'+
+        '<div style="min-width:180px;flex:1;"><b>'+esc(a.label)+'</b><div class="cell-muted" style="font-size:12.5px;">'+esc(a.desc)+'</div></div>'+
+        '<div class="meta-type-toggle" style="margin:0;">'+op('nenhum','Sem acesso')+op('ver','Ver')+op('editar','Ver e editar')+'</div>'+
+      '</div>';
+    }).join('');
+    return '<div class="modal modal-wide">'+
+      eqCabecalho(d.id ? 'Editar grupo de funcionário' : 'Novo grupo de funcionário')+
+      '<div class="modal-body">'+
+        '<div class="form-grid">'+
+          '<div class="form-group"><label>Nome do grupo *</label><input type="text" id="eqGNome" value="'+esc(d.nome)+'" placeholder="Ex: Estagiário"></div>'+
+          '<div class="form-group"><label>Status</label><select id="eqGAtivo" class="filter-select"><option value="1"'+(d.ativo ? ' selected' : '')+'>Ativo</option><option value="0"'+(!d.ativo ? ' selected' : '')+'>Inativo</option></select></div>'+
+          '<div class="form-group full"><label>Descrição</label><textarea id="eqGDesc" rows="2" placeholder="Papel e responsabilidades deste grupo">'+esc(d.descricao)+'</textarea></div>'+
+        '</div>'+
+        '<h3 class="section-title" style="margin:6px 0 4px;">Permissões do grupo</h3>'+
+        '<div class="cell-muted" style="margin-bottom:10px;font-size:13px;">Escolha o que os funcionários deste grupo podem acessar. "Ver" só mostra; "Ver e editar" também deixa alterar.</div>'+
+        '<div class="card" style="padding:0;">'+linhas+'</div>'+
+        (m.erro ? '<div class="login-error show">'+esc(m.erro)+'</div>' : '')+
+      '</div>'+
+      '<div class="modal-footer">'+
+        '<button type="button" class="btn btn-secondary" data-eq-fechar>Cancelar</button>'+
+        '<button type="button" class="btn btn-primary" id="eqGSalvarBtn"'+(m.salvando ? ' disabled' : '')+'>'+(m.salvando ? 'Salvando…' : 'Salvar')+'</button>'+
+      '</div>'+
+    '</div>';
+  }
+  function eqLerGrupo(m){
+    m.d.nome = document.getElementById('eqGNome').value.trim();
+    m.d.descricao = document.getElementById('eqGDesc').value.trim();
+    m.d.ativo = document.getElementById('eqGAtivo').value === '1';
+  }
+  function eqBindGrupo(m){
+    document.querySelectorAll('[data-eq-perm]').forEach(function(b){
+      b.addEventListener('click', function(){
+        eqLerGrupo(m);
+        m.d.perms[this.getAttribute('data-eq-perm')] = this.getAttribute('data-eq-nivel');
+        var body = document.querySelector('#modal-root .modal-body');
+        var scroll = body ? body.scrollTop : 0;
+        eqDesenharModal();
+        var body2 = document.querySelector('#modal-root .modal-body');
+        if(body2) body2.scrollTop = scroll;
+      });
+    });
+    document.getElementById('eqGSalvarBtn').addEventListener('click', function(){
+      eqLerGrupo(m);
+      var d = m.d;
+      if(!d.nome){ m.erro = 'Dê um nome ao grupo.'; eqDesenharModal(); return; }
+      m.erro = ''; m.salvando = true; eqDesenharModal();
+      var id = d.id || ('g' + Date.now());
+      var antigo = d.id ? (state.eqGrupos || []).filter(function(x){ return x.id === d.id; })[0] : null;
+      var dados = { nome:d.nome, descricao:d.descricao, ativo:d.ativo, perms:d.perms, criadoEm:d.criadoEm || Date.now(), atualizadoEm:Date.now() };
+      mfa.setDoc(mfa.doc(mfa.db, 'equipeGrupos', id), dados).then(function(){
+        var antesLog = {};
+        if(antigo){ ['nome','descricao','ativo','perms'].forEach(function(k){ antesLog[k] = antigo[k]; }); }
+        var depoisLog = { nome:dados.nome, descricao:dados.descricao, ativo:dados.ativo, perms:dados.perms };
+        var dif = eqDiffCampos(antesLog, depoisLog);
+        eqRegistrarLogs([{ tabela:'Equipe · grupo de permissões', acao: antigo ? 'atualizacao' : 'criacao', registroId:id, registroNome:dados.nome, antes:dif.antes, depois:dif.depois }]);
+        closeModal();
+        showToast('Grupo salvo.', 'success');
+        state.eqLogsBuscado = false;
+        return eqCarregarEquipe().then(refreshEquipe);
+      }).catch(function(err){
+        m.salvando = false; m.erro = 'Não foi possível salvar: ' + err.message; eqDesenharModal();
+      });
+    });
+  }
+
+  /* Detalhes do log */
+  function eqValorHtml(v){
+    var txt = typeof v === 'string' ? v : JSON.stringify(v, null, 2);
+    return '<pre style="white-space:pre-wrap;word-break:break-word;margin:4px 0 0;font-size:12px;max-height:260px;overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px;">'+esc(txt)+'</pre>';
+  }
+  function eqLadoHtml(titulo, obj, cor){
+    var chaves = Object.keys(obj || {});
+    var corpo = chaves.length ? chaves.map(function(k){
+      return '<div style="margin-bottom:10px;"><b style="font-size:13px;">'+esc(k)+'</b>'+eqValorHtml(obj[k])+'</div>';
+    }).join('') : '<div class="cell-muted">—</div>';
+    return '<div style="flex:1;min-width:240px;border-radius:14px;padding:12px;background:'+cor+';">'+
+      '<div style="font-weight:700;margin-bottom:8px;">'+titulo+'</div>'+corpo+'</div>';
+  }
+  function eqLogModalHtml(l){
+    function info(lab, val){ return '<div class="info-item"><div class="lab">'+lab+'</div><div class="val">'+val+'</div></div>'; }
+    return '<div class="modal modal-wide">'+
+      eqCabecalho('Detalhes do log de auditoria')+
+      '<div class="modal-body">'+
+        '<div class="form-grid" style="margin-bottom:14px;">'+
+          info('Data/Hora', esc(eqDataHora(l.em)))+
+          info('Tabela', esc(l.tabela || ''))+
+          info('Ação', '<span class="badge '+(EQ_ACAO_CLS[l.acao] || 'badge-gray')+'">'+esc(EQ_ACAO_LABEL[l.acao] || l.acao || '')+'</span>')+
+          info('Registro', esc((l.registroNome ? l.registroNome + ' · ' : '') + (l.registroId || '')))+
+          info('Usuário', esc(l.usuario || ''))+
+          info('Funcionário', l.funcionario ? 'Sim' : 'Não (administrador)')+
+        '</div>'+
+        '<h3 class="section-title" style="margin:0 0 8px;">Alterações realizadas</h3>'+
+        '<div style="display:flex;gap:12px;flex-wrap:wrap;">'+
+          eqLadoHtml('Valores anteriores', l.antes, 'rgba(220,38,38,.08)')+
+          eqLadoHtml('Valores novos', l.depois, 'rgba(22,163,74,.10)')+
+        '</div>'+
+      '</div>'+
+      '<div class="modal-footer"><button type="button" class="btn btn-secondary" data-eq-fechar>Fechar</button></div>'+
+    '</div>';
+  }
+
+  /* Tela de quem entrou mas nao tem acesso */
+  function eqConfigurarMfaTemplate(){
+    return '<div class="login-wrap"><div class="login-card">'+
+      '<img class="login-logo" src="'+LOGO_DATA_URI+'" alt="Logo Angelo Garcia">'+
+      '<h1>Ative o Google Authenticator</h1>'+
+      '<p class="sub">Por segurança, todo mundo que entra no CRM precisa usar o código do Google Authenticator. Configure agora para continuar.</p>'+
+      '<button type="button" class="btn btn-primary btn-block" id="eqMfaConfigBtn">Configurar Google Authenticator</button>'+
+      '<button type="button" class="btn btn-secondary btn-block" id="eqSairBtn" style="margin-top:8px;">Sair</button>'+
+    '</div></div>';
+  }
+  function eqSemAcessoTemplate(){
+    var desativado = state.eq && state.eq.papel === 'desativado';
+    return '<div class="login-wrap"><div class="login-card">'+
+      '<img class="logo-box" src="'+LOGO_DATA_URI+'" alt="Logo" style="width:56px;height:56px;margin:0 auto 12px;display:block;">'+
+      '<h1 style="text-align:center;margin:0 0 8px;">'+(desativado ? 'Acesso desativado' : 'Sem acesso')+'</h1>'+
+      '<p class="sub" style="text-align:center;">'+(desativado
+        ? 'Seu acesso ao CRM foi desativado. Fale com o Ângelo.'
+        : 'Esta conta ('+esc(state.eq && state.eq.email || '')+') não tem acesso ao CRM, ou o acesso ainda está sendo preparado. Tente entrar de novo em instantes.')+'</p>'+
+      '<button type="button" class="btn btn-primary btn-block" id="eqSairBtn">Sair</button>'+
+    '</div></div>';
+  }
+  function eqSemPermissaoHtml(){
+    return '<div class="card"><div class="empty-state">Você não tem permissão para ver esta área.</div></div>';
   }
 
   /* ================= LOGIN ================= */
@@ -4479,7 +5511,7 @@
         '<img class="login-logo" src="'+LOGO_DATA_URI+'" alt="Logo Angelo Garcia">'+
         '<h1>Angelo Garcia CRM</h1>'+
         '<p class="sub">'+(mfaStep?'Digite o código de 6 dígitos do app autenticador':'Acesse sua conta para continuar')+'</p>'+
-        '<div id="loginError" class="login-error"></div>'+
+        '<div id="loginError" class="login-error'+(state.loginAviso ? ' show' : '')+'">'+(state.loginAviso ? esc(state.loginAviso) : '')+'</div>'+
         '<form id="loginForm">'+formInner+'</form>'+
         '<p class="login-hint">Acesso restrito à equipe Angelo Garcia.</p>'+
       '</div>'+
@@ -4493,6 +5525,7 @@
       if(submitBtn.disabled) return; // evita disparar mais de uma tentativa de login em paralelo
       var errBox = document.getElementById('loginError');
       errBox.classList.remove('show');
+      state.loginAviso = null;
       if(!mfa){
         errBox.textContent = 'Ainda carregando, espera um instante e tenta de novo.';
         errBox.classList.add('show');
@@ -4550,6 +5583,15 @@
   }
 
   /* ================= APP SHELL ================= */
+  /* Sub-abas da Equipe (so o administrador ve). */
+  var EQUIPE_SUBTABS = [
+    { tab:'eq-func',  ico:'🧑‍💼', label:'Funcionários' },
+    { tab:'eq-perm',  ico:'🔐', label:'Permissões de funcionário' },
+    { tab:'eq-logs',  ico:'📜', label:'Logs de auditoria' }
+  ];
+  function isEquipeTab(tab){
+    return EQUIPE_SUBTABS.some(function(s){ return s.tab === tab; });
+  }
   /* Sub-abas da Captacao. O "tab" de cada uma e o que vai pro state.tab. */
   var CAPTACAO_SUBTABS = [
     { tab:'cap-visao',    ico:'📊', label:'Visão Geral' },
@@ -4577,6 +5619,10 @@
     '🤝':'<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
     '🎁':'<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 0 1 0 5"/>',
     '💬':'<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
+    '🛡️':'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>',
+    '🧑‍💼':'<circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/>',
+    '🔐':'<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    '📜':'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8"/><path d="M8 17h5"/>',
     '📷':'<rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><path d="M17.5 6.5h.01"/>'
   };
   function sideIcoHtml(ico){
@@ -4590,7 +5636,7 @@
     // so o clique no grupo abre/fecha — estar numa sub-aba nao forca o menu aberto
     var capAberto = state.captacaoExpanded;
     var capAtivo = isCaptacaoTab(state.tab);
-    var subs = CAPTACAO_SUBTABS.map(function(s){
+    var subs = CAPTACAO_SUBTABS.filter(function(s){ return eqPodeAba(s.tab); }).map(function(s){
       return sideItemHtml(s.tab, s.ico, s.label);
     }).join('');
     return ''+
@@ -4601,14 +5647,18 @@
       '</div>'+
       '<nav class="sidebar-nav">'+
         '<div class="side-section">Menu</div>'+
-        sideItemHtml('dashboard','🏠','Dashboard')+
-        sideItemHtml('pacientes','👥','Pacientes')+
-        sideItemHtml('jornada','🗺️','Jornada')+
-        '<button class="side-item'+(capAtivo?' active':'')+'" id="captacaoGroupBtn" title="Captação">'+
+        (eqPodeAba('dashboard') ? sideItemHtml('dashboard','🏠','Dashboard') : '')+
+        (eqPodeAba('pacientes') ? sideItemHtml('pacientes','👥','Pacientes') : '')+
+        (eqPodeAba('jornada') ? sideItemHtml('jornada','🗺️','Jornada') : '')+
+        (subs ? '<button class="side-item'+(capAtivo?' active':'')+'" id="captacaoGroupBtn" title="Captação">'+
           '<span class="side-ico">'+sideIcoHtml('🚀')+'</span><span class="side-label">Captação</span>'+
-          '<span class="side-caret">'+(capAberto?'▾':'▸')+'</span></button>'+
-        (capAberto ? '<div class="side-sub">'+subs+'</div>' : '')+
-        sideItemHtml('financeiro','💰','Financeiro')+
+          '<span class="side-caret">'+(capAberto?'▾':'▸')+'</span></button>' : '')+
+        (subs && capAberto ? '<div class="side-sub">'+subs+'</div>' : '')+
+        (eqPodeAba('financeiro') ? sideItemHtml('financeiro','💰','Financeiro') : '')+
+        (eqAdmin() ? '<button class="side-item'+(isEquipeTab(state.tab)?' active':'')+'" id="equipeGroupBtn" title="Equipe">'+
+          '<span class="side-ico">'+sideIcoHtml('🛡️')+'</span><span class="side-label">Equipe</span>'+
+          '<span class="side-caret">'+(state.equipeExpanded?'▾':'▸')+'</span></button>'+
+          (state.equipeExpanded ? '<div class="side-sub">'+EQUIPE_SUBTABS.map(function(s){ return sideItemHtml(s.tab, s.ico, s.label); }).join('')+'</div>' : '') : '')+
       '</nav>'+
       '<div class="sidebar-foot">'+
         '<div class="side-section">Geral</div>'+
@@ -4620,6 +5670,8 @@
     '</aside>';
   }
   function tabContentHtml(){
+    if(!eqPodeAba(state.tab)) return '<div class="dash-novo">'+eqSemPermissaoHtml()+'</div>';
+    if(isEquipeTab(state.tab)) return '<div class="dash-novo">'+equipeTemplate()+'</div>';
     if(state.tab === 'dashboard') return '<div class="dash-novo">'+dashboardTemplate()+'</div>';
     if(state.tab === 'pacientes') return '<div class="dash-novo">'+pacientesTemplate()+'</div>';
     if(state.tab === 'jornada') return '<div class="dash-novo">'+jornadaTabTemplate()+'</div>';
@@ -4673,6 +5725,13 @@
         render();
       });
     });
+    var equipeGroupBtn = document.getElementById('equipeGroupBtn');
+    if(equipeGroupBtn){
+      equipeGroupBtn.addEventListener('click', function(){
+        state.equipeExpanded = !state.equipeExpanded;
+        render();
+      });
+    }
     var capGroupBtn = document.getElementById('captacaoGroupBtn');
     if(capGroupBtn){
       capGroupBtn.addEventListener('click', function(){
@@ -4713,6 +5772,8 @@
       attachCaptacaoEvents(state.tab);
     } else if(state.tab === 'financeiro'){
       attachFinanceiroEvents();
+    } else if(isEquipeTab(state.tab)){
+      attachEquipeEvents();
     }
   }
 
@@ -8196,6 +9257,8 @@
       checks[c].addEventListener('change', function(){
         var id = this.getAttribute('data-atencao-check');
         var marks = atencaoMarcasHoje();
+        var pacLog = getPatient(isNaN(Number(id)) ? id : Number(id)) || (state.patients || []).filter(function(x){ return String(x.id) === id; })[0];
+        eqRegistrarLogs([{ tabela:'Atenção de hoje · check', acao:'atualizacao', registroId:id, registroNome:pacLog ? pacLog.nome : '', antes:{ marcado:!this.checked }, depois:{ marcado:this.checked } }]);
         if(this.checked){
           var item = atencaoItens(todayISODate()).filter(function(it){ return String(it.p.id) === id; })[0];
           marks[id] = { chaves: item ? item.chavesAtencao : [], em: Date.now() };
@@ -9560,7 +10623,7 @@
     return fichaTreinoItemsHtml(fichasTreinoOrdenadas(p), state.fichaTreinoOpen[p.id] || {}, 'ficha');
   }
   function fichaTreinoSectionHtml(p){
-    if(!temServicoTreino(p)) return '';
+    if(!temServicoTreino(p) || !eqPode('treino', 'ver')) return '';
     return ''+
       '<div class="profile-section">'+
         '<div class="section-header-row" style="margin-bottom:4px;">'+
@@ -9682,7 +10745,7 @@
   }
   function fichaTreinoFormFieldHtml(p){
     return ''+
-      '<div class="form-group full" id="fichaTreinoFormWrap" style="'+(temServicoTreino(p)?'':'display:none;')+'">'+
+      '<div class="form-group full" id="fichaTreinoFormWrap" style="'+(temServicoTreino(p)?'':'display:none;')+(eqPode('treino','ver')?'':'position:absolute;left:-9999px;')+'">'+
         '<label>💪 Fichas de Treino</label>'+
         '<div id="fichaTreinoFormRoot">'+fichaTreinoDraftListHtml()+'</div>'+
         '<button type="button" class="btn-icon" id="fichaTreinoFormAddBtn">Adicionar novo Treino</button>'+
@@ -9743,7 +10806,7 @@
     return fichaDietaItemsHtml(fichasDietaOrdenadas(p), state.fichaDietaOpen[p.id] || {}, 'ficha-dieta', latestPesoAtual(p));
   }
   function fichaDietaSectionHtml(p){
-    if(!temServicoDieta(p)) return '';
+    if(!temServicoDieta(p) || !eqPode('dieta', 'ver')) return '';
     return ''+
       '<div class="profile-section">'+
         '<div class="section-header-row" style="margin-bottom:4px;">'+
@@ -9922,7 +10985,7 @@
   }
   function fichaDietaFormFieldHtml(p){
     return ''+
-      '<div class="form-group full" id="fichaDietaFormWrap" style="'+(temServicoDieta(p)?'':'display:none;')+'">'+
+      '<div class="form-group full" id="fichaDietaFormWrap" style="'+(temServicoDieta(p)?'':'display:none;')+(eqPode('dieta','ver')?'':'position:absolute;left:-9999px;')+'">'+
         '<label>🍎 Fichas de Dieta</label>'+
         '<div id="fichaDietaFormRoot">'+fichaDietaDraftListHtml()+'</div>'+
         '<button type="button" class="btn-icon" id="fichaDietaFormAddBtn">Adicionar nova Dieta</button>'+
@@ -10199,12 +11262,12 @@
       '<div class="form-group" style="min-width:220px;"><label>Competência</label><select id="pacientesCompetenciaSelect" class="filter-select">'+monthSelectOptions(state.competencia)+'</select></div>'+
     '</div>'+
     '<div class="toolbar">'+
-      '<div class="toolbar-io">'+
+      '<div class="toolbar-io"'+(eqAdmin() ? '' : ' style="display:none;"')+'>'+
         '<button class="btn btn-outline" id="exportBtn">Exportar</button>'+
         '<button class="btn btn-outline" id="importBtn">Importar</button>'+
         '<input type="file" id="importFileInput" accept="application/json" style="display:none">'+
       '</div>'+
-      '<button class="btn btn-primary" id="newPatientBtn">+ Novo Paciente</button>'+
+      (eqPodeCriarPaciente() ? '<button class="btn btn-primary" id="newPatientBtn">+ Novo Paciente</button>' : '')+
     '</div>'+
     '<div class="section-header-row">'+
       '<h2 class="section-title">Visão Geral — Engajamento e Check-in ('+monthLabel(state.competencia)+')</h2>'+
@@ -10407,7 +11470,8 @@
       state.competencia = this.value;
       render();
     });
-    document.getElementById('newPatientBtn').addEventListener('click', function(){
+    var newPatientBtn = document.getElementById('newPatientBtn');
+    if(newPatientBtn) newPatientBtn.addEventListener('click', function(){
       openFormModal('add', null);
     });
     document.getElementById('exportBtn').addEventListener('click', exportData);
@@ -10538,16 +11602,15 @@
     return f;
   }
   function loadFinanceiroAsync(){
-    return mfa.getDoc(mfa.doc(mfa.db, 'crmData', 'financeiro')).then(function(snap){
+    return mfa.getDoc(crmRef('financeiro')).then(function(snap){
       if(snap.exists() && snap.data().data) return normalizeFinanceiro(snap.data().data);
+      if(eqMembro()) return financeiroVazio();
       var vazio = financeiroVazio();
       return mfa.setDoc(mfa.doc(mfa.db, 'crmData', 'financeiro'), { data: vazio }).then(function(){ return vazio; });
     });
   }
   function saveFinanceiro(){
-    mfa.setDoc(mfa.doc(mfa.db, 'crmData', 'financeiro'), { data: state.financeiro }).catch(function(err){
-      showToast('Erro ao salvar financeiro: ' + err.message, 'danger');
-    });
+    eqEnfileirar('financeiro', function(){ return eqSalvarDocAgora('financeiro'); });
   }
   function nextFinanceiroId(){
     if(!state.financeiro.lancamentos.length) return 1;
@@ -11031,6 +12094,7 @@
     document.getElementById('modal-root').innerHTML = '';
     document.getElementById('chart-expand-root').innerHTML = '';
     state.modal = null;
+    state.eqModal = null;
     state.activeId = null;
     state.leadParaConverter = null;
   }
@@ -11129,7 +12193,7 @@
             '<h3 class="profile-name">'+esc(p.nome)+'</h3>'+
             '<div class="profile-badges">'+priorityBadge(computePrioridade(p))+renovacaoBadge(p)+consultaBadge(p)+'</div>'+
           '</div>'+
-          '<button class="btn btn-secondary" id="profileEditBtn">Editar Paciente</button>'+
+          (eqPode('pacientes','editar') ? '<button class="btn btn-secondary" id="profileEditBtn">Editar Paciente</button>' : '')+
         '</div>'+
         '<div class="info-grid">'+
           '<div class="info-item"><div class="lab">E-mail</div><div class="val" style="display:flex;align-items:center;gap:8px;">'+(p.email?(esc(p.email)+' <button type="button" class="copy-icon-btn" id="copyEmailBtn" title="Copiar e-mail">📋</button>'):'—')+'</div></div>'+
@@ -11585,7 +12649,7 @@
       body = ''+
         '<p><span class="badge badge-success">Ativada</span></p>'+
         '<p>A autenticação de dois fatores está ativa nesta conta, usando o Google Authenticator.</p>'+
-        '<button type="button" class="btn-icon btn-danger-outline" id="securityRemoveMfaBtn">Desativar autenticação de dois fatores</button>'+
+        '<p class="cell-muted">Ela é obrigatória para todos que entram no CRM e não pode ser desativada.</p>'+
         errHtml;
     } else if(state.mfaEnrollStep === 'confirm' && pendingTotpSecret){
       body = ''+
@@ -11602,7 +12666,7 @@
         errHtml;
     } else {
       body = ''+
-        '<p>Adicione uma camada extra de segurança: depois da senha, o login vai pedir também um código do Google Authenticator.</p>'+
+        '<p>Obrigatório para entrar no CRM: depois da senha, o login vai pedir também um código do Google Authenticator.</p>'+
         '<button type="button" class="btn btn-primary" id="securityStartTotpBtn">Ativar Google Authenticator</button>'+
         errHtml;
     }
@@ -11681,6 +12745,7 @@
   function renderModal(){
     var root = document.getElementById('modal-root');
     if(!state.modal){ root.innerHTML=''; return; }
+    if(state.modal === 'equipe'){ eqDesenharModal(); return; }
 
     var html = '';
     if(state.modal === 'profile'){
@@ -11761,7 +12826,8 @@
 
     if(state.modal === 'profile'){
       document.getElementById('profileCloseBtn2').addEventListener('click', function(){ closeModal(); });
-      document.getElementById('profileEditBtn').addEventListener('click', function(){
+      var profileEditBtn = document.getElementById('profileEditBtn');
+      if(profileEditBtn) profileEditBtn.addEventListener('click', function(){
         var id = state.activeId;
         openFormModal('edit', id);
       });
@@ -12113,6 +13179,15 @@
           mfa.multiFactor(mfa.auth.currentUser).enroll(assertion, 'Google Authenticator').then(function(){
             pendingTotpSecret = null;
             state.mfaEnrollStep = 'idle';
+            if(state.eq && state.eq.papel === 'semMfa'){
+              return mfa.signOut(mfa.auth).then(function(){
+                closeModal(true);
+                state.eq = null;
+                state.loggedIn = false;
+                state.loginAviso = 'Google Authenticator ativado! Agora entre de novo com seu e-mail, senha e o código do app.';
+                render();
+              });
+            }
             renderModal();
             showToast('Autenticação de dois fatores ativada.', 'success');
           }).catch(function(){

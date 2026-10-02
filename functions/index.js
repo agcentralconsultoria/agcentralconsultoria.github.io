@@ -512,6 +512,11 @@ exports.mintSyncCheckinsToken = onRequest({
     res.status(403).send('usuario nao autorizado a gerar codigo de sincronizacao');
     return;
   }
+  // Google Authenticator obrigatorio no CRM: so vale sessao aberta com o codigo.
+  if (!decoded.firebase || decoded.firebase.sign_in_second_factor !== 'totp') {
+    res.status(403).send('entre no CRM com o codigo do Google Authenticator');
+    return;
+  }
 
   // limite de geracao: no maximo 20 codigos por hora, pra essa mesma pessoa.
   // Filtro so por igualdade (mintedByUid) + contagem na memoria, de proposito
@@ -767,3 +772,6 @@ exports.syncCheckins = onRequest({
     res.status(500).send('Erro: ' + err.message);
   }
 });
+
+// Equipe: funcionarios, permissoes e logs de auditoria (arquivo separado).
+Object.assign(exports, require('./equipe'));

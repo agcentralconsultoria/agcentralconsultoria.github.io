@@ -1,0 +1,59 @@
+rules_version = '2';
+// Regras do CRM (Equipe). Resumo:
+// - Angelo (administrador) le e grava tudo do CRM.
+// - Funcionario so le a propria visao filtrada (equipeVisao/{uid}), que o
+//   servidor monta com os pacientes e areas liberados. Ele nunca grava direto:
+//   toda gravacao dele passa pelo servidor (equipeSalvar), que confere a permissao.
+// - Quem nao e nem um nem outro nao le nem grava nada.
+// O servidor (Cloud Functions) nao passa por estas regras.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // So conta como logado quem entrou com senha E codigo do Google Authenticator.
+    // Sem o codigo (ou com sessao antiga, de antes do Authenticator), o banco nao entrega nada.
+    function logado() {
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_second_factor == 'totp';
+    }
+    function admin() { return logado() && request.auth.uid == 'uLicObTjbnZS5D3uIRKHLFlxhcO2'; }
+    function membroAtivo() {
+      return logado()
+        && exists(/databases/$(database)/documents/equipe/$(request.auth.uid))
+        && get(/databases/$(database)/documents/equipe/$(request.auth.uid)).data.ativo == true;
+    }
+
+    match /crmData/{docId} {
+      allow read, write: if admin();
+      // marcas pessoais da "Atencao de hoje" de cada um
+      allow read, write: if membroAtivo() && docId == 'atencaoHoje_' + request.auth.uid;
+    }
+
+    match /equipe/{uid} {
+      allow read: if admin() || (logado() && request.auth.uid == uid);
+      allow write: if admin();
+    }
+
+    match /equipeGrupos/{gid} {
+      allow read, write: if admin();
+    }
+
+    match /equipeVisao/{uid}/dados/{nome} {
+      allow read: if logado() && request.auth.uid == uid && membroAtivo();
+      allow write: if false;
+    }
+
+    match /auditoria/{id} {
+      allow read, create: if admin();
+      // funcionario so registra log no proprio nome (ex: check da Atencao de hoje);
+      // nunca le, altera nem apaga log nenhum
+      allow create: if membroAtivo()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.funcionario == true;
+      allow update, delete: if false;
+    }
+
+    // calendarEvents, calendarSync, syncTokens, syncBatches etc.: so o servidor.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
