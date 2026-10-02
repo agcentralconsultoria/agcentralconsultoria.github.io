@@ -8100,9 +8100,10 @@
     var dataLonga = new Date(hoje + 'T00:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
     return ''+
       '<div class="atencao-head">'+
-        '<div><h2 class="section-title" style="margin:0;">Atenção de hoje</h2><div class="atencao-subtitle">Quem precisa de você, por quê e qual o próximo passo.</div></div>'+
+        '<div><div style="display:flex;align-items:center;gap:8px;"><h2 class="section-title" style="margin:0;">Atenção de hoje</h2><button class="info-icon-btn" type="button" data-info-toggle="info-atencao-hoje">i</button></div><div class="atencao-subtitle">Quem precisa de você, por quê e qual o próximo passo.</div></div>'+
         '<div class="atencao-data">'+esc(dataLonga)+'</div>'+
       '</div>'+
+      '<div class="info-popover" id="info-atencao-hoje">Ao marcar o check de um paciente, ele fica marcado a semana toda e só é desmarcado na segunda-feira. Se aparecer um motivo novo de atenção para esse paciente, o check sai sozinho e ele volta pra fila.</div>'+
       '<input type="text" id="atencaoBuscaInput" class="search-input" style="margin-bottom:12px;max-width:320px;" placeholder="Buscar por nome..." value="'+esc(state.atencaoBusca)+'">'+
       '<div id="atencaoBodyWrap">'+atencaoHojeBodyHtml(hoje)+'</div>';
   }
@@ -8142,6 +8143,7 @@
     if(!wrap) return;
     wrap.innerHTML = atencaoHojeInnerHtml();
     bindProfileOpeners(wrap);
+    bindInfoIcons(wrap);
     bindAtencaoControls(wrap);
     var buscaInput = document.getElementById('atencaoBuscaInput');
     if(buscaInput){
