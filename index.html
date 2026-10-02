@@ -95,7 +95,7 @@
   html,body{height:100%;}
   body{
     margin:0;
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-family:"Plus Jakarta Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     background:var(--bg);
     color:var(--text);
     -webkit-font-smoothing:antialiased;
@@ -1313,6 +1313,16 @@
     .dash-novo .kpi-card::after{width:22px;height:22px;font-size:12px;top:10px;right:10px;}
     .dash-novo .kpi-label{font-size:12px;padding-right:26px;}
   }
+  /* Menu lateral — visual novo (opcao B: escuro, icones de linha, item ativo em degrade) */
+  .sidebar-brand{border-bottom:none;}
+  .sidebar-foot{border-top:none;}
+  .side-section{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#71717A;padding:12px 11px 6px;white-space:nowrap;}
+  .sidebar.collapsed .side-section{display:none;}
+  .side-item{font-weight:500;color:#A1A1AA;border-radius:12px;}
+  .side-item.active{background:linear-gradient(135deg,#EA580C,#C2410C);color:#fff;font-weight:600;}
+  .sidebar-foot .side-item{font-weight:500;}
+  .side-ico svg{width:18px;height:18px;display:block;margin:0 auto;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+  @media (max-width: 600px){ .sidebar.collapsed .side-section{display:block;} }
 </style>
 </head>
 <body>
@@ -4552,9 +4562,29 @@
   function isCaptacaoTab(tab){
     return CAPTACAO_SUBTABS.some(function(s){ return s.tab === tab; });
   }
+  /* Icones de linha do menu lateral (no lugar dos emojis). A chave e o emoji antigo,
+     entao quem chama continua passando o mesmo emoji; sem icone mapeado, mostra o emoji. */
+  var SIDE_SVG = {
+    '🏠':'<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
+    '👥':'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    '🗺️':'<path d="M14.1 5.55a2 2 0 0 0 1.8 0l3.66-1.83A1 1 0 0 1 21 4.62v12.76a1 1 0 0 1-.55.9l-4.55 2.27a2 2 0 0 1-1.8 0l-4.2-2.1a2 2 0 0 0-1.8 0l-3.66 1.83A1 1 0 0 1 3 19.38V6.62a1 1 0 0 1 .55-.9l4.55-2.27a2 2 0 0 1 1.8 0z"/><path d="M15 5.76v15"/><path d="M9 3.24v15"/>',
+    '🚀':'<path d="M22 7 13.5 15.5 8.5 10.5 2 17"/><path d="M16 7h6v6"/>',
+    '💰':'<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>',
+    '⚙️':'<circle cx="12" cy="12" r="3"/><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>',
+    '🚪':'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
+    '📊':'<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+    '🎯':'<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+    '🤝':'<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+    '🎁':'<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 0 1 0 5"/>',
+    '💬':'<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
+    '📷':'<rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><path d="M17.5 6.5h.01"/>'
+  };
+  function sideIcoHtml(ico){
+    return SIDE_SVG[ico] ? '<svg viewBox="0 0 24 24" aria-hidden="true">'+SIDE_SVG[ico]+'</svg>' : ico;
+  }
   function sideItemHtml(tab, ico, label, extraCls){
     return '<button class="side-item'+(state.tab===tab?' active':'')+(extraCls?' '+extraCls:'')+'" data-tab="'+tab+'" title="'+esc(label)+'">'+
-      '<span class="side-ico">'+ico+'</span><span class="side-label">'+esc(label)+'</span></button>';
+      '<span class="side-ico">'+sideIcoHtml(ico)+'</span><span class="side-label">'+esc(label)+'</span></button>';
   }
   function sidebarHtml(){
     // so o clique no grupo abre/fecha — estar numa sub-aba nao forca o menu aberto
@@ -4570,20 +4600,22 @@
         '<div class="brand-text"><strong>Angelo Garcia</strong><span>CRM</span></div>'+
       '</div>'+
       '<nav class="sidebar-nav">'+
+        '<div class="side-section">Menu</div>'+
         sideItemHtml('dashboard','🏠','Dashboard')+
         sideItemHtml('pacientes','👥','Pacientes')+
         sideItemHtml('jornada','🗺️','Jornada')+
         '<button class="side-item'+(capAtivo?' active':'')+'" id="captacaoGroupBtn" title="Captação">'+
-          '<span class="side-ico">🚀</span><span class="side-label">Captação</span>'+
+          '<span class="side-ico">'+sideIcoHtml('🚀')+'</span><span class="side-label">Captação</span>'+
           '<span class="side-caret">'+(capAberto?'▾':'▸')+'</span></button>'+
         (capAberto ? '<div class="side-sub">'+subs+'</div>' : '')+
         sideItemHtml('financeiro','💰','Financeiro')+
       '</nav>'+
       '<div class="sidebar-foot">'+
+        '<div class="side-section">Geral</div>'+
         '<button class="side-item" id="settingsBtn" title="Configurações">'+
-          '<span class="side-ico">⚙️</span><span class="side-label">Configurações</span></button>'+
+          '<span class="side-ico">'+sideIcoHtml('⚙️')+'</span><span class="side-label">Configurações</span></button>'+
         '<button class="side-item" id="logoutBtn" title="Sair">'+
-          '<span class="side-ico">🚪</span><span class="side-label">Sair</span></button>'+
+          '<span class="side-ico">'+sideIcoHtml('🚪')+'</span><span class="side-label">Sair</span></button>'+
       '</div>'+
     '</aside>';
   }
