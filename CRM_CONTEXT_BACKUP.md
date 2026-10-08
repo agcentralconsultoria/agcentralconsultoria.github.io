@@ -1369,3 +1369,21 @@ Regra do Ângelo: fotos e medidas em jejum são programadas a cada 30 dias
 - Essa regra muda a de §23 só em "Atenção de hoje": lá, medidas faltando
   nunca atrasavam o check-in do Essencial, e isso continua igual no status do
   ciclo. O aviso novo é à parte e conta só os dias desde a última medida.
+
+---
+
+## 28. "Atenção de hoje" virou Kanban (08/10/2026)
+
+Mesma fila e mesmas regras de motivos (§22/§27), só a apresentação mudou: 4
+colunas, cada paciente em UMA só (`atencaoColuna`):
+- **Prioridade alta**: motivo de Atenção + prioridade Modo Bebezinho/Urgente
+  (`computePrioridade`).
+- **Hoje**: demais de Atenção + Preparar que é pra hoje.
+- **Esta semana**: demais de Preparar.
+- **Acompanhar**: Observar.
+
+Filtros do topo: Todos / Pendentes / Concluídos (`state.atencaoView`). Card
+"Meta da semana" = marcados ÷ total (anel de %), zera na segunda-feira como o
+check já fazia. "Próximo a chamar" = primeiro pendente na ordem das colunas.
+O quadradinho agora tem texto "Feito na semana". Sem arrastar cartões (colunas
+automáticas). Mobile: colunas com rolagem lateral. Resto do Dashboard intacto.

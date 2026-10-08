@@ -791,27 +791,51 @@
   .atencao-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:8px 0 10px;}
   .atencao-subtitle{font-size:13.5px;color:var(--text-muted);margin-top:2px;}
   .atencao-data{font-size:13px;color:var(--text-muted);font-weight:600;}
-  .atencao-card{padding:0;overflow:hidden;margin-bottom:28px;}
-  .atencao-grid-head,.atencao-row{display:grid;grid-template-columns:minmax(190px,1.1fr) minmax(220px,1.6fr) minmax(150px,1fr) auto;gap:14px;align-items:center;padding:12px 16px;}
-  .atencao-grid-head{font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);border-bottom:1px solid var(--border);background:var(--bg);}
-  .atencao-row{border-bottom:1px solid var(--border);}
-  .atencao-row:last-child{border-bottom:none;}
-  .atencao-row.is-done{opacity:.5;}
-  .atencao-row.is-observar .atencao-nome{font-weight:600;}
-  .atencao-grupo{padding:8px 16px;font-size:12px;font-weight:700;color:var(--text-muted);background:var(--bg);border-bottom:1px solid var(--border);}
-  .atencao-cell-nome{display:flex;align-items:center;gap:12px;min-width:0;}
-  .atencao-check{width:20px;height:20px;flex:0 0 auto;accent-color:var(--primary);cursor:pointer;margin:0;}
-  .atencao-nome{font-weight:700;font-size:14.5px;color:var(--text);}
+  .atencao-topo{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:12px;}
+  .atencao-topo-esq{flex:1 1 320px;min-width:0;}
+  .atencao-tab-n{margin-left:4px;font-weight:700;opacity:.7;}
+  .atencao-meta{padding:12px 16px;margin:0;flex:0 0 auto;min-width:260px;}
+  .atencao-meta-titulo{font-size:13px;font-weight:700;margin-bottom:8px;}
+  .atencao-meta-corpo{display:flex;align-items:center;gap:14px;}
+  .atencao-anel{--pct:0;width:56px;height:56px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:conic-gradient(var(--primary) calc(var(--pct)*1%),var(--border) 0);position:relative;}
+  .atencao-anel::before{content:"";position:absolute;inset:6px;border-radius:50%;background:var(--surface);}
+  .atencao-anel span{position:relative;font-size:13px;font-weight:700;}
+  .atencao-meta-num{font-size:13.5px;color:var(--text-muted);}
+  .atencao-meta-num b{font-size:16px;color:var(--text);}
+  .atencao-meta-falta{display:inline-block;margin-top:4px;padding:3px 10px;border-radius:999px;background:var(--primary-light);color:var(--primary-dark);font-size:12px;font-weight:600;}
+  .atencao-proximo{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:14px 18px;margin:0 0 16px;border-left:4px solid var(--primary);}
+  .atencao-proximo-tag{font-size:11.5px;font-weight:700;letter-spacing:.04em;color:var(--primary);}
+  .atencao-proximo-info{flex:1 1 200px;min-width:0;}
+  .atencao-proximo-motivo{flex:1 1 200px;min-width:0;font-size:13.5px;color:var(--text-muted);}
+  .atencao-board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;align-items:start;margin-bottom:28px;}
+  .atencao-col{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:12px;min-width:0;}
+  .atencao-col-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+  .atencao-dot{width:12px;height:12px;border-radius:50%;flex:0 0 auto;}
+  .atencao-col-nome{font-weight:700;font-size:15px;}
+  .atencao-col-n{margin-left:2px;padding:1px 9px;border-radius:999px;background:var(--bg);font-size:12.5px;font-weight:700;color:var(--text-muted);}
+  .atencao-col-body{display:flex;flex-direction:column;gap:10px;max-height:70vh;overflow-y:auto;}
+  .atencao-kcard{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;}
+  .atencao-kcard.is-done{opacity:.5;}
+  .atencao-kcard-top{display:flex;align-items:flex-start;gap:10px;}
+  .atencao-num{flex:0 0 auto;min-width:26px;text-align:center;padding:2px 6px;border-radius:8px;background:var(--bg);font-size:12px;font-weight:700;color:var(--text-muted);}
+  .atencao-nome{font-weight:600;font-size:14.5px;color:var(--text);overflow-wrap:anywhere;}
   .atencao-sub{font-size:12.5px;color:var(--text-muted);}
   .atencao-cell-motivos{display:flex;flex-direction:column;gap:6px;align-items:flex-start;min-width:0;}
   .atencao-motivo{display:flex;flex-direction:column;gap:2px;}
+  .atencao-motivo .badge{white-space:normal;}
   .atencao-motivo-det{font-size:12px;color:var(--text-muted);}
-  .atencao-cell-acao{font-size:13.5px;color:var(--text);}
-  .atencao-empty{padding:24px 16px;text-align:center;color:var(--text-muted);}
+  .atencao-cell-acao{font-size:12.5px;color:var(--text);}
+  .atencao-kcard-foot{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:8px;}
+  .atencao-feito{display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:12.5px;color:var(--text-muted);cursor:pointer;}
+  .atencao-check{width:20px;height:20px;flex:0 0 auto;accent-color:var(--primary);cursor:pointer;margin:0;}
+  .atencao-empty{padding:18px 8px;text-align:center;color:var(--text-muted);font-size:13px;}
+  @media (max-width: 1100px){
+    .atencao-board{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(280px,320px);overflow-x:auto;scroll-snap-type:x proximity;padding-bottom:8px;}
+    .atencao-col{scroll-snap-align:start;}
+  }
   @media (max-width: 700px){
-    .atencao-grid-head{display:none;}
-    .atencao-row{grid-template-columns:1fr;gap:8px;}
-    .atencao-cell-motivos,.atencao-cell-acao,.atencao-cell-perfil{padding-left:32px;}
+    .atencao-board{grid-auto-columns:86%;}
+    .atencao-meta{width:100%;}
   }
   .monthly-trend-value{font-size:11px;font-weight:700;color:var(--text);white-space:nowrap;}
   .monthly-trend-track{width:100%;height:90px;display:flex;align-items:flex-end;background:var(--bg);border-radius:5px;overflow:hidden;}
@@ -1305,10 +1329,6 @@
   .dash-novo .kpi-card.destaque::after{background:#fff;color:#C2410C;border-color:#fff;}
   .dash-novo .kpi-card.destaque.selected{outline-color:#7C2D12;}
   .dash-novo .btn,.dash-novo .meta-type-btn,.dash-novo .badge,.dash-novo .search-input,.dash-novo .info-icon-btn{border-radius:999px;}
-  .dash-novo .atencao-nome{font-weight:600;}
-  .dash-novo .atencao-grid-head{background:transparent;}
-  .dash-novo .atencao-grupo{background:var(--primary-light);color:var(--primary-dark);}
-  html[data-theme="dark"] .dash-novo .atencao-grupo{background:rgba(234,88,12,.15);color:#FDBA74;}
   @media(max-width:600px){
     .dash-novo .kpi-value{font-size:30px;margin-top:10px;}
     .dash-novo .kpi-card::after{width:22px;height:22px;font-size:12px;top:10px;right:10px;}
@@ -9168,7 +9188,25 @@
     if(m.cat === 'preparar') return 'badge-warning';
     return m.tom === 'success' ? 'badge-success' : 'badge-gray';
   }
-  function atencaoRowHtml(it){
+  /* Colunas do Kanban (cada paciente cai em UMA so, pela regra ja existente):
+     Prioridade alta = motivo de Atencao + prioridade Modo Bebezinho/Urgente (computePrioridade);
+     Hoje = demais de Atencao + Preparar que e pra hoje; Esta semana = demais de Preparar;
+     Acompanhar = Observar. */
+  var ATENCAO_COLUNAS = [
+    { key: 'alta', nome: 'Prioridade alta', cor: 'var(--danger)' },
+    { key: 'hoje', nome: 'Hoje', cor: 'var(--warning)' },
+    { key: 'semana', nome: 'Esta semana', cor: 'var(--info,#6B7A99)' },
+    { key: 'acompanhar', nome: 'Acompanhar', cor: 'var(--text-muted)' }
+  ];
+  function atencaoColuna(it){
+    if(it.cat === 'atencao'){
+      var pr = computePrioridade(it.p);
+      return (pr === 'Modo Bebezinho' || pr === 'Urgente') ? 'alta' : 'hoje';
+    }
+    if(it.cat === 'preparar') return it.hoje ? 'hoje' : 'semana';
+    return 'acompanhar';
+  }
+  function atencaoCardHtml(it, num){
     var p = it.p;
     var sub = esc(p.servico || '') + (isEssencialMensal(p) ? ' · ' + esc(p.plano) : '');
     var motivos = it.motivos.map(function(m){
@@ -9177,63 +9215,98 @@
         (m.detalhe ? '<span class="atencao-motivo-det">'+esc(m.detalhe)+'</span>' : '')+
       '</div>';
     }).join('');
-    return '<div class="atencao-row'+(it.marcado ? ' is-done' : '')+(it.cat === 'observar' ? ' is-observar' : '')+'">'+
-      '<div class="atencao-cell-nome">'+
-        '<input type="checkbox" class="atencao-check" data-atencao-check="'+p.id+'"'+(it.marcado ? ' checked' : '')+' aria-label="Já olhei '+esc(p.nome)+' esta semana">'+
-        '<div><div class="atencao-nome">'+esc(p.nome)+'</div><div class="atencao-sub">'+sub+'</div></div>'+
+    return '<div class="atencao-kcard'+(it.marcado ? ' is-done' : '')+'">'+
+      '<div class="atencao-kcard-top">'+
+        '<span class="atencao-num">'+(num < 10 ? '0' : '')+num+'</span>'+
+        '<div style="min-width:0;"><div class="atencao-nome">'+esc(p.nome)+'</div><div class="atencao-sub">'+sub+'</div></div>'+
       '</div>'+
       '<div class="atencao-cell-motivos">'+motivos+'</div>'+
-      '<div class="atencao-cell-acao">'+esc(it.acoes.slice(0, 3).join(' · '))+'</div>'+
-      '<div class="atencao-cell-perfil"><button type="button" class="btn-icon" data-open-profile="'+p.id+'">Ver perfil →</button></div>'+
+      (it.acoes.length ? '<div class="atencao-cell-acao">'+esc(it.acoes.slice(0, 3).join(' · '))+'</div>' : '')+
+      '<div class="atencao-kcard-foot">'+
+        '<label class="atencao-feito"><input type="checkbox" class="atencao-check" data-atencao-check="'+p.id+'"'+(it.marcado ? ' checked' : '')+' aria-label="Já olhei '+esc(p.nome)+' esta semana"> Feito na semana</label>'+
+        '<button type="button" class="btn-icon" data-open-profile="'+p.id+'">Ver perfil ↗</button>'+
+      '</div>'+
     '</div>';
   }
   function atencaoHojeBodyHtml(hoje){
-    var itens = atencaoAplicarMarcas(atencaoItens(hoje));
+    var todos = atencaoAplicarMarcas(atencaoItens(hoje));
+    var total = todos.length;
+    var feitos = todos.filter(function(it){ return it.marcado; }).length;
+    var pct = total ? Math.round(feitos / total * 100) : 0;
+    var itens = todos;
     if(state.atencaoBusca){
       itens = itens.filter(function(it){ return nomeMatchesBusca(it.p.nome, state.atencaoBusca); });
     }
-    var grupos = { atencao: [], preparar: [], observar: [] };
-    itens.forEach(function(it){ grupos[it.cat].push(it); });
-    Object.keys(grupos).forEach(function(k){ grupos[k] = atencaoOrdenar(grupos[k]); });
-    var pendentesAtencao = grupos.atencao.filter(function(it){ return !it.marcado; }).length;
-    var prepararHoje = grupos.preparar.some(function(it){ return it.hoje && !it.marcado; });
-    var view = state.atencaoView || 'todos';
-    function tab(key, label){
-      return '<button type="button" class="meta-type-btn'+(view === key ? ' active' : '')+'" data-atencao-view="'+key+'">'+label+'</button>';
+    var nPend = itens.filter(function(it){ return !it.marcado; }).length;
+    var nConc = itens.length - nPend;
+    var view = state.atencaoView;
+    if(view !== 'pendentes' && view !== 'concluidos') view = 'todos';
+    if(view === 'pendentes') itens = itens.filter(function(it){ return !it.marcado; });
+    if(view === 'concluidos') itens = itens.filter(function(it){ return it.marcado; });
+    var cols = {};
+    ATENCAO_COLUNAS.forEach(function(c){ cols[c.key] = []; });
+    itens.forEach(function(it){ cols[atencaoColuna(it)].push(it); });
+    ATENCAO_COLUNAS.forEach(function(c){ cols[c.key] = atencaoOrdenar(cols[c.key]); });
+    function tab(key, label, n){
+      return '<button type="button" class="meta-type-btn'+(view === key ? ' active' : '')+'" data-atencao-view="'+key+'">'+label+' <span class="atencao-tab-n">'+n+'</span></button>';
     }
-    var tabs = tab('todos', 'Todos · '+itens.length)+
-      tab('atencao', 'Atenção · '+(grupos.atencao.length && !pendentesAtencao ? '✓' : pendentesAtencao))+
-      tab('preparar', 'Preparar · '+grupos.preparar.length+(prepararHoje ? ' · hoje' : ''))+
-      tab('observar', 'Observar · '+grupos.observar.length);
-    var nomesGrupo = { atencao: 'Atenção', preparar: 'Preparar', observar: 'Observar' };
-    var corpo = '';
-    ['atencao', 'preparar', 'observar'].forEach(function(k){
-      if(view !== 'todos' && view !== k) return;
-      if(!grupos[k].length) return;
-      if(view === 'todos') corpo += '<div class="atencao-grupo">'+nomesGrupo[k]+'</div>';
-      corpo += grupos[k].map(atencaoRowHtml).join('');
+    var tabs = tab('todos', 'Todos', nPend + nConc)+tab('pendentes', 'Pendentes', nPend)+tab('concluidos', 'Concluídos', nConc);
+    var meta = ''+
+      '<div class="card atencao-meta">'+
+        '<div class="atencao-meta-titulo">Meta da semana</div>'+
+        '<div class="atencao-meta-corpo">'+
+          '<div class="atencao-anel" style="--pct:'+pct+';"><span>'+pct+'%</span></div>'+
+          '<div><div class="atencao-meta-num"><b>'+feitos+' / '+total+'</b> concluídos</div>'+
+          '<div class="atencao-meta-falta">'+(total && feitos === total ? 'Semana zerada 🎉' : 'Faltam '+(total - feitos)+' para zerar a semana')+'</div></div>'+
+        '</div>'+
+      '</div>';
+    var proximo = '';
+    var prox = null;
+    ATENCAO_COLUNAS.forEach(function(c){
+      if(prox) return;
+      for(var i=0; i<cols[c.key].length; i++){
+        if(!cols[c.key][i].marcado){ prox = cols[c.key][i]; return; }
+      }
     });
-    if(!corpo) corpo = '<div class="atencao-empty">'+(state.atencaoBusca ? 'Nenhum paciente encontrado.' : 'Nada por aqui hoje. 🎉')+'</div>';
+    if(prox){
+      var resumo = prox.motivos.slice(0, 2).map(function(m){ return m.label; }).join(' · ');
+      proximo = '<div class="card atencao-proximo">'+
+        '<span class="atencao-proximo-tag">PRÓXIMO A CHAMAR</span>'+
+        '<div class="atencao-proximo-info"><div class="atencao-nome">'+esc(prox.p.nome)+'</div><div class="atencao-sub">'+esc(prox.p.servico || '')+'</div></div>'+
+        '<div class="atencao-proximo-motivo">'+esc(resumo)+'</div>'+
+        '<button type="button" class="btn btn-primary" data-open-profile="'+prox.p.id+'">Abrir paciente →</button>'+
+      '</div>';
+    }
+    var num = 0;
+    var board = ATENCAO_COLUNAS.map(function(c){
+      var lista = cols[c.key];
+      var cards = lista.map(function(it){ num++; return atencaoCardHtml(it, num); }).join('');
+      if(!cards) cards = '<div class="atencao-empty">'+(state.atencaoBusca ? 'Nenhum paciente.' : 'Nada por aqui. 🎉')+'</div>';
+      return '<div class="atencao-col">'+
+        '<div class="atencao-col-head"><span class="atencao-dot" style="background:'+c.cor+';"></span><span class="atencao-col-nome">'+c.nome+'</span><span class="atencao-col-n">'+lista.length+'</span></div>'+
+        '<div class="atencao-col-body">'+cards+'</div>'+
+      '</div>';
+    }).join('');
     var recolhida = !!state.dashCollapsed.atencaoHoje;
     return ''+
-      '<div style="display:flex;align-items:flex-start;gap:10px;">'+
-        '<div class="meta-type-toggle">'+tabs+'</div>'+
-        '<button class="btn-icon" type="button" data-atencao-toggle style="margin:6px 0 10px auto;flex:0 0 auto;">'+(recolhida ? 'Mostrar' : 'Recolher')+'</button>'+
+      '<div class="atencao-topo">'+
+        '<div class="atencao-topo-esq">'+
+          '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><div class="meta-type-toggle" style="margin:0;">'+tabs+'</div>'+
+          '<button class="btn-icon" type="button" data-atencao-toggle>'+(recolhida ? 'Mostrar' : 'Recolher')+'</button></div>'+
+        '</div>'+
+        meta+
       '</div>'+
-      '<div class="card atencao-card"'+(recolhida ? ' style="display:none;"' : '')+'>'+
-        '<div class="atencao-grid-head"><div>Paciente</div><div>Por que aparece</div><div>Ação sugerida</div><div></div></div>'+
-        corpo+
-      '</div>';
+      (recolhida ? '' : proximo+'<div class="atencao-board">'+board+'</div>');
   }
   function atencaoHojeInnerHtml(){
     var hoje = todayISODate();
     var dataLonga = new Date(hoje + 'T00:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
     return ''+
       '<div class="atencao-head">'+
-        '<div><div style="display:flex;align-items:center;gap:8px;"><h2 class="section-title" style="margin:0;">Atenção de hoje</h2><button class="info-icon-btn" type="button" data-info-toggle="info-atencao-hoje">i</button></div><div class="atencao-subtitle">Quem precisa de você, por quê e qual o próximo passo.</div></div>'+
+        '<div><div style="display:flex;align-items:center;gap:8px;"><h2 class="section-title" style="margin:0;">Atenção de hoje</h2><button class="info-icon-btn" type="button" data-info-toggle="info-atencao-hoje">i</button></div><div class="atencao-subtitle">Sua fila de atendimento, sem distrações.</div></div>'+
         '<div class="atencao-data">'+esc(dataLonga)+'</div>'+
       '</div>'+
-      '<div class="info-popover" id="info-atencao-hoje">Ao marcar o check de um paciente, ele fica marcado a semana toda e só é desmarcado na segunda-feira. Se aparecer um motivo novo de atenção para esse paciente, o check sai sozinho e ele volta pra fila.</div>'+
+      '<div class="info-popover" id="info-atencao-hoje">Ao marcar "Feito na semana" de um paciente, ele fica marcado a semana toda e só é desmarcado na segunda-feira. A Meta da semana conta quantos já foram feitos. Se aparecer um motivo novo de atenção para esse paciente, o check sai sozinho e ele volta pra fila.</div>'+
       '<input type="text" id="atencaoBuscaInput" class="search-input" style="margin-bottom:12px;max-width:320px;" placeholder="Buscar por nome..." value="'+esc(state.atencaoBusca)+'">'+
       '<div id="atencaoBodyWrap">'+atencaoHojeBodyHtml(hoje)+'</div>';
   }
