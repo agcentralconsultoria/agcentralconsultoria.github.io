@@ -11,7 +11,7 @@ LABEL="br.com.agcentral.vigia"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 
 mkdir -p "$DESTINO" "$HOME/Library/LaunchAgents"
-cp "$ORIGEM/vigia.js" "$ORIGEM/treino.js" "$ORIGEM/package.json" "$ORIGEM/package-lock.json" "$DESTINO/"
+cp "$ORIGEM/vigia.js" "$ORIGEM/treino.js" "$ORIGEM/whatsapp.js" "$ORIGEM/claude.js" "$ORIGEM/package.json" "$ORIGEM/package-lock.json" "$DESTINO/"
 rm -rf "$DESTINO/node_modules" && cp -R "$ORIGEM/node_modules" "$DESTINO/node_modules"
 
 cat > "$PLIST" <<PLISTEOF

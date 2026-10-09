@@ -1538,3 +1538,18 @@ conta de teste em modo prévia; (5) fotos/medidas e treinos/dietas;
   Importante: evita que uma edição com tela velha **sobrescreva** o que a automação gravou.
   O acompanhamento (a cada 5 s) continua mesmo fora da aba Automação enquanto há algo na fila.
   Prévia não recarrega nada. Custo: zero.
+
+### Engajamento (09/10/2026) — WhatsApp Web + Claude
+- Decisões do Ângelo: a nota cobre **segunda a domingo** da semana da sexta; **áudio conta como
+  mensagem recebida** e, se a nota depender do conteúdo e a duração não bastar, vira **exceção**
+  (sem nota). Escala 0–10 = a do §29 (texto dele, sem alterar), colada no prompt.
+- Fluxo: servidor (`engajamento`, ação `pendentes`) diz quem/qual semana ENCERRADA está sem nota
+  (não devolve semana já preenchida; Essencial fora; quinzenal só semanas 1 e 3) → vigia lê o
+  WhatsApp Web (`vigia/whatsapp.js`, Chrome próprio, perfil `~/.agcentral/whatsapp-profile`,
+  login por QR 1x via `login-whatsapp.js`; SOMENTE LEITURA, nunca envia) → sem mensagem do
+  paciente = nota 0 SEM IA; senão chama `claude -p --model sonnet --effort medium --tools ""`
+  (`vigia/claude.js`, pela assinatura) → ação `gravar` (só campo vazio; `dryRun` na prévia).
+- Fatos x interpretação aparecem no "Ver detalhes" ("Fato: … | IA: …"); exceções e pulados
+  viram pendência. Telefone vem de `p.telefone` do CRM (55 + DDD).
+- Testado com conversas INVENTADAS (nota 9 / 2 / exceção). A leitura real do WhatsApp só roda
+  quando o Ângelo clica (o ambiente de desenvolvimento não lê conversas de pacientes).

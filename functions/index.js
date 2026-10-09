@@ -802,6 +802,122 @@ exports.syncCheckins = onRequest({
   }
 });
 
+// Engajamento (nota 0-10 por semana, calculada pelo vigia + Claude). So o vigia chama.
+//  - acao "pendentes": quais pacientes/semanas ja ENCERRADAS (segunda a domingo) ainda estao
+//    sem nota no CRM (nunca devolve semana que ja tem nota; Essencial nao tem engajamento).
+//  - acao "gravar": grava a nota SO em campo vazio (nunca sobrescreve). dryRun = previa.
+exports.engajamento = onRequest({
+  region: REGION,
+  secrets: [AUTOMACAO_KEY],
+  timeoutSeconds: 120,
+  memory: '256MiB',
+  cors: false,
+}, async (req, res) => {
+  if (req.method !== 'POST') { res.status(405).send('use POST'); return; }
+  const chave = String(req.get('x-automacao-key') || '').trim();
+  if (!chave || chave !== String(AUTOMACAO_KEY.value()).trim()) { res.status(403).send('nao autorizado'); return; }
+  let body = req.body;
+  if (Buffer.isBuffer(body)) body = body.toString('utf8');
+  if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = null; } }
+  if (!body || typeof body.acao !== 'string') { res.status(400).send('envie JSON com "acao"'); return; }
+
+  const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+  // sextas das ultimas semanas ja encerradas: o domingo (sexta+2) ja passou
+  const sextasEncerradas = () => {
+    const lista = [];
+    const d = new Date(hoje + 'T00:00:00');
+    d.setDate(d.getDate() - 28);
+    while (isoDate(d) <= hoje) {
+      if (d.getDay() === 5 && addDaysIso(isoDate(d), 2) < hoje) lista.push(isoDate(d));
+      d.setDate(d.getDate() + 1);
+    }
+    return lista;
+  };
+  const slotDaSexta = (sexta) => {
+    const dt = new Date(sexta + 'T00:00:00');
+    const monthKey = monthKeyOf(dt.getFullYear(), dt.getMonth());
+    const n = weeksInMonth(monthKey);
+    for (let i = 0; i < n; i++) if (nthFridayDate(monthKey, i) === sexta) return { monthKey, weekIndex: i };
+    return null;
+  };
+
+  try {
+    if (body.acao === 'pendentes') {
+      const snap = await PATIENTS_DOC.get();
+      const list = snap.exists ? (snap.data().list || []) : [];
+      const sextas = sextasEncerradas();
+      const pacientes = [];
+      const semTelefone = [];
+      list.forEach((p) => {
+        if (!p || !p.email || isEssencialMensal(p) || isVencido(p, hoje)) return;
+        const semanas = [];
+        sextas.forEach((sexta) => {
+          const inicio = p.inicioPlano || p.createdDate || null;
+          if (inicio && inicio > sexta) return;
+          const slot = slotDaSexta(sexta);
+          if (!slot) return;
+          if (isTreinoQuinzenal(p) && slot.weekIndex !== 0 && slot.weekIndex !== 2) return;
+          const mes = p.meses && p.meses[slot.monthKey];
+          const atual = mes && Array.isArray(mes.engajamento) ? mes.engajamento[slot.weekIndex] : null;
+          if (atual !== null && atual !== undefined && atual !== '') return; // ja tem nota
+          semanas.push({ sexta, segunda: addDaysIso(sexta, -4), domingo: addDaysIso(sexta, 2), monthKey: slot.monthKey, weekIndex: slot.weekIndex });
+        });
+        if (!semanas.length) return;
+        const digitos = String(p.telefone || '').replace(/\D/g, '');
+        if (digitos.length < 10) { semTelefone.push(p.nome); return; }
+        const telefone = digitos.length <= 11 ? '55' + digitos : digitos;
+        pacientes.push({ email: String(p.email).trim().toLowerCase(), nome: p.nome, telefone, semanas });
+      });
+      res.status(200).json({ hoje, pacientes, semTelefone });
+      return;
+    }
+
+    if (body.acao === 'gravar') {
+      const entries = Array.isArray(body.entries) ? body.entries.slice(0, 500) : [];
+      const dryRun = body.dryRun === true;
+      const r = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(PATIENTS_DOC);
+        const list = snap.exists ? (snap.data().list || []) : [];
+        const porEmail = new Map();
+        list.forEach((p) => { if (p.email) porEmail.set(String(p.email).trim().toLowerCase(), p); });
+        const detalhes = [];
+        const pulados = [];
+        let gravadas = 0;
+        entries.forEach((e) => {
+          const p = porEmail.get(String((e && e.email) || '').trim().toLowerCase());
+          const nota = Number(e && e.nota);
+          if (!p) { pulados.push('e-mail nao encontrado no CRM: ' + (e && e.email)); return; }
+          if (!Number.isInteger(nota) || nota < 0 || nota > 10 || !/^\d{4}-\d{2}$/.test(String(e.monthKey)) || !Number.isInteger(e.weekIndex) || e.weekIndex < 0) {
+            pulados.push(p.nome + ': nota ou semana invalida'); return;
+          }
+          const wk = weeksInMonth(e.monthKey);
+          if (e.weekIndex >= wk) { pulados.push(p.nome + ': semana inexistente'); return; }
+          if (!p.meses) p.meses = {};
+          if (!p.meses[e.monthKey]) p.meses[e.monthKey] = {};
+          const mes = p.meses[e.monthKey];
+          if (!Array.isArray(mes.engajamento)) mes.engajamento = [];
+          while (mes.engajamento.length < wk) mes.engajamento.push(null);
+          const atual = mes.engajamento[e.weekIndex];
+          if (atual !== null && atual !== undefined && atual !== '') return; // nunca sobrescreve
+          mes.engajamento[e.weekIndex] = nota;
+          gravadas++;
+          detalhes.push(p.nome + ': ' + e.monthKey + ' semana ' + (e.weekIndex + 1) + ' -> nota ' + nota);
+        });
+        if (gravadas && !dryRun) tx.set(PATIENTS_DOC, { list }, { merge: true });
+        return { gravadas, detalhes, pulados };
+      });
+      logger.info('engajamento gravar: ' + r.gravadas + ' nota(s)' + (dryRun ? ' (previa)' : '') + ', ' + r.pulados.length + ' pulado(s).');
+      res.status(200).json({ gravadas: r.gravadas, detalhes: r.detalhes, detalhesPulados: r.pulados, dryRun });
+      return;
+    }
+
+    res.status(400).send('acao desconhecida');
+  } catch (err) {
+    logger.error('engajamento erro: ' + (err && err.message));
+    res.status(500).send('Erro: ' + (err && err.message));
+  }
+});
+
 // Equipe: funcionarios, permissoes e logs de auditoria (arquivo separado).
 Object.assign(exports, require('./equipe'));
 
