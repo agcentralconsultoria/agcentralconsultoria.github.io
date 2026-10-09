@@ -245,7 +245,7 @@ exports.automacaoVigia = onRequest({
         // "Ultima execucao" de cada card (o CRM le isto direto)
         tx.set(db.collection(RESUMO).doc(d.tipo), {
           tipo: d.tipo, pedidoId: id, status, finalizadoEm: agora, modo: d.modo || 'previa',
-          avisos: resultado.detalhes.filter((x) => /^(Pulado|Falha):/.test(x)).slice(0, 20),
+          avisos: resultado.detalhes.filter((x) => /^(Pulado|Falha|NÃO CADASTRADO):/.test(x)).slice(0, 20),
           analisados: resultado.analisados, atualizados: resultado.atualizados,
           pendencias: resultado.pendencias, falhas: resultado.falhas, resumo: resultado.resumo,
         });

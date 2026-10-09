@@ -1561,3 +1561,8 @@ conta de teste em modo prévia; (5) fotos/medidas e treinos/dietas;
   Falha nisso aparece como "Falha: Não consegui deixar 'não lida'". **Limite:** isso NÃO desfaz o
   "visto" azul que o paciente pode ver (a confirmação de leitura já foi enviada ao abrir). Só some
   se a confirmação de leitura estiver desligada no WhatsApp do Ângelo (Configurações > Privacidade).
+
+### "NÃO CADASTRADO" (09/10/2026)
+- Quem está no Treino.io mas o e-mail não existe no CRM aparece como **"NÃO CADASTRADO: Nome (email)
+  — cadastre no CRM"**, em vermelho, no card (Atenção) e no "Ver detalhes" (check-ins, fotos/medidas,
+  treinos/dietas). Engajamento só avalia quem já está no CRM (não lista não cadastrados).

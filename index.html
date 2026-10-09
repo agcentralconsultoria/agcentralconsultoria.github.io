@@ -891,6 +891,7 @@
   .auto-avisos ul{margin:4px 0 0;padding-left:16px;color:var(--text);}
   .auto-ok{margin-top:8px;font-size:12.5px;font-weight:600;color:var(--success);}
   .auto-hist-det li.is-aviso{color:var(--warning);font-weight:600;}
+  .auto-hist-det li.is-nc,.auto-avisos li.is-nc{color:var(--danger);font-weight:700;}
   .auto-box-resumo{margin-top:6px;font-size:12px;color:var(--text-muted);}
   .auto-modo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 14px;font-size:13.5px;font-weight:600;}
   .auto-hist-row{display:grid;grid-template-columns:150px 1.3fr 1.3fr 1.6fr 90px;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--border);font-size:13px;}
@@ -5931,7 +5932,7 @@
       '<div class="auto-box"><div class="auto-box-titulo">Última execução</div>'+
         (r ? '<div class="auto-box-vazio">'+automacaoDataHora(r.finalizadoEm)+(r.modo === 'previa' ? ' · prévia' : '')+'</div>' : '<div class="auto-box-vazio">Nenhuma execução ainda</div>')+stats+
         (r && r.resumo ? '<div class="auto-box-resumo">'+esc(r.resumo)+'</div>' : '')+
-        (r && r.avisos && r.avisos.length ? '<div class="auto-avisos"><b>⚠ Atenção ('+r.avisos.length+')</b><ul>'+r.avisos.slice(0, 3).map(function(x){ return '<li>'+esc(x.replace(/^(Pulado|Falha):\s*/, ''))+'</li>'; }).join('')+(r.avisos.length > 3 ? '<li>…e mais '+(r.avisos.length - 3)+' no Histórico</li>' : '')+'</ul></div>' : (r && Array.isArray(r.avisos) && r.status !== 'erro' ? '<div class="auto-ok">✓ Sem erros nem avisos</div>' : ''))+
+        (r && r.avisos && r.avisos.length ? '<div class="auto-avisos"><b>⚠ Atenção ('+r.avisos.length+')</b><ul>'+r.avisos.slice(0, 6).map(function(x){ var nc = /^NÃO CADASTRADO:/.test(x); return '<li'+(nc ? ' class="is-nc"' : '')+'>'+esc(nc ? x : x.replace(/^(Pulado|Falha):\s*/, ''))+'</li>'; }).join('')+(r.avisos.length > 6 ? '<li>…e mais '+(r.avisos.length - 6)+' no Histórico</li>' : '')+'</ul></div>' : (r && Array.isArray(r.avisos) && r.status !== 'erro' ? '<div class="auto-ok">✓ Sem erros nem avisos</div>' : ''))+
       '</div>'+
       automacaoBotoesHtml(a.key, ult, 'auto-btn')+
     '</div>';
@@ -5949,7 +5950,7 @@
         '<div class="auto-hist-res">'+(r ? esc(r.analisados+' analisados · '+r.atualizados+' atualizados · '+r.pendencias+' pendências'+(r.falhas ? ' · '+r.falhas+' falhas' : '')) : '—')+'</div>'+
         '<div class="auto-hist-tempo">'+automacaoDuracao(p)+'</div>'+
         (r && r.resumo ? '<div class="auto-hist-resumo">'+esc(r.resumo)+'</div>' : '')+
-        (r && r.detalhes && r.detalhes.length ? '<details class="auto-hist-det" data-auto-det="'+esc(p.id)+'"'+(state.automacao.detAberto[p.id] ? ' open' : '')+'><summary>Ver detalhes ('+r.detalhes.length+')</summary><ul>'+r.detalhes.map(function(x){ var aviso = /^(Pulado|Falha):/.test(x); return '<li class="'+(aviso ? 'is-aviso' : '')+'">'+(aviso ? '⚠ ' : '')+esc(x)+'</li>'; }).join('')+'</ul></details>' : '')+
+        (r && r.detalhes && r.detalhes.length ? '<details class="auto-hist-det" data-auto-det="'+esc(p.id)+'"'+(state.automacao.detAberto[p.id] ? ' open' : '')+'><summary>Ver detalhes ('+r.detalhes.length+')</summary><ul>'+r.detalhes.map(function(x){ var nc = /^NÃO CADASTRADO:/.test(x); var aviso = nc || /^(Pulado|Falha):/.test(x); return '<li class="'+(nc ? 'is-nc' : (aviso ? 'is-aviso' : ''))+'">'+(aviso ? '⚠ ' : '')+esc(x)+'</li>'; }).join('')+'</ul></details>' : '')+
       '</div>';
     }).join('');
   }

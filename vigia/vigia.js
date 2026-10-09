@@ -49,6 +49,17 @@ async function atualizarPedido(corpo) {
   return r;
 }
 
+// Linhas "NÃO CADASTRADO: Nome (email) — cadastre no CRM" pra quem está no Treino.io mas não no CRM.
+// Os demais "pulados" continuam como estavam.
+function linhasPulados(lista, nomesPorEmail) {
+  return (lista || []).map((x) => {
+    const m = String(x).match(/^e-mail nao encontrado no CRM:\s*(\S+)/i);
+    if (!m) return 'Pulado: ' + x;
+    const email = m[1].toLowerCase();
+    return 'NÃO CADASTRADO: ' + (nomesPorEmail[email] || 'nome não identificado') + ' (' + email + ') — cadastre no CRM';
+  });
+}
+
 function hojeMenos(dias) {
   const d = new Date(); d.setDate(d.getDate() - dias);
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -73,6 +84,7 @@ async function executarCheckins(pedido, faixa) {
   const previa = pedido.modo !== 'direto';
   const { ctx, page } = await treino.abrirNavegador();
   const entries = [];
+  const nomesPorEmail = {};
   const falhas = [];
   let semResposta = 0;
   let analisados = 0;
@@ -84,6 +96,7 @@ async function executarCheckins(pedido, faixa) {
     if (!alunos.length) throw new Error('A lista de alunos veio vazia (login do Treino.io pode ter expirado).');
     for (let i = 0; i < alunos.length; i++) {
       const al = alunos[i];
+      nomesPorEmail[al.email] = al.nome;
       try {
         const lido = await treino.lerCheckinsDoAluno(page, al, desde);
         analisados++;
@@ -118,7 +131,7 @@ async function executarCheckins(pedido, faixa) {
   const pendencias = semResposta + r.pulados;
   const detalhes = []
     .concat((r.detalhes || []).map((x) => (previa ? 'Entraria: ' : 'Gravado: ') + x))
-    .concat((r.detalhesPulados || []).map((x) => 'Pulado: ' + x))
+    .concat(linhasPulados(r.detalhesPulados, nomesPorEmail))
     .concat(falhas.map((x) => 'Falha: ' + x));
   const resumo = (previa ? 'PRÉVIA (nada foi gravado). ' : '') +
     r.checkinsAplicados + ' check-in(s) ' + (previa ? 'entrariam' : 'gravados') + ', ' + r.observacoesAplicadas + ' observação(ões), ' +
@@ -142,6 +155,7 @@ async function executarFotosMedidas(pedido, faixa) {
   const previa = pedido.modo !== 'direto';
   const { ctx, page } = await treino.abrirNavegador();
   const entries = [];
+  const nomesPorEmail = {};
   const falhas = [];
   const atrasados = [];
   let analisados = 0;
@@ -151,6 +165,7 @@ async function executarFotosMedidas(pedido, faixa) {
     if (!alunos.length) throw new Error('A lista de alunos veio vazia (login do Treino.io pode ter expirado).');
     for (let i = 0; i < alunos.length; i++) {
       const al = alunos[i];
+      nomesPorEmail[al.email] = al.nome;
       try {
         const d = await treino.lerFotosMedidas(page, al);
         analisados++;
@@ -178,7 +193,7 @@ async function executarFotosMedidas(pedido, faixa) {
   }
   const detalhes = []
     .concat((r.detalhes || []).map((x) => (previa ? 'Entraria: ' : 'Gravado: ') + x))
-    .concat((r.detalhesPulados || []).map((x) => 'Pulado: ' + x))
+    .concat(linhasPulados(r.detalhesPulados, nomesPorEmail))
     .concat(falhas.map((x) => 'Falha: ' + x))
     .concat(atrasados);
   const resumo = (previa ? 'PRÉVIA (nada foi gravado). ' : '') + r.atualizados + ' data(s) de fotos/medidas ' + (previa ? 'entrariam' : 'gravadas') + '. ' +
@@ -196,6 +211,7 @@ async function executarTreinosDietas(pedido, faixa) {
   const previa = pedido.modo !== 'direto';
   const { ctx, page } = await treino.abrirNavegador();
   const entries = [];
+  const nomesPorEmail = {};
   const falhas = [];
   let analisados = 0;
   try {
@@ -204,6 +220,7 @@ async function executarTreinosDietas(pedido, faixa) {
     if (!alunos.length) throw new Error('A lista de alunos veio vazia (login do Treino.io pode ter expirado).');
     for (let i = 0; i < alunos.length; i++) {
       const al = alunos[i];
+      nomesPorEmail[al.email] = al.nome;
       try {
         const f = await treino.lerFichas(page, al);
         analisados++;
@@ -223,7 +240,7 @@ async function executarTreinosDietas(pedido, faixa) {
   const semVenc = (r.detalhes || []).filter((x) => /defina o vencimento/.test(x)).length;
   const detalhes = []
     .concat((r.detalhes || []).map((x) => (previa ? 'Entraria: ' : 'Criada: ') + x))
-    .concat((r.detalhesPulados || []).map((x) => 'Pulado: ' + x))
+    .concat(linhasPulados(r.detalhesPulados, nomesPorEmail))
     .concat(falhas.map((x) => 'Falha: ' + x));
   const resumo = (previa ? 'PRÉVIA (nada foi gravado). ' : '') + r.criadas + ' ficha(s) ' + (previa ? 'seriam criadas' : 'criadas') + ' no CRM (só com a data)' +
     (semVenc ? ', ' + semVenc + ' de treino sem vencimento (você precisa definir)' : '') +
