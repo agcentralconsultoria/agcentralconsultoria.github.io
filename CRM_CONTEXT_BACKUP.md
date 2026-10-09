@@ -1553,3 +1553,11 @@ conta de teste em modo prévia; (5) fotos/medidas e treinos/dietas;
   viram pendência. Telefone vem de `p.telefone` do CRM (55 + DDD).
 - Testado com conversas INVENTADAS (nota 9 / 2 / exceção). A leitura real do WhatsApp só roda
   quando o Ângelo clica (o ambiente de desenvolvimento não lê conversas de pacientes).
+
+### WhatsApp: devolver "não lida" (09/10/2026, pedido do Ângelo)
+- Ao abrir uma conversa o WhatsApp marca tudo como lido. Se a conversa tinha mensagem não lida
+  (aviso "N mensagens não lidas" no painel), o vigia sai dela e usa "Marcar como não lida" na lista
+  (`marcarComoNaoLida` em `vigia/whatsapp.js`) pra manter a bolinha de notificação do Ângelo.
+  Falha nisso aparece como "Falha: Não consegui deixar 'não lida'". **Limite:** isso NÃO desfaz o
+  "visto" azul que o paciente pode ver (a confirmação de leitura já foi enviada ao abrir). Só some
+  se a confirmação de leitura estiver desligada no WhatsApp do Ângelo (Configurações > Privacidade).

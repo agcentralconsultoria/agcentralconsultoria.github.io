@@ -291,7 +291,7 @@ async function executarEngajamento(pedido, faixa) {
   const entries = [];
   const detalhes = [];
   const falhas = [];
-  let analisados = 0; let excecoes = 0; let pulados = (pend.semTelefone || []).length;
+  let analisados = 0; let excecoes = 0; let naoLidasDevolvidas = 0; let pulados = (pend.semTelefone || []).length;
   (pend.semTelefone || []).forEach((n) => detalhes.push('Pulado: ' + n + ' — sem telefone no CRM'));
   if (!pacientes.length) {
     return { analisados: 0, atualizados: 0, pendencias: pulados, falhas: 0, resumo: (previa ? 'PRÉVIA (nada foi gravado). ' : '') + 'Nenhuma semana encerrada sem nota de engajamento.' + (pulados ? ' ' + pulados + ' sem telefone.' : ''), detalhes };
@@ -309,6 +309,11 @@ async function executarEngajamento(pedido, faixa) {
         const conv = await whatsapp.lerConversa(page, p.telefone, desde, ateD, hoje);
         if (conv.status === 'sem_conversa') { pulados++; detalhes.push('Pulado: ' + p.nome + ' — número sem conversa no WhatsApp'); continue; }
         analisados++;
+        // Se tinha mensagem não lida, devolve a conversa pra "não lida" (notificação do Ângelo)
+        if (conv.naoLidas) {
+          try { await whatsapp.marcarComoNaoLida(page, conv.titulo); naoLidasDevolvidas++; }
+          catch (e) { falhas.push('Não consegui deixar "não lida": ' + p.nome.slice(0, 24) + ' — ' + String(e.message).slice(0, 60)); }
+        }
         for (const sem of p.semanas) {
           const naJanela = conv.mensagens.filter((m) => m.data >= sem.segunda && m.data <= sem.domingo);
           const recebidas = naJanela.filter((m) => m.dir === 'paciente');
@@ -349,7 +354,7 @@ async function executarEngajamento(pedido, faixa) {
   if (entries.length) r = await chamarEngaj({ acao: 'gravar', dryRun: previa, entries });
   const todos = detalhes.concat((r.detalhesPulados || []).map((x) => 'Pulado: ' + x)).concat(falhas.map((x) => 'Falha: ' + x));
   const resumo = (previa ? 'PRÉVIA (nada foi gravado). ' : '') + r.gravadas + ' nota(s) ' + (previa ? 'entrariam' : 'gravadas') + ' (só em semana encerrada e campo vazio)' +
-    (excecoes ? ', ' + excecoes + ' exceção(ões) sem nota (você decide)' : '') + (pulados ? ', ' + pulados + ' pulado(s)' : '') + (falhas.length ? ', ' + falhas.length + ' falha(s)' : '') + '.';
+    (excecoes ? ', ' + excecoes + ' exceção(ões) sem nota (você decide)' : '') + (pulados ? ', ' + pulados + ' pulado(s)' : '') + (naoLidasDevolvidas ? ', ' + naoLidasDevolvidas + ' conversa(s) devolvida(s) para "não lida"' : '') + (falhas.length ? ', ' + falhas.length + ' falha(s)' : '') + '.';
   return { analisados, atualizados: r.gravadas, pendencias: excecoes + pulados + (r.detalhesPulados || []).length, falhas: falhas.length, resumo, detalhes: todos };
 }
 

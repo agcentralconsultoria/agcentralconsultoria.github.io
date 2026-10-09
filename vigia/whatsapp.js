@@ -46,6 +46,14 @@ async function lerConversa(page, telefone, desdeISO, ateISO, hojeISO) {
     const aviso = await page.evaluate(() => (document.querySelector('[data-animate-modal-popup="true"], div[role="dialog"]') || {}).innerText || '');
     if (/inv[aá]lid|not on whatsapp|n[aã]o est[aá]|invalid/i.test(aviso) || !abriu) return { status: 'sem_conversa', mensagens: [] };
   }
+  // Ao abrir a conversa o WhatsApp marca tudo como lido; o aviso "N mensagens não lidas" fica no
+  // painel enquanto a conversa está aberta. Guardamos isso pra devolver "não lida" no fim.
+  const antes = await page.evaluate(() => {
+    const painel = document.querySelector('[data-testid="conversation-panel-messages"]') || document.querySelector('#main');
+    const tem = !!painel && /\b\d+\s+(mensagens?\s+n[aã]o\s+lidas?|unread\s+messages?)/i.test(painel.innerText);
+    const tit = document.querySelector('[data-testid="conversation-info-header-chat-title"]');
+    return { naoLidas: tem, titulo: tit ? tit.innerText.trim() : '' };
+  });
   await page.waitForTimeout(3500);
 
   // carrega mensagens antigas rolando pra cima até passar do início da janela
@@ -116,7 +124,24 @@ async function lerConversa(page, telefone, desdeISO, ateISO, hojeISO) {
     if (tipo === 'texto' && !it.texto) return;
     mensagens.push({ data: dia, hora: it.hora, dir: it.saida ? 'coach' : 'paciente', tipo, texto: tipo === 'texto' ? it.texto.slice(0, 500) : '', seg: tipo === 'audio' ? it.duracao : null });
   });
-  return { status: 'ok', mensagens };
+  return { status: 'ok', mensagens, naoLidas: antes.naoLidas, titulo: antes.titulo };
 }
 
-module.exports = { abrirWhatsApp, lerConversa };
+// Devolve a conversa pra "não lida" (a bolinha verde de notificação do Ângelo). Sai da conversa
+// (volta pra lista), acha o contato pelo nome e usa o menu "Marcar como não lida".
+async function marcarComoNaoLida(page, titulo) {
+  if (!titulo) throw new Error('sem o nome do contato');
+  await page.goto('https://web.whatsapp.com/');
+  await page.waitForSelector('#pane-side', { timeout: 30000 });
+  await page.waitForTimeout(2000);
+  const contato = page.locator('#pane-side').getByTitle(titulo, { exact: true }).first();
+  if (!(await contato.count())) throw new Error('contato não apareceu na lista de conversas');
+  await contato.click({ button: 'right' });
+  await page.waitForTimeout(600);
+  const item = page.getByText(/^(Marcar como n[aã]o lida|Mark as unread)$/i).first();
+  if (!(await item.count())) { await page.keyboard.press('Escape'); throw new Error('opção "Marcar como não lida" não apareceu'); }
+  await item.click();
+  await page.waitForTimeout(800);
+}
+
+module.exports = { abrirWhatsApp, lerConversa, marcarComoNaoLida };
