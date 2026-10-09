@@ -1426,3 +1426,21 @@ Equipe, `eqPodeAba('automacao')`). Botões desativados ("Em breve"), números
 segurança; (3) vigia no Mac, teste simples ponta a ponta; (4) check-ins na
 conta de teste em modo prévia; (5) fotos/medidas e treinos/dietas;
 (6) engajamento; (7) "executar todas" com relatório; (8) gravar direto.
+
+### Etapa 2 — fila no Firebase (09/10/2026)
+- Coleções: `automacaoPedidos` (CRM cria; só o servidor muda), `automacaoResumo`
+  (última execução por tipo), `automacaoVigia/status` (batimento do Mac);
+  config do modo em `crmData/automacaoConfig` (`previa`|`direto`, padrão prévia).
+  Regras em `firestore.rules` (só admin lê; pedido só com campos/valores válidos).
+- Função `automacaoVigia` (`functions/automacao.js`, região southamerica-east1):
+  POST com cabeçalho `x-automacao-key` (segredo `AUTOMACAO_KEY`; cópia local do
+  vigia em `~/.agcentral/vigia.key`, chmod 600,
+  nunca no repo). Ações: `ping`, `proximo` (pega o pedido mais antigo, uma
+  execução por vez, pedido parado >45 min vira erro), `atualizar`, `finalizar`.
+  Sem índice composto de propósito (ordena em memória).
+- Ferramentas no Mac (sem sudo): Node 22 e Firebase CLI em `~/.local/node/bin`
+  (usar `export PATH="$HOME/.local/node/bin:$PATH"`). Login `firebase login`
+  feito como angelogarciaconsultoria@gmail.com. Deploy:
+  `firebase deploy --only firestore:rules,functions:automacaoVigia --project agcentralcrm`.
+- Tela: poll a cada 5 s com a aba aberta; "Mac conectado" = contato <2 min.
+- Próxima: etapa 3 (vigia no Mac, teste simples ponta a ponta).

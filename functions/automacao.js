@@ -53,7 +53,7 @@ exports.automacaoVigia = onRequest({
     return;
   }
   // A chave vai no cabecalho (nunca na URL, pra nao cair em log).
-  if (!chaveConfere(req.get('x-automacao-key'), AUTOMACAO_KEY.value())) {
+  if (!chaveConfere(String(req.get('x-automacao-key') || '').trim(), String(AUTOMACAO_KEY.value()).trim())) {
     logger.warn('automacaoVigia rejeitado: chave ausente ou incorreta.');
     res.status(403).send('nao autorizado');
     return;
