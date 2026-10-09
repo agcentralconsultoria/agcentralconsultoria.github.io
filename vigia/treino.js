@@ -173,4 +173,22 @@ async function lerFotosMedidas(page, aluno) {
   return { fotos: dataBRparaISO(fotos), medidas };
 }
 
-module.exports = { lerFotosMedidas, abrirNavegador, listarAlunosAtivos, lerCheckinsDoAluno, dataBRparaISO, sextaDaSemana, somarDias, isoDe };
+// Fichas ativas do aluno (Visão geral > Fichas): data de "Atualizada em" do treino e da dieta.
+async function lerFichas(page, aluno) {
+  await abrirAluno(page, aluno.id);
+  await page.waitForTimeout(1500);
+  const txt = await page.evaluate(() => {
+    const h = [...document.querySelectorAll('main h1,main h2,main h3,main h4,main h5')].find((e) => /^Fichas$/.test(e.innerText.trim()));
+    if (!h) return '';
+    let box = h;
+    for (let i = 0; i < 4 && box.parentElement; i++) { box = box.parentElement; if (box.innerText.length > 120) break; }
+    return box.innerText.replace(/\s+/g, ' ');
+  });
+  const iT = txt.search(/Treino\s+PDF/);
+  const iD = txt.search(/Dieta\s+PDF/);
+  const trecho = (a, b) => (a === -1 ? '' : txt.slice(a, b === -1 || b < a ? undefined : b));
+  const data = (t) => { const m = t.match(/Atualizada em (\d{2}\/\d{2}\/\d{4})/); return m ? dataBRparaISO(m[1]) : null; };
+  return { treino: data(trecho(iT, iD)), dieta: data(trecho(iD, -1)) };
+}
+
+module.exports = { lerFichas, lerFotosMedidas, abrirNavegador, listarAlunosAtivos, lerCheckinsDoAluno, dataBRparaISO, sextaDaSemana, somarDias, isoDe };

@@ -149,6 +149,48 @@ exports.automacaoVigia = onRequest({
       return;
     }
 
+    // Treinos e dietas: se o Treino.io tem ficha MAIS NOVA que a do CRM, cria no CRM uma ficha so
+    // com a data (conteudo em branco, sem vencimento) - decisao do Angelo. Nunca mexe em ficha
+    // existente. So pra quem tem o servico (Treino / Dieta) no CRM. dryRun = previa.
+    if (body.action === 'gravarFichas') {
+      const entries = Array.isArray(body.entries) ? body.entries.slice(0, 500) : [];
+      const dryRun = body.dryRun === true;
+      const dataOk = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+      const r = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(PATIENTS_DOC);
+        const list = snap.exists ? (snap.data().list || []) : [];
+        const porEmail = new Map();
+        list.forEach((p) => { if (p.email) porEmail.set(String(p.email).trim().toLowerCase(), p); });
+        const detalhes = [];
+        const pulados = [];
+        let criadas = 0;
+        entries.forEach((e) => {
+          const email = String((e && e.email) || '').trim().toLowerCase();
+          const p = porEmail.get(email);
+          if (!p) { pulados.push('e-mail nao encontrado no CRM: ' + email); return; }
+          [['treino', 'fichasTreino', 'Treino'], ['dieta', 'fichasDieta', 'Dieta']].forEach(([chave, lista, nome]) => {
+            const nova = e[chave];
+            if (!dataOk(nova) || !String(p.servico || '').includes(nome)) return;
+            const fichas = Array.isArray(p[lista]) ? p[lista] : [];
+            const maisRecente = fichas.reduce((m, f) => (f && f.dataPassado && f.dataPassado > m ? f.dataPassado : m), '');
+            if (maisRecente && maisRecente >= nova) return; // CRM ja tem ficha dessa data ou mais nova
+            const novoId = fichas.reduce((m, f) => Math.max(m, Number(f && f.id) || 0), -1) + 1;
+            const ficha = chave === 'treino'
+              ? { id: novoId, dataPassado: nova, dataVencimento: '', expectativa: '', volumePorGrupo: {} }
+              : { id: novoId, dataPassado: nova, expectativa: '', calorias: '', proteinas: '', carboidratos: '', gorduras: '' };
+            p[lista] = fichas.concat([ficha]);
+            criadas++;
+            detalhes.push(p.nome + ': ficha de ' + nome.toLowerCase() + ' de ' + nova + ' (CRM tinha ' + (maisRecente || 'nenhuma') + ')' + (chave === 'treino' ? ' - defina o vencimento' : ''));
+          });
+        });
+        if (criadas && !dryRun) tx.set(PATIENTS_DOC, { list }, { merge: true });
+        return { criadas, detalhes, pulados };
+      });
+      logger.info('gravarFichas: ' + r.criadas + ' ficha(s)' + (dryRun ? ' (previa)' : '') + ', ' + r.pulados.length + ' pulado(s).');
+      res.status(200).json({ criadas: r.criadas, detalhes: r.detalhes, detalhesPulados: r.pulados, dryRun });
+      return;
+    }
+
     const id = texto(body.id, 80);
     if (!id) {
       res.status(400).send('falta "id" do pedido');

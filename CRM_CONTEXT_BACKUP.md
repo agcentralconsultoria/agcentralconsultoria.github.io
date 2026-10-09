@@ -1520,3 +1520,14 @@ conta de teste em modo prévia; (5) fotos/medidas e treinos/dietas;
 - Treinos/dietas: aguarda decisão do Ângelo sobre o que fazer quando a ficha do Treino.io é
   mais nova que a do CRM (o Treino.io não mostra vencimento da ficha na visão geral; mostra
   "Criada em / Atualizada em"). Engajamento: ainda não construído.
+
+### Treinos e dietas (09/10/2026) — sem IA
+- Lê no Treino.io (Visão geral > Fichas) o "Atualizada em" da ficha ativa de treino e de dieta.
+  Decisão do Ângelo: se for **mais nova** que a ficha mais recente do CRM (`dataPassado`), **cria
+  no CRM uma ficha só com a data** (treino: `{id,dataPassado,dataVencimento:'',expectativa:'',
+  volumePorGrupo:{}}`; dieta: `{id,dataPassado,expectativa:'',calorias..gorduras:''}`), só pra quem
+  tem o serviço (Treino/Dieta). Nunca altera ficha existente; não inventa vencimento (a prévia/
+  detalhes avisam "defina o vencimento" — vira pendência). Ação `gravarFichas` em `automacaoVigia`.
+- Cuidado conhecido: cada edição do coach no Treino.io muda "Atualizada em" e pode gerar uma
+  ficha nova em branco no CRM. Se virar ruído, trocar pra "só avisar".
+- "Executar todas" agora roda: check-ins, fotos/medidas, treinos/dietas. Falta: engajamento.

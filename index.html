@@ -5774,7 +5774,7 @@
       stats:[['analisados','Pacientes analisados'],['atualizados','Atualizações'],['pendencias','Pendências encontradas']],
       svg:'<path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/>' },
     { key:'treinos', nome:'Atualizar treinos e dietas', cor:'#16A34A',
-      desc:'Verifica fichas de treino e dieta e identifica vencimentos. Só leitura no Treino.io.',
+      desc:'Compara as fichas do Treino.io com as do CRM e cria a ficha (só com a data) quando o Treino.io tem uma mais nova. Só leitura no Treino.io.',
       stats:[['analisados','Pacientes analisados'],['atualizados','Fichas atualizadas'],['pendencias','Vencidas ou próximas']],
       svg:'<path d="M6.5 6.5v11M17.5 6.5v11M3 9v6M21 9v6M6.5 12h11"/>' },
     { key:'engajamento', nome:'Atualizar engajamento', cor:'#7C3AED',
@@ -5786,10 +5786,10 @@
   /* Texto do (i) de cada automacao: qual modelo e esforco ela usa (pra lembrar depois). */
   var AUTOMACAO_INFO = {
     checkins: '<b>Quem faz:</b> programa automático do vigia, no seu Mac.<br><b>Inteligência artificial:</b> nenhuma.<br><b>Modelo:</b> não usa.<br><b>Esforço:</b> não usa.<br><b>Tokens:</b> zero.<br><i>Por quê:</i> ler datas e tabelas não precisa de IA, então é mais rápido e não gasta sua assinatura. <b>Já funciona.</b>',
-    fotos: '<b>Quem faz:</b> programa automático do vigia, no seu Mac.<br><b>Inteligência artificial:</b> nenhuma.<br><b>Modelo / Esforço:</b> não usa.<br><b>Tokens:</b> zero.<br><i>Ainda não foi construída (planejado).</i>',
-    treinos: '<b>Quem faz:</b> programa automático do vigia, no seu Mac.<br><b>Inteligência artificial:</b> nenhuma.<br><b>Modelo / Esforço:</b> não usa.<br><b>Tokens:</b> zero.<br><i>Ainda não foi construída (planejado).</i>',
+    fotos: '<b>Quem faz:</b> programa automático do vigia, no seu Mac.<br><b>Inteligência artificial:</b> nenhuma.<br><b>Modelo / Esforço:</b> não usa.<br><b>Tokens:</b> zero.<br><b>Já funciona.</b>',
+    treinos: '<b>Quem faz:</b> programa automático do vigia, no seu Mac.<br><b>Inteligência artificial:</b> nenhuma.<br><b>Modelo / Esforço:</b> não usa.<br><b>Tokens:</b> zero.<br><b>Já funciona.</b> Cria ficha só com a data quando o Treino.io tem uma mais nova.',
     engajamento: '<b>Quem faz:</b> Claude (IA da Anthropic), pelo Claude Code no seu Mac.<br><b>Modelo:</b> Sonnet 5.5.<br><b>Esforço:</b> médio.<br><b>Tokens:</b> sai da sua assinatura.<br>A IA entra só aqui, para ler as conversas e dar a nota de 0 a 10 pela sua escala. <i>Ainda não foi construída (planejado). Se errar nos testes, subo o nível.</i>',
-    todas: 'Cada etapa usa o seu jeito:<br>• Check-ins, fotos/medidas e treinos/dietas: <b>sem IA</b> (programa automático, zero token).<br>• Engajamento: <b>Claude Sonnet 5.5, esforço médio</b> (planejado).<br><i>Hoje só os check-ins funcionam.</i>'
+    todas: 'Cada etapa usa o seu jeito:<br>• Check-ins, fotos/medidas e treinos/dietas: <b>sem IA</b> (programa automático, zero token).<br>• Engajamento: <b>Claude Sonnet 5.5, esforço médio</b> (planejado).<br><i>Hoje funcionam: check-ins, fotos/medidas e treinos/dietas. Engajamento ainda não.</i>'
   };
   function automacaoInfoHtml(key){
     var aberto = !!state.automacao.info[key];

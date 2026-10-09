@@ -185,6 +185,50 @@ async function executarFotosMedidas(pedido, faixa) {
   return { analisados, atualizados: r.atualizados, pendencias: atrasados.length + (r.detalhesPulados || []).length, falhas: falhas.length, resumo, detalhes };
 }
 
+// Treinos e dietas: compara as fichas do Treino.io com as do CRM; ficha mais nova no Treino.io vira
+// ficha nova no CRM só com a data (sem conteúdo nem vencimento). Sem IA, zero token.
+async function executarTreinosDietas(pedido, faixa) {
+  const id = pedido.id;
+  const [de, ate] = faixa;
+  const previa = pedido.modo !== 'direto';
+  const { ctx, page } = await treino.abrirNavegador();
+  const entries = [];
+  const falhas = [];
+  let analisados = 0;
+  try {
+    await atualizarPedido({ action: 'atualizar', id, etapa: 'Treinos e dietas: lendo a lista de alunos', progresso: Math.round(de + (ate - de) * 0.02) });
+    const alunos = await treino.listarAlunosAtivos(page);
+    if (!alunos.length) throw new Error('A lista de alunos veio vazia (login do Treino.io pode ter expirado).');
+    for (let i = 0; i < alunos.length; i++) {
+      const al = alunos[i];
+      try {
+        const f = await treino.lerFichas(page, al);
+        analisados++;
+        if (f.treino || f.dieta) entries.push({ email: al.email, treino: f.treino || undefined, dieta: f.dieta || undefined });
+      } catch (e) {
+        falhas.push(al.nome + ': ' + String(e.message).split('\n')[0].slice(0, 100));
+      }
+      const prog = Math.round(de + (ate - de) * (0.05 + 0.85 * ((i + 1) / alunos.length)));
+      await atualizarPedido({ action: 'atualizar', id, etapa: 'Treinos e dietas: ' + (i + 1) + ' de ' + alunos.length + ' alunos', progresso: prog });
+    }
+  } finally {
+    await ctx.close();
+  }
+  await atualizarPedido({ action: 'atualizar', id, etapa: previa ? 'Treinos e dietas: calculando a prévia' : 'Treinos e dietas: gravando no CRM', progresso: Math.round(de + (ate - de) * 0.95) });
+  let r = { criadas: 0, detalhes: [], detalhesPulados: [] };
+  if (entries.length) r = await chamar({ action: 'gravarFichas', dryRun: previa, entries });
+  const semVenc = (r.detalhes || []).filter((x) => /defina o vencimento/.test(x)).length;
+  const detalhes = []
+    .concat((r.detalhes || []).map((x) => (previa ? 'Entraria: ' : 'Criada: ') + x))
+    .concat((r.detalhesPulados || []).map((x) => 'Pulado: ' + x))
+    .concat(falhas.map((x) => 'Falha: ' + x));
+  const resumo = (previa ? 'PRÉVIA (nada foi gravado). ' : '') + r.criadas + ' ficha(s) ' + (previa ? 'seriam criadas' : 'criadas') + ' no CRM (só com a data)' +
+    (semVenc ? ', ' + semVenc + ' de treino sem vencimento (você precisa definir)' : '') +
+    ((r.detalhesPulados || []).length ? ', ' + r.detalhesPulados.length + ' pulado(s) (e-mail não está no CRM)' : '') +
+    (falhas.length ? ', ' + falhas.length + ' falha(s) de leitura' : '') + '.';
+  return { analisados, atualizados: r.criadas, pendencias: semVenc + (r.detalhesPulados || []).length, falhas: falhas.length, resumo, detalhes };
+}
+
 const NAO_CONSTRUIDA = 'Esta automação ainda não foi construída. Nada foi lido nem alterado.';
 
 async function executar(pedido) {
@@ -199,14 +243,18 @@ async function executar(pedido) {
     } else if (tipo === 'fotos') {
       resultado = await executarFotosMedidas(pedido, [0, 100]);
       if (resultado.falhas) status = 'parcial';
+    } else if (tipo === 'treinos') {
+      resultado = await executarTreinosDietas(pedido, [0, 100]);
+      if (resultado.falhas) status = 'parcial';
     } else if (tipo === 'todas') {
       const a = await executarCheckins(pedido, [0, 25]);
       const b = await executarFotosMedidas(pedido, [25, 50]);
+      const c = await executarTreinosDietas(pedido, [50, 75]);
       resultado = {
-        analisados: Math.max(a.analisados, b.analisados), atualizados: a.atualizados + b.atualizados,
-        pendencias: a.pendencias + b.pendencias, falhas: a.falhas + b.falhas,
-        resumo: 'CHECK-INS: ' + a.resumo + ' FOTOS E MEDIDAS: ' + b.resumo + ' Treinos e dietas e engajamento ainda não foram construídos.',
-        detalhes: a.detalhes.map((x) => '[Check-ins] ' + x).concat(b.detalhes.map((x) => '[Fotos/medidas] ' + x)).slice(0, 100),
+        analisados: Math.max(a.analisados, b.analisados, c.analisados), atualizados: a.atualizados + b.atualizados + c.atualizados,
+        pendencias: a.pendencias + b.pendencias + c.pendencias, falhas: a.falhas + b.falhas + c.falhas,
+        resumo: 'CHECK-INS: ' + a.resumo + ' FOTOS E MEDIDAS: ' + b.resumo + ' TREINOS E DIETAS: ' + c.resumo + ' Engajamento ainda não foi construído.',
+        detalhes: a.detalhes.map((x) => '[Check-ins] ' + x).concat(b.detalhes.map((x) => '[Fotos/medidas] ' + x), c.detalhes.map((x) => '[Treinos/dietas] ' + x)).slice(0, 100),
       };
       status = 'parcial';
     } else {
