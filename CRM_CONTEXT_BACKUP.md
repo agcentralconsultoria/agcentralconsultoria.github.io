@@ -1444,3 +1444,12 @@ conta de teste em modo prévia; (5) fotos/medidas e treinos/dietas;
   `firebase deploy --only firestore:rules,functions:automacaoVigia --project agcentralcrm`.
 - Tela: poll a cada 5 s com a aba aberta; "Mac conectado" = contato <2 min.
 - Próxima: etapa 3 (vigia no Mac, teste simples ponta a ponta).
+
+### Etapa 3 — vigia no Mac, teste de fila (09/10/2026)
+- `vigia/vigia.js` (Node 22, sem dependências): olha a fila a cada 5 s, pega um
+  pedido, reporta andamento e finaliza. Lê a chave de `~/.agcentral/vigia.key`.
+  Rodar: `export PATH="$HOME/.local/node/bin:$PATH" && node vigia/vigia.js`.
+- Nesta etapa só SIMULA (não lê Treino.io/WhatsApp, não altera o CRM); o
+  resultado diz "Teste do sistema". Modelo/esforço só entram a partir da etapa 4.
+- Tela: anel de progresso (% + estimativa de tempo, só após 5%) nos cards e em
+  "Executar todas", atualizado a cada 5 s.

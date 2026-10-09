@@ -856,7 +856,7 @@
   .auto-stat b{color:var(--text);}
   .auto-btn{width:100%;justify-content:center;}
   .auto-btn[disabled]{opacity:.55;cursor:not-allowed;}
-  .auto-todas{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:18px 20px;margin:0 0 16px;border:2px solid var(--primary);}
+  .auto-todas{--auto-cor:var(--primary);display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:18px 20px;margin:0 0 16px;border:2px solid var(--primary);}
   .auto-todas-ico{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,#EA580C,#C2410C);display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
   .auto-todas-txt{flex:1 1 280px;min-width:0;}
   .auto-todas-titulo{font-weight:700;font-size:18px;margin-bottom:2px;}
@@ -870,6 +870,13 @@
   .auto-status.is-fila,.auto-status.is-parcial{color:var(--warning);}
   .auto-status.is-erro{color:var(--danger);}
   .auto-status.is-erro .auto-dot{background:var(--danger);opacity:1;}
+  .auto-anel-wrap{display:flex;flex-direction:column;align-items:center;gap:6px;}
+  .auto-anel{--pct:0;width:104px;height:104px;border-radius:50%;background:conic-gradient(var(--auto-cor,var(--primary)) calc(var(--pct)*1%),var(--border) 0);display:flex;align-items:center;justify-content:center;position:relative;}
+  .auto-anel::before{content:"";position:absolute;inset:9px;border-radius:50%;background:var(--surface);}
+  .auto-anel-meio{position:relative;display:flex;flex-direction:column;align-items:center;line-height:1.15;}
+  .auto-anel-meio b{font-size:22px;}
+  .auto-anel-meio small{font-size:11px;color:var(--text-muted);font-weight:600;}
+  .auto-anel-etapa{font-size:12px;color:var(--text-muted);text-align:center;}
   .auto-box-resumo{margin-top:6px;font-size:12px;color:var(--text-muted);}
   .auto-modo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 14px;font-size:13.5px;font-weight:600;}
   .auto-hist-row{display:grid;grid-template-columns:150px 1.3fr 1.3fr 1.6fr 90px;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--border);font-size:13px;}
@@ -5808,6 +5815,21 @@
     if(p.status === 'parcial') return { txt:'Parcialmente concluído', cls:'is-parcial' };
     return { txt:'Erro', cls:'is-erro' };
   }
+  /* Anel de andamento: % no meio e, embaixo, a estimativa do que falta (so depois de 5%). */
+  function automacaoAnelHtml(p){
+    if(!p || (p.status !== 'executando' && p.status !== 'pendente')) return '';
+    var pct = p.status === 'pendente' ? 0 : Math.min(100, Number(p.progresso) || 0);
+    var est = 'na fila';
+    if(p.status === 'executando'){
+      est = 'calculando';
+      if(pct >= 5 && p.iniciadoEm){
+        var seg = Math.max(0, Math.round(((Date.now() - p.iniciadoEm) / 1000) * (100 - pct) / pct));
+        est = seg >= 90 ? '~' + Math.round(seg / 60) + ' min' : '~' + Math.max(seg, 1) + ' s';
+      }
+    }
+    return '<div class="auto-anel-wrap"><div class="auto-anel" style="--pct:'+pct+';"><div class="auto-anel-meio"><b>'+pct+'%</b><small>'+est+'</small></div></div>'+
+      (p.etapa ? '<div class="auto-anel-etapa">'+esc(p.etapa)+'</div>' : '')+'</div>';
+  }
   function automacaoCardHtml(a){
     var r = state.automacao.resumo[a.key];
     var ult = state.automacao.pedidos.filter(function(p){ return p.tipo === a.key; })[0];
@@ -5821,7 +5843,8 @@
         '<div class="auto-card-nome">'+esc(a.nome)+'</div>'+
       '</div>'+
       '<div class="auto-desc">'+esc(a.desc)+'</div>'+
-      '<div class="auto-status '+info.cls+'"><span class="auto-dot"></span>'+esc(info.txt)+'</div>'+
+      '<div class="auto-status '+info.cls+'"><span class="auto-dot"></span>'+esc(info.txt.split(':')[0])+'</div>'+
+      automacaoAnelHtml(ult)+
       '<div class="auto-box"><div class="auto-box-titulo">Última execução</div>'+
         (r ? '<div class="auto-box-vazio">'+automacaoDataHora(r.finalizadoEm)+(r.modo === 'previa' ? ' · prévia' : '')+'</div>' : '<div class="auto-box-vazio">Nenhuma execução ainda</div>')+stats+
         (r && r.resumo ? '<div class="auto-box-resumo">'+esc(r.resumo)+'</div>' : '')+
@@ -5868,7 +5891,8 @@
       '<span class="auto-todas-ico"><svg viewBox="0 0 24 24" aria-hidden="true">'+SIDE_SVG['⚡']+'</svg></span>'+
       '<div class="auto-todas-txt"><div class="auto-todas-titulo">Executar todas as automações</div>'+
       '<div class="auto-desc">Executa as quatro automações em sequência (check-ins, fotos e medidas, treinos e dietas, engajamento), com relatório consolidado ao final.</div>'+
-      (infoTodas ? '<div class="auto-status '+infoTodas.cls+'" style="margin-top:6px;"><span class="auto-dot"></span>'+esc(infoTodas.txt)+'</div>' : '')+'</div>'+
+      (infoTodas ? '<div class="auto-status '+infoTodas.cls+'" style="margin-top:6px;"><span class="auto-dot"></span>'+esc(infoTodas.txt.split(':')[0])+'</div>' : '')+'</div>'+
+      automacaoAnelHtml(ultTodas)+
       '<button type="button" class="btn btn-primary auto-btn auto-btn-todas" data-auto-run="todas"'+(ativo || a.enviando ? ' disabled' : '')+'>'+(ativo ? 'Em andamento…' : 'Executar todas agora')+'</button>'+
     '</div>'+
     '<div class="card auto-hist">'+
