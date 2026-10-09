@@ -38,6 +38,14 @@ async function chamar(corpo) {
   try { return JSON.parse(texto); } catch (e) { return {}; }
 }
 
+// Avisa o andamento. Se o Angelo clicou em Cancelar, o servidor responde cancelar:true e o
+// vigia para na hora (nada foi gravado ainda: a gravação no CRM só acontece no fim).
+async function atualizarPedido(corpo) {
+  const r = await chamar(corpo);
+  if (r && r.cancelar) throw new Error('CANCELADO');
+  return r;
+}
+
 function hojeMenos(dias) {
   const d = new Date(); d.setDate(d.getDate() - dias);
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -66,7 +74,7 @@ async function executarCheckins(pedido, faixa) {
   let semResposta = 0;
   let analisados = 0;
   try {
-    await chamar({ action: 'atualizar', id, etapa: 'Check-ins: lendo a lista de alunos', progresso: Math.round(de + (ate - de) * 0.02) });
+    await atualizarPedido({ action: 'atualizar', id, etapa: 'Check-ins: lendo a lista de alunos', progresso: Math.round(de + (ate - de) * 0.02) });
     const alunos = await treino.listarAlunosAtivos(page);
     const hoje = hojeMenos(0);
     const desde = hojeMenos(JANELA_DIAS);
@@ -96,12 +104,12 @@ async function executarCheckins(pedido, faixa) {
         falhas.push(al.nome + ': ' + String(e.message).split('\n')[0].slice(0, 100));
       }
       const prog = Math.round(de + (ate - de) * (0.05 + 0.85 * ((i + 1) / alunos.length)));
-      await chamar({ action: 'atualizar', id, etapa: 'Check-ins: ' + (i + 1) + ' de ' + alunos.length + ' alunos', progresso: prog });
+      await atualizarPedido({ action: 'atualizar', id, etapa: 'Check-ins: ' + (i + 1) + ' de ' + alunos.length + ' alunos', progresso: prog });
     }
   } finally {
     await ctx.close();
   }
-  await chamar({ action: 'atualizar', id, etapa: previa ? 'Check-ins: calculando a prévia' : 'Check-ins: gravando no CRM', progresso: Math.round(de + (ate - de) * 0.95) });
+  await atualizarPedido({ action: 'atualizar', id, etapa: previa ? 'Check-ins: calculando a prévia' : 'Check-ins: gravando no CRM', progresso: Math.round(de + (ate - de) * 0.95) });
   let r = { checkinsAplicados: 0, observacoesAplicadas: 0, ausentesMarcados: 0, pulados: 0, detalhesPulados: [], detalhes: [] };
   if (entries.length) r = await enviarParaCrm(pedido, entries);
   const pendencias = semResposta + r.pulados;
@@ -140,6 +148,13 @@ async function executar(pedido) {
     await chamar({ action: 'finalizar', id, status, resultado });
     log('Pedido ' + id + ' finalizado (' + status + '): ' + resultado.resumo);
   } catch (err) {
+    if (err.message === 'CANCELADO') {
+      log('Pedido ' + id + ' cancelado pelo Angelo.');
+      try {
+        await chamar({ action: 'finalizar', id, status: 'cancelado', resultado: { analisados: 0, atualizados: 0, pendencias: 0, falhas: 0, resumo: 'Cancelado por você antes de terminar. Nada foi gravado no CRM.' } });
+      } catch (e3) { log('Não consegui registrar o cancelamento: ' + e3.message); }
+      return;
+    }
     log('Falha no pedido ' + id + ': ' + err.message);
     try {
       await chamar({ action: 'finalizar', id, status: 'erro', resultado: { analisados: 0, atualizados: 0, pendencias: 0, falhas: 1, resumo: 'O vigia falhou: ' + String(err.message).slice(0, 300) } });

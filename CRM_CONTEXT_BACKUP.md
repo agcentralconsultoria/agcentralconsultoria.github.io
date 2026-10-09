@@ -1501,3 +1501,11 @@ conta de teste em modo prévia; (5) fotos/medidas e treinos/dietas;
   rodar `bash vigia/instalar.sh` de novo.** Mac desligado/dormindo = pausa (pedidos esperam).
   Parar: `launchctl bootout gui/$(id -u)/br.com.agcentral.vigia`.
 - Ainda NÃO construídas: fotos/medidas, treinos/dietas, engajamento.
+
+### Fila e cancelamento (09/10/2026)
+- Dá pra clicar em várias automações: entram na **fila** (uma execução por vez, a mais antiga
+  primeiro). Não duplica o mesmo tipo; "todas" não entra junto com nada. Botão **Cancelar** em
+  cada card + "Cancelar tudo" no topo. Pedido na fila vira `cancelado` na hora; o que roda recebe
+  `cancelarSolicitado` e o vigia para sozinho (`atualizarPedido` -> resposta `cancelar:true`) —
+  nada foi gravado no CRM antes do fim. Cancelamento não apaga o "última execução" real.
+- Regras Firestore: admin só pode atualizar pedido com `status/finalizadoEm/cancelarSolicitado`.

@@ -855,6 +855,10 @@
   .auto-stat{display:flex;justify-content:space-between;gap:8px;padding:2px 0;color:var(--text-muted);}
   .auto-stat b{color:var(--text);}
   .auto-btn{width:100%;justify-content:center;}
+  .auto-btns{display:flex;gap:8px;align-items:stretch;}
+  .auto-btns .auto-btn{flex:1;}
+  .auto-btn-cancelar{flex:0 0 auto;}
+  .auto-fila{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 12px;font-size:13.5px;font-weight:600;}
   .auto-btn[disabled]{opacity:.55;cursor:not-allowed;}
   .auto-todas{--auto-cor:var(--primary);display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:18px 20px;margin:0 0 16px;border:2px solid var(--primary);}
   .auto-todas-ico{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,#EA580C,#C2410C);display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
@@ -5817,8 +5821,17 @@
       state.automacao.erro = 'Não consegui ler os dados da Automação agora.';
     });
   }
-  function automacaoAtivo(){
-    return state.automacao.pedidos.filter(function(p){ return p.status === 'pendente' || p.status === 'executando'; })[0] || null;
+  function automacaoAtivos(){
+    return state.automacao.pedidos.filter(function(p){ return p.status === 'pendente' || p.status === 'executando'; });
+  }
+  function automacaoAtivo(){ return automacaoAtivos()[0] || null; }
+  /* Pode entrar na fila? Nao duplica o mesmo tipo; "todas" nao entra junto com nada (ja cobre
+     tudo) e nada entra enquanto "todas" esta na fila/executando. */
+  function automacaoPodeEnfileirar(tipo){
+    var at = automacaoAtivos();
+    if(state.automacao.enviando) return false;
+    if(tipo === 'todas') return !at.length;
+    return !at.some(function(p){ return p.tipo === tipo || p.tipo === 'todas'; });
   }
   function automacaoVigiaOnline(){
     var v = state.automacao.vigia;
@@ -5847,7 +5860,9 @@
   }
   function automacaoStatusInfo(p){
     if(!p) return null;
-    if(p.status === 'pendente') return { txt:'Na fila, aguardando o Mac', cls:'is-fila' };
+    if(p.status === 'cancelado') return { txt:'Cancelado', cls:'is-fila' };
+    if(p.status === 'pendente') return { txt:'Na fila' + (automacaoAtivos().some(function(x){ return x.status === 'executando'; }) ? ', aguardando a anterior' : ', aguardando o Mac'), cls:'is-fila' };
+    if(p.status === 'executando' && p.cancelarSolicitado) return { txt:'Cancelando…', cls:'is-fila' };
     if(p.status === 'executando') return { txt:'Executando' + (p.etapa ? ': ' + p.etapa : '') + (p.progresso ? ' (' + p.progresso + '%)' : ''), cls:'is-exec' };
     if(p.status === 'concluido') return { txt:'Concluído', cls:'is-ok' };
     if(p.status === 'parcial') return { txt:'Parcialmente concluído', cls:'is-parcial' };
@@ -5868,12 +5883,24 @@
     return '<div class="auto-anel-wrap"><div class="auto-anel" style="--pct:'+pct+';"><div class="auto-anel-meio"><b>'+pct+'%</b><small>'+est+'</small></div></div>'+
       (p.etapa ? '<div class="auto-anel-etapa">'+esc(p.etapa)+'</div>' : '')+'</div>';
   }
+  /* Botao de executar (entra na fila se ja tem algo rodando) + Cancelar quando este tipo esta ativo. */
+  function automacaoBotoesHtml(tipo, ult, cls){
+    var meuAtivo = ult && (ult.status === 'pendente' || ult.status === 'executando') ? ult : null;
+    var podeFila = automacaoPodeEnfileirar(tipo);
+    var algumAtivo = automacaoAtivos().length > 0;
+    var rotulo = tipo === 'todas' ? 'Executar todas agora' : 'Executar agora';
+    var run;
+    if(meuAtivo) run = '<button type="button" class="btn btn-primary '+cls+'" disabled>'+(meuAtivo.status === 'executando' ? 'Em andamento…' : 'Na fila…')+'</button>';
+    else if(podeFila) run = '<button type="button" class="btn btn-primary '+cls+'" data-auto-run="'+tipo+'">'+(algumAtivo ? 'Adicionar à fila' : rotulo)+'</button>';
+    else run = '<button type="button" class="btn btn-primary '+cls+'" disabled>'+(state.automacao.enviando ? 'Enviando…' : 'Indisponível agora')+'</button>';
+    var cancel = meuAtivo && !meuAtivo.cancelarSolicitado ? '<button type="button" class="btn btn-secondary auto-btn-cancelar" data-auto-cancelar="'+esc(meuAtivo.id)+'">Cancelar</button>' : '';
+    return '<div class="auto-btns">'+run+cancel+'</div>';
+  }
   function automacaoCardHtml(a){
     var r = state.automacao.resumo[a.key];
     var ult = state.automacao.pedidos.filter(function(p){ return p.tipo === a.key; })[0];
     var info = automacaoStatusCard(ult);
     var stats = a.stats.map(function(s){ return '<div class="auto-stat"><span>'+s[1]+'</span><b>'+(r ? r[s[0]] : '—')+'</b></div>'; }).join('');
-    var ativo = automacaoAtivo();
     return '<div class="card auto-card" style="--auto-cor:'+a.cor+';">'+
       '<div class="auto-card-top">'+
         '<span class="auto-ico"><svg viewBox="0 0 24 24" aria-hidden="true">'+a.svg+'</svg></span>'+
@@ -5888,7 +5915,7 @@
         (r && r.resumo ? '<div class="auto-box-resumo">'+esc(r.resumo)+'</div>' : '')+
         (r && r.avisos && r.avisos.length ? '<div class="auto-avisos"><b>⚠ Atenção ('+r.avisos.length+')</b><ul>'+r.avisos.slice(0, 3).map(function(x){ return '<li>'+esc(x.replace(/^(Pulado|Falha):\s*/, ''))+'</li>'; }).join('')+(r.avisos.length > 3 ? '<li>…e mais '+(r.avisos.length - 3)+' no Histórico</li>' : '')+'</ul></div>' : (r && Array.isArray(r.avisos) && r.status !== 'erro' ? '<div class="auto-ok">✓ Sem erros nem avisos</div>' : ''))+
       '</div>'+
-      '<button type="button" class="btn btn-primary auto-btn" data-auto-run="'+a.key+'"'+(ativo || state.automacao.enviando ? ' disabled' : '')+'>'+(ativo ? 'Em andamento…' : 'Executar agora')+'</button>'+
+      automacaoBotoesHtml(a.key, ult, 'auto-btn')+
     '</div>';
   }
   function automacaoHistoricoHtml(){
@@ -5925,6 +5952,7 @@
     '<div class="card auto-aviso '+(online ? 'is-online' : '')+'"><span class="auto-dot" style="display:inline-block;margin-right:8px;background:'+(online ? 'var(--success)' : 'var(--warning)')+';opacity:1;"></span>'+
       (online ? '<b>Mac conectado.</b> Os pedidos são executados assim que você clica.' : '<b>Mac desconectado.</b> O programa que executa as tarefas ainda não está rodando no MacBook. Se você clicar agora, o pedido fica na fila até ele ligar.')+
     '</div>'+
+    (ativo ? '<div class="auto-fila"><span>'+automacaoAtivos().length+' na fila/executando</span><button type="button" class="btn btn-secondary" data-auto-cancelar-tudo>Cancelar tudo</button></div>' : '')+
     '<div class="auto-modo"><span>Modo de gravação:</span><div class="meta-type-toggle" style="margin:0;">'+modoBtn('previa','Prévia (só mostra o que mudaria)')+modoBtn('direto','Gravar direto')+'</div></div>'+
     '<div class="auto-grid">'+AUTOMACOES.map(automacaoCardHtml).join('')+'</div>'+
     '<div class="card auto-todas">'+
@@ -5933,7 +5961,7 @@
       '<div class="auto-desc">Executa as quatro automações em sequência (check-ins, fotos e medidas, treinos e dietas, engajamento), com relatório consolidado ao final.</div>'+
       (true ? '<div class="auto-status '+infoTodas.cls+'" style="margin-top:6px;"><span class="auto-dot"></span>'+esc(infoTodas.txt.split(':')[0])+'</div>' : '')+'</div>'+
       automacaoAnelHtml(ultTodas)+
-      '<button type="button" class="btn btn-primary auto-btn auto-btn-todas" data-auto-run="todas"'+(ativo || a.enviando ? ' disabled' : '')+'>'+(ativo ? 'Em andamento…' : 'Executar todas agora')+'</button>'+
+      automacaoBotoesHtml('todas', ultTodas, 'auto-btn auto-btn-todas')+
     '</div>'+
     '<div class="card auto-hist">'+
       '<h2 class="section-title" style="margin:0 0 10px;">Histórico de execuções</h2>'+
@@ -5951,7 +5979,7 @@
   }
   function automacaoCriarPedido(tipo){
     var a = state.automacao;
-    if(a.enviando || automacaoAtivo()) return;
+    if(!automacaoPodeEnfileirar(tipo)) return;
     a.enviando = true;
     refreshAutomacao();
     var user = mfa.auth.currentUser;
@@ -5967,10 +5995,38 @@
       refreshAutomacao();
     });
   }
+  /* Cancelar: pedido na fila vira "cancelado" na hora; o que esta executando recebe o aviso e
+     o vigia para sozinho (nada foi gravado no CRM antes do fim). */
+  function automacaoCancelar(ids){
+    var a = state.automacao;
+    var lista = a.pedidos.filter(function(p){ return ids.indexOf(p.id) !== -1 && (p.status === 'pendente' || p.status === 'executando'); });
+    if(!lista.length) return;
+    Promise.all(lista.map(function(p){
+      var dados = p.status === 'pendente'
+        ? { status: 'cancelado', finalizadoEm: Date.now(), cancelarSolicitado: true }
+        : { cancelarSolicitado: true };
+      return mfa.setDoc(mfa.doc(mfa.db, 'automacaoPedidos', p.id), dados, { merge: true }).then(function(){
+        eqRegistrarLogs([{ tabela:'Automação · pedido', acao:'atualizacao', registroId:p.id, registroNome:AUTOMACAO_NOMES[p.tipo] || p.tipo, antes:{ status:p.status }, depois:{ cancelado:true } }]);
+      });
+    })).catch(function(err){
+      console.error('automacao cancelar', err);
+      a.erro = 'Não consegui cancelar agora. Tente de novo.';
+    }).then(function(){ return automacaoLoadAsync(); }).then(refreshAutomacao);
+  }
   function bindAutomacaoEvents(wrap){
     var runs = wrap.querySelectorAll('[data-auto-run]');
     for(var i=0; i<runs.length; i++){
       runs[i].addEventListener('click', function(){ automacaoCriarPedido(this.getAttribute('data-auto-run')); });
+    }
+    var cancs = wrap.querySelectorAll('[data-auto-cancelar]');
+    for(var c=0; c<cancs.length; c++){
+      cancs[c].addEventListener('click', function(){ automacaoCancelar([this.getAttribute('data-auto-cancelar')]); });
+    }
+    var cancTudo = wrap.querySelector('[data-auto-cancelar-tudo]');
+    if(cancTudo){
+      cancTudo.addEventListener('click', function(){
+        automacaoCancelar(automacaoAtivos().filter(function(p){ return !p.cancelarSolicitado; }).map(function(p){ return p.id; }));
+      });
     }
     var dets = wrap.querySelectorAll('details[data-auto-det]');
     for(var q=0; q<dets.length; q++){

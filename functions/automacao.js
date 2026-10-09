@@ -20,7 +20,7 @@ const PEDIDOS = 'automacaoPedidos';
 const RESUMO = 'automacaoResumo';
 const VIGIA_STATUS = db.doc('automacaoVigia/status');
 
-const STATUS_FINAIS = ['concluido', 'parcial', 'erro'];
+const STATUS_FINAIS = ['concluido', 'parcial', 'erro', 'cancelado'];
 // Pedido "executando" parado ha mais que isso e dado como falha (Mac dormiu, app fechou...).
 const EXECUCAO_PARADA_MS = 45 * 60 * 1000;
 const MAX_LOGS = 200;
@@ -100,7 +100,11 @@ exports.automacaoVigia = onRequest({
         // sem orderBy no banco (evita indice composto): pega o mais antigo na memoria
         const fila = await tx.get(db.collection(PEDIDOS).where('status', '==', 'pendente').limit(30));
         if (fila.empty) return { pedido: null, motivo: 'fila_vazia' };
-        const doc = fila.docs.slice().sort((a, b) => (a.data().criadoEm || 0) - (b.data().criadoEm || 0))[0];
+        const ordenados = fila.docs.slice().sort((a, b) => (a.data().criadoEm || 0) - (b.data().criadoEm || 0));
+        // pedido cancelado antes de comecar nunca vai pro Mac
+        const doc = ordenados.find((x) => !x.data().cancelarSolicitado);
+        ordenados.filter((x) => x.data().cancelarSolicitado).forEach((x) => tx.update(x.ref, { status: 'cancelado', finalizadoEm: agora }));
+        if (!doc) return { pedido: null, motivo: 'fila_vazia' };
         const d = doc.data();
         tx.update(doc.ref, { status: 'executando', iniciadoEm: agora, etapa: 'Iniciando' });
         return { pedido: { id: doc.id, tipo: d.tipo, modo: d.modo } };
@@ -117,7 +121,8 @@ exports.automacaoVigia = onRequest({
     const ref = db.collection(PEDIDOS).doc(id);
 
     if (body.action === 'atualizar') {
-      await db.runTransaction(async (tx) => {
+      // devolve cancelar:true se o Angelo pediu pra cancelar (o vigia para na hora)
+      const cancelar = await db.runTransaction(async (tx) => {
         const snap = await tx.get(ref);
         if (!snap.exists || snap.data().status !== 'executando') throw new Error('pedido nao esta executando');
         const upd = {};
@@ -128,15 +133,16 @@ exports.automacaoVigia = onRequest({
           upd.logs = logs.slice(-MAX_LOGS);
         }
         tx.update(ref, upd);
+        return !!snap.data().cancelarSolicitado;
       });
-      res.status(200).json({ ok: true });
+      res.status(200).json({ ok: true, cancelar });
       return;
     }
 
     if (body.action === 'finalizar') {
       const status = String(body.status || '');
       if (STATUS_FINAIS.indexOf(status) === -1) {
-        res.status(400).send('status deve ser concluido, parcial ou erro');
+        res.status(400).send('status deve ser concluido, parcial, erro ou cancelado');
         return;
       }
       const r = body.resultado || {};
@@ -155,7 +161,9 @@ exports.automacaoVigia = onRequest({
         // reenvio do mesmo "finalizar" (queda de conexao) nao duplica nada
         if (STATUS_FINAIS.indexOf(d.status) !== -1) return;
         if (d.status !== 'executando') throw new Error('pedido nao esta executando');
-        tx.update(ref, { status, finalizadoEm: agora, resultado, etapa: status === 'erro' ? 'Falhou' : 'Finalizado', progresso: 100 });
+        tx.update(ref, { status, finalizadoEm: agora, resultado, etapa: status === 'erro' ? 'Falhou' : status === 'cancelado' ? 'Cancelado' : 'Finalizado', progresso: 100 });
+        // cancelamento nao apaga o resumo da ultima execucao de verdade
+        if (status === 'cancelado') return;
         // "Ultima execucao" de cada card (o CRM le isto direto)
         tx.set(db.collection(RESUMO).doc(d.tipo), {
           tipo: d.tipo, pedidoId: id, status, finalizadoEm: agora, modo: d.modo || 'previa',

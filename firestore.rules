@@ -61,7 +61,14 @@ service cloud.firestore {
         && request.resource.data.status == 'pendente'
         && request.resource.data.criadoEm is number
         && request.resource.data.criadoPor == request.auth.uid;
-      allow update, delete: if false;
+      // Cancelar: o Angelo cancela pedido na fila (pendente -> cancelado) ou pede pra parar o que
+      // esta executando (so liga o aviso cancelarSolicitado; o vigia e quem finaliza).
+      allow update: if admin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'finalizadoEm', 'cancelarSolicitado'])
+        && request.resource.data.cancelarSolicitado == true
+        && ((resource.data.status == 'pendente' && request.resource.data.status == 'cancelado' && request.resource.data.finalizadoEm is number)
+            || (resource.data.status == 'executando' && request.resource.data.status == 'executando'));
+      allow delete: if false;
     }
     match /automacaoResumo/{id} {
       allow read: if admin();
