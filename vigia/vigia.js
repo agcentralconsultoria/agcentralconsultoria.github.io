@@ -43,11 +43,11 @@ function hojeMenos(dias) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
-async function enviarParaCrm(pedido, entries) {
+async function enviarParaCrm(pedido, entries, lidosOk) {
   const resp = await fetch(URL_SYNC, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-automacao-key': CHAVE },
-    body: JSON.stringify({ batchId: pedido.modo === 'direto' ? 'vigia-' + pedido.id : undefined, dryRun: pedido.modo !== 'direto', entries }),
+    body: JSON.stringify({ batchId: pedido.modo === 'direto' ? 'vigia-' + pedido.id : undefined, dryRun: pedido.modo !== 'direto', entries, ausencias: { emails: lidosOk } }),
   });
   const texto = await resp.text();
   if (!resp.ok) throw new Error('syncCheckins ' + resp.status + ' ' + texto.slice(0, 200));
@@ -62,6 +62,7 @@ async function executarCheckins(pedido, faixa) {
   const previa = pedido.modo !== 'direto';
   const { ctx, page } = await treino.abrirNavegador();
   const entries = [];
+  const lidosOk = [];
   const falhas = [];
   let semResposta = 0;
   let analisados = 0;
@@ -75,6 +76,7 @@ async function executarCheckins(pedido, faixa) {
       try {
         const checkins = await treino.lerCheckinsDoAluno(page, al, desde);
         analisados++;
+        lidosOk.push(al.email);
         if (!checkins.length) semResposta++;
         checkins.forEach((c) => entries.push({ email: al.email, date: c.data, enviou: true, observacoes: c.observacoes }));
       } catch (e) {
@@ -87,19 +89,20 @@ async function executarCheckins(pedido, faixa) {
     await ctx.close();
   }
   await chamar({ action: 'atualizar', id, etapa: previa ? 'Check-ins: calculando a prévia' : 'Check-ins: gravando no CRM', progresso: Math.round(de + (ate - de) * 0.95) });
-  let r = { checkinsAplicados: 0, observacoesAplicadas: 0, pulados: 0, detalhesPulados: [], detalhes: [] };
-  if (entries.length) r = await enviarParaCrm(pedido, entries);
+  let r = { checkinsAplicados: 0, observacoesAplicadas: 0, ausentesMarcados: 0, pulados: 0, detalhesPulados: [], detalhes: [] };
+  if (entries.length || lidosOk.length) r = await enviarParaCrm(pedido, entries, lidosOk);
   const pendencias = semResposta + r.pulados;
   const detalhes = []
     .concat((r.detalhes || []).map((x) => (previa ? 'Entraria: ' : 'Gravado: ') + x))
     .concat((r.detalhesPulados || []).map((x) => 'Pulado: ' + x))
     .concat(falhas.map((x) => 'Falha: ' + x));
   const resumo = (previa ? 'PRÉVIA (nada foi gravado). ' : '') +
-    r.checkinsAplicados + ' check-in(s) ' + (previa ? 'entrariam' : 'gravados') + ', ' + r.observacoesAplicadas + ' observação(ões). ' +
+    r.checkinsAplicados + ' check-in(s) ' + (previa ? 'entrariam' : 'gravados') + ', ' + r.observacoesAplicadas + ' observação(ões), ' +
+    r.ausentesMarcados + ' ' + (previa ? 'seriam marcados' : 'marcados') + ' como NÃO enviou (semana encerrada). ' +
     semResposta + ' aluno(s) sem check-in nos últimos ' + JANELA_DIAS + ' dias' +
     (r.pulados ? ', ' + r.pulados + ' pulado(s) (e-mail/semana não encontrados no CRM)' : '') +
     (falhas.length ? ', ' + falhas.length + ' falha(s) de leitura' : '') + '.';
-  return { analisados, atualizados: r.checkinsAplicados, pendencias, falhas: falhas.length, resumo, detalhes };
+  return { analisados, atualizados: r.checkinsAplicados + r.ausentesMarcados, pendencias, falhas: falhas.length, resumo, detalhes };
 }
 
 const NAO_CONSTRUIDA = 'Esta automação ainda não foi construída. Nada foi lido nem alterado.';

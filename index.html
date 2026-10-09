@@ -5779,11 +5779,11 @@
   var AUTOMACAO_NOMES = { checkins:'Atualizar check-ins', fotos:'Fotos e medidas', treinos:'Treinos e dietas', engajamento:'Engajamento', todas:'Todas as automações' };
   /* Texto do (i) de cada automacao: qual modelo e esforco ela usa (pra lembrar depois). */
   var AUTOMACAO_INFO = {
-    checkins: '<b>Modelo:</b> nenhum (sem IA).<br><b>Esforço:</b> não se aplica.<br>Leitura automática do Treino.io: gasta <b>zero token</b>. Já está funcionando.',
-    fotos: '<b>Modelo:</b> nenhum (sem IA).<br><b>Esforço:</b> não se aplica.<br>Leitura automática das datas: <b>zero token</b>. <i>Ainda será construída.</i>',
-    treinos: '<b>Modelo:</b> nenhum (sem IA).<br><b>Esforço:</b> não se aplica.<br>Leitura automática das datas e vencimentos: <b>zero token</b>. <i>Ainda será construída.</i>',
-    engajamento: '<b>Modelo:</b> Claude Sonnet.<br><b>Esforço:</b> médio.<br>A IA entra só aqui, para ler as conversas e dar a nota de 0 a 10 pela sua escala. Se errar nos testes, sobe de nível. <i>Ainda será construída.</i>',
-    todas: 'Cada etapa usa o seu jeito: check-ins, fotos e treinos/dietas <b>sem IA</b> (zero token); engajamento com <b>Claude Sonnet, esforço médio</b>. Hoje só os check-ins funcionam.'
+    checkins: '<b>Quem faz:</b> programa automático do vigia, no seu Mac.<br><b>Inteligência artificial:</b> nenhuma.<br><b>Modelo:</b> não usa.<br><b>Esforço:</b> não usa.<br><b>Tokens:</b> zero.<br><i>Por quê:</i> ler datas e tabelas não precisa de IA, então é mais rápido e não gasta sua assinatura. <b>Já funciona.</b>',
+    fotos: '<b>Quem faz:</b> programa automático do vigia, no seu Mac.<br><b>Inteligência artificial:</b> nenhuma.<br><b>Modelo / Esforço:</b> não usa.<br><b>Tokens:</b> zero.<br><i>Ainda não foi construída (planejado).</i>',
+    treinos: '<b>Quem faz:</b> programa automático do vigia, no seu Mac.<br><b>Inteligência artificial:</b> nenhuma.<br><b>Modelo / Esforço:</b> não usa.<br><b>Tokens:</b> zero.<br><i>Ainda não foi construída (planejado).</i>',
+    engajamento: '<b>Quem faz:</b> Claude (IA da Anthropic), pelo Claude Code no seu Mac.<br><b>Modelo:</b> Sonnet 5.5.<br><b>Esforço:</b> médio.<br><b>Tokens:</b> sai da sua assinatura.<br>A IA entra só aqui, para ler as conversas e dar a nota de 0 a 10 pela sua escala. <i>Ainda não foi construída (planejado). Se errar nos testes, subo o nível.</i>',
+    todas: 'Cada etapa usa o seu jeito:<br>• Check-ins, fotos/medidas e treinos/dietas: <b>sem IA</b> (programa automático, zero token).<br>• Engajamento: <b>Claude Sonnet 5.5, esforço médio</b> (planejado).<br><i>Hoje só os check-ins funcionam.</i>'
   };
   function automacaoInfoHtml(key){
     var aberto = !!state.automacao.info[key];

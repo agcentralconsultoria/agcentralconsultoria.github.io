@@ -1471,3 +1471,16 @@ conta de teste em modo prévia; (5) fotos/medidas e treinos/dietas;
   e engajamento ainda NÃO construídos: devolvem erro/aviso honesto.
 - A tela mostra "Ver detalhes" (o que entraria/foi pulado) no histórico.
 - Playwright: `cd vigia && npm install` (node_modules fora do git).
+
+### Regra do "não enviou" (09/10/2026, decisão do Ângelo)
+- Check-in semanal vale **sexta e sábado**. A partir do **domingo**, quem não enviou na
+  semana encerrada fica marcado **vermelho** (`checkin[semana] = false`) quando ele
+  clica em Executar (previa ou direto; a previa só mostra).
+- Implementado no servidor (`syncCheckins`, campo `ausencias.emails` = alunos lidos com
+  sucesso no Treino.io): marca só a **última semana encerrada**, só se o campo ainda
+  está vazio (nunca sobrescreve true/false), ignora Essencial (ciclo de 30 dias),
+  vencido (com carência), quem começou depois daquela sexta e semanas desativadas do
+  quinzenal. Resposta tardia depois vira true na próxima execução.
+- O histórico registra TODA execução (previa ou direta). O (i) de cada card diz a
+  verdade: check-ins/fotos/treinos = sem IA (zero token); engajamento = Claude Sonnet
+  5.5, esforço médio (planejado).
