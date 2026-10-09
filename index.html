@@ -882,6 +882,9 @@
   .auto-hist-row{display:grid;grid-template-columns:150px 1.3fr 1.3fr 1.6fr 90px;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--border);font-size:13px;}
   .auto-hist-data,.auto-hist-tempo{color:var(--text-muted);}
   .auto-hist-nome{font-weight:600;}
+  .auto-hist-det{grid-column:1/-1;font-size:12.5px;}
+  .auto-hist-det summary{cursor:pointer;color:var(--primary);font-weight:600;}
+  .auto-hist-det ul{margin:6px 0 0;padding-left:18px;color:var(--text-muted);}
   .auto-hist-resumo{grid-column:1/-1;font-size:12px;color:var(--text-muted);}
   @media (max-width: 700px){ .auto-hist-row{grid-template-columns:1fr 1fr;} .auto-hist-nome,.auto-hist-res{grid-column:1/-1;} }
   @media (max-width: 1100px){ .auto-grid{grid-template-columns:repeat(2,minmax(0,1fr));} }
@@ -5876,6 +5879,7 @@
         '<div class="auto-hist-res">'+(r ? esc(r.analisados+' analisados · '+r.atualizados+' atualizados · '+r.pendencias+' pendências'+(r.falhas ? ' · '+r.falhas+' falhas' : '')) : '—')+'</div>'+
         '<div class="auto-hist-tempo">'+automacaoDuracao(p)+'</div>'+
         (r && r.resumo ? '<div class="auto-hist-resumo">'+esc(r.resumo)+'</div>' : '')+
+        (r && r.detalhes && r.detalhes.length ? '<details class="auto-hist-det"><summary>Ver detalhes ('+r.detalhes.length+')</summary><ul>'+r.detalhes.map(function(x){ return '<li>'+esc(x)+'</li>'; }).join('')+'</ul></details>' : '')+
       '</div>';
     }).join('');
   }

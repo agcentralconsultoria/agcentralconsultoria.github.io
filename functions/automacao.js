@@ -8,13 +8,12 @@
 // Aqui so ha controle de fila, andamento e resultado (contagens e um resumo curto).
 // Quem le o Treino.io / WhatsApp e quem grava no CRM e o vigia (etapas seguintes).
 const { onRequest } = require('firebase-functions/v2/https');
-const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
 const admin = require('firebase-admin');
 const crypto = require('crypto');
 
 const db = admin.firestore();
-const AUTOMACAO_KEY = defineSecret('AUTOMACAO_KEY');
+const { AUTOMACAO_KEY } = require('./segredos');
 
 const REGION = 'southamerica-east1';
 const PEDIDOS = 'automacaoPedidos';

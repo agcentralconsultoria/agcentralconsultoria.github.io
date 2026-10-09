@@ -18,6 +18,7 @@ const GOOGLE_OAUTH_CLIENT_SECRET = defineSecret('GOOGLE_OAUTH_CLIENT_SECRET');
 const GOOGLE_OAUTH_REFRESH_TOKEN = defineSecret('GOOGLE_OAUTH_REFRESH_TOKEN');
 const MANUAL_SYNC_KEY = defineSecret('MANUAL_SYNC_KEY');
 const TREINO_SYNC_KEY = defineSecret('TREINO_SYNC_KEY');
+const { AUTOMACAO_KEY } = require('./segredos');
 
 const OAUTH_SECRETS = [GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, GOOGLE_OAUTH_REFRESH_TOKEN];
 
@@ -559,7 +560,7 @@ exports.mintSyncCheckinsToken = onRequest({
 // (id, hora, status, contagens) - nunca nome, e-mail, peso ou observacao.
 exports.syncCheckins = onRequest({
   region: REGION,
-  secrets: [TREINO_SYNC_KEY],
+  secrets: [TREINO_SYNC_KEY, AUTOMACAO_KEY],
   timeoutSeconds: 120,
   memory: '256MiB',
 }, async (req, res) => {
@@ -575,8 +576,11 @@ exports.syncCheckins = onRequest({
 
   const providedKey = req.query.key ? String(req.query.key).trim() : '';
   const providedToken = req.query.token ? String(req.query.token).trim() : '';
+  // Terceiro jeito de autenticar: o vigia do MacBook (cabecalho, nunca na URL).
+  const vigiaKey = String(req.get('x-automacao-key') || '').trim();
+  const vigiaOk = !!vigiaKey && vigiaKey === String(AUTOMACAO_KEY.value()).trim();
 
-  if (!providedKey && !providedToken) {
+  if (!providedKey && !providedToken && !vigiaOk) {
     logger.warn('syncCheckins rejeitado: sem credencial (use ?key= ou ?token=).');
     res.status(403).send('nao autorizado: envie ?key=<chave> ou ?token=<codigo>');
     return;
@@ -595,9 +599,13 @@ exports.syncCheckins = onRequest({
     return;
   }
   const batchId = body.batchId ? String(body.batchId).slice(0, 100) : null;
+  // dryRun (previa): faz todas as contas e devolve o que mudaria, mas NAO grava nada.
+  const dryRun = body.dryRun === true;
 
   let authOk = false;
-  if (providedKey && providedKey === TREINO_SYNC_KEY.value()) {
+  if (vigiaOk) {
+    authOk = true;
+  } else if (providedKey && providedKey === TREINO_SYNC_KEY.value()) {
     authOk = true;
   } else if (providedToken) {
     const tokenRef = db.collection(SYNC_TOKENS_COLLECTION).doc(providedToken);
@@ -625,7 +633,7 @@ exports.syncCheckins = onRequest({
   }
 
   try {
-    if (batchId) {
+    if (batchId && !dryRun) {
       const batchSnap = await db.collection(SYNC_BATCHES_COLLECTION).doc(batchId).get();
       if (batchSnap.exists && batchSnap.data().status === 'completed') {
         res.status(200).json(Object.assign({ reenvio: true }, batchSnap.data().counts));
@@ -732,7 +740,7 @@ exports.syncCheckins = onRequest({
         if (partesLog.length > 1) logLines.push(partesLog.join(' -> '));
       });
 
-      if (algumaMudanca) tx.set(PATIENTS_DOC, { list }, { merge: true });
+      if (algumaMudanca && !dryRun) tx.set(PATIENTS_DOC, { list }, { merge: true });
       return { logLines, skipped, divergenciasPeso, checkins: checkinsAplicados, pesos: pesosAplicados, observacoes: observacoesAplicadas };
     });
 
@@ -748,9 +756,11 @@ exports.syncCheckins = onRequest({
       pulados: result.skipped.length,
       detalhesPulados: result.skipped,
       divergenciasPeso: result.divergenciasPeso,
+      detalhes: result.logLines,
+      dryRun: dryRun,
     };
 
-    if (batchId) {
+    if (batchId && !dryRun) {
       // Metadado MINIMO do lote - so pra permitir confirmar depois se um
       // reenvio ja tinha sido aplicado, sem guardar nenhum dado de paciente.
       await db.collection(SYNC_BATCHES_COLLECTION).doc(batchId).set({

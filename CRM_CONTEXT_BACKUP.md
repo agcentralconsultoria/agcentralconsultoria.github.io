@@ -1453,3 +1453,21 @@ conta de teste em modo prévia; (5) fotos/medidas e treinos/dietas;
   resultado diz "Teste do sistema". Modelo/esforço só entram a partir da etapa 4.
 - Tela: anel de progresso (% + estimativa de tempo, só após 5%) nos cards e em
   "Executar todas", atualizado a cada 5 s.
+
+### Etapa 4 — check-ins reais (09/10/2026)
+- Decisões do Ângelo: **peso fica de fora** (será removido do CRM depois; já tem o
+  gráfico no Treino.io). Observações do check-in = respostas das perguntas
+  marcadas com **💬** no questionário "Check-in semanal" do Treino.io (menos "Não
+  respondido"). Ele quer simplificar o CRM mais pra frente (tirar o que não usa).
+- Leitura do Treino.io SEM IA (zero token): `vigia/treino.js` (Playwright,
+  navegador próprio, perfil logado em `~/.agcentral/treino-profile`; login feito
+  1x por `vigia/login-treino.js`). Lista (`#/app/lista-alunos`, ativos),
+  perfil (`#/app/detalhes-aluno/<id>`), aba Questionários, janela "Ver".
+- `vigia/vigia.js`: executa `checkins` de verdade (olha os últimos 10 dias; só
+  marca enviou=true quando há resposta — nunca grava "não enviou" sozinho) e manda
+  ao CRM por `syncCheckins` com o cabeçalho `x-automacao-key` (3º jeito de
+  autenticar). **Prévia = `dryRun:true` (calcula e mostra, não grava)**; "Gravar
+  direto" grava com `batchId` (reenvio não duplica). Fotos/medidas, treinos/dietas
+  e engajamento ainda NÃO construídos: devolvem erro/aviso honesto.
+- A tela mostra "Ver detalhes" (o que entraria/foi pulado) no histórico.
+- Playwright: `cd vigia && npm install` (node_modules fora do git).

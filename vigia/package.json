@@ -1,0 +1,8 @@
+{
+  "name": "vigia",
+  "private": true,
+  "description": "Vigia do AGCentral: executa as automacoes no MacBook",
+  "dependencies": {
+    "playwright": "^1.50.0"
+  }
+}
