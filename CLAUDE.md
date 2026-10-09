@@ -7,8 +7,8 @@ dia a dia; aquele é a fonte completa.
 
 ## O que é este projeto
 
-CRM de gestão de pacientes para o Angelo Garcia (treinador/nutricionista), usado
-também por sua colaboradora Débora. Um único arquivo `index.html` (~630KB+, vanilla
+CRM de gestão de pacientes para o Angelo Garcia (treinador/nutricionista). **Só o Ângelo
+usa o CRM** (nunca citar nem perguntar sobre outros usuários). Um único arquivo `index.html` (~630KB+, vanilla
 JS/HTML/CSS, sem build, sem framework) contendo cadastro de pacientes, fichas de
 treino/dieta, check-ins semanais, Dashboard, Jornada (funil de tarefas/kanban), a
 área de Captação (Leads, Parcerias, Indicações, Comunidade, Instagram, Visão
@@ -114,13 +114,20 @@ estabelecida de testar mudanças é:
   abordagem preferida é copiar-e-adaptar com nomes próprios (não generalizar a
   função original), pra não arriscar regressão no que já funciona.
 
+## Automação (aba "Automação", só o Ângelo) — em produção desde 09/10/2026
+
+Botões que atualizam o CRM sozinhos: check-ins, fotos/medidas, treinos/dietas (leitura do
+Treino.io **sem IA**, zero token) e engajamento (WhatsApp Web + Claude Sonnet, escala 0–10 do
+Ângelo). Fila, Cancelar, Prévia (não grava) e Gravar direto. Um "vigia" roda no MacBook como
+LaunchAgent (`vigia/`, instalar/atualizar com `bash vigia/instalar.sh`; log em
+`~/.agcentral/vigia.log`; Node/Firebase CLI em `~/.local/node/bin`). Tudo documentado em
+`CRM_CONTEXT_BACKUP.md` §28–29 e subseções. Nunca ler conversas de pacientes no ambiente de
+desenvolvimento (o vigia faz isso quando o Ângelo clica).
+
 ## Pendência em aberto
 
-Nenhuma no momento. PWA/ícone de tela inicial concluído em 28/08/2026 (ver
-`CRM_CONTEXT_BACKUP.md` §16) — `manifest.json` + `icons/` na raiz, linkados no
-`<head>` do `index.html`. Logo fonte usada era só 169x169 (a única disponível),
-upscalada pra 192/512/180/32/16; se o Ângelo mandar uma versão em alta
-resolução no futuro, é só regenerar os ícones a partir dela.
+Reformulação pedida pelo Ângelo: **simplificar o CRM** (tirar peso e o que ele não usa).
+Ainda não começou. Esperar o pedido dele antes de mexer.
 
 ## Arquivos deste diretório
 
