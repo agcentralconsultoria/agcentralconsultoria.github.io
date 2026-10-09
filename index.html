@@ -866,8 +866,8 @@
   .auto-status.is-ok .auto-dot{background:var(--success);opacity:1;}
   .auto-status.is-exec{color:var(--primary);}
   .auto-status.is-exec .auto-dot{background:var(--primary);opacity:1;}
-  .auto-status.is-fila .auto-dot,.auto-status.is-parcial .auto-dot{background:var(--warning);opacity:1;}
-  .auto-status.is-fila,.auto-status.is-parcial{color:var(--warning);}
+  .auto-status.is-pronta,.auto-status.is-parcial{color:var(--warning);}
+  .auto-status.is-pronta .auto-dot,.auto-status.is-parcial .auto-dot{background:var(--warning);opacity:1;}
   .auto-status.is-erro{color:var(--danger);}
   .auto-status.is-erro .auto-dot{background:var(--danger);opacity:1;}
   .auto-anel-wrap{display:flex;flex-direction:column;align-items:center;gap:6px;}
@@ -5807,6 +5807,18 @@
     var s = Math.max(0, Math.round((p.finalizadoEm - p.iniciadoEm) / 1000));
     return s >= 60 ? Math.floor(s / 60) + ' min ' + (s % 60) + ' s' : s + ' s';
   }
+  function automacaoMesmoDia(ms){
+    if(!ms) return false;
+    var a = new Date(ms), b = new Date();
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }
+  /* Status do card: so conta como Concluido/Parcial/Erro se terminou HOJE. Na virada do dia
+     volta sozinho pra "Pronta para executar" (a tela se atualiza a cada 5 s). O historico
+     e a caixa "Ultima execucao" continuam mostrando o que aconteceu antes. */
+  function automacaoStatusCard(p){
+    if(p && (p.status === 'pendente' || p.status === 'executando' || automacaoMesmoDia(p.finalizadoEm))) return automacaoStatusInfo(p);
+    return automacaoVigiaOnline() ? { txt:'Pronta para executar', cls:'is-pronta' } : { txt:'Aguardando o Mac', cls:'is-fila' };
+  }
   function automacaoStatusInfo(p){
     if(!p) return null;
     if(p.status === 'pendente') return { txt:'Na fila, aguardando o Mac', cls:'is-fila' };
@@ -5833,8 +5845,7 @@
   function automacaoCardHtml(a){
     var r = state.automacao.resumo[a.key];
     var ult = state.automacao.pedidos.filter(function(p){ return p.tipo === a.key; })[0];
-    var info = automacaoStatusInfo(ult && (ult.status === 'pendente' || ult.status === 'executando') ? ult : (ult || null));
-    if(!info) info = automacaoVigiaOnline() ? { txt:'Pronta para executar', cls:'is-ok' } : { txt:'Aguardando o Mac', cls:'is-fila' };
+    var info = automacaoStatusCard(ult);
     var stats = a.stats.map(function(s){ return '<div class="auto-stat"><span>'+s[1]+'</span><b>'+(r ? r[s[0]] : '—')+'</b></div>'; }).join('');
     var ativo = automacaoAtivo();
     return '<div class="card auto-card" style="--auto-cor:'+a.cor+';">'+
@@ -5874,7 +5885,7 @@
     var ativo = automacaoAtivo();
     var modoBtn = function(k, label){ return '<button type="button" class="meta-type-btn'+(a.modo === k ? ' active' : '')+'" data-auto-modo="'+k+'">'+label+'</button>'; };
     var ultTodas = a.pedidos.filter(function(p){ return p.tipo === 'todas'; })[0];
-    var infoTodas = automacaoStatusInfo(ultTodas);
+    var infoTodas = automacaoStatusCard(ultTodas);
     return ''+
     '<div class="auto-head">'+
       '<span class="auto-head-ico"><svg viewBox="0 0 24 24" aria-hidden="true">'+SIDE_SVG['⚡']+'</svg></span>'+
@@ -5891,7 +5902,7 @@
       '<span class="auto-todas-ico"><svg viewBox="0 0 24 24" aria-hidden="true">'+SIDE_SVG['⚡']+'</svg></span>'+
       '<div class="auto-todas-txt"><div class="auto-todas-titulo">Executar todas as automações</div>'+
       '<div class="auto-desc">Executa as quatro automações em sequência (check-ins, fotos e medidas, treinos e dietas, engajamento), com relatório consolidado ao final.</div>'+
-      (infoTodas ? '<div class="auto-status '+infoTodas.cls+'" style="margin-top:6px;"><span class="auto-dot"></span>'+esc(infoTodas.txt.split(':')[0])+'</div>' : '')+'</div>'+
+      (true ? '<div class="auto-status '+infoTodas.cls+'" style="margin-top:6px;"><span class="auto-dot"></span>'+esc(infoTodas.txt.split(':')[0])+'</div>' : '')+'</div>'+
       automacaoAnelHtml(ultTodas)+
       '<button type="button" class="btn btn-primary auto-btn auto-btn-todas" data-auto-run="todas"'+(ativo || a.enviando ? ' disabled' : '')+'>'+(ativo ? 'Em andamento…' : 'Executar todas agora')+'</button>'+
     '</div>'+
