@@ -1566,3 +1566,10 @@ conta de teste em modo prévia; (5) fotos/medidas e treinos/dietas;
 - Quem está no Treino.io mas o e-mail não existe no CRM aparece como **"NÃO CADASTRADO: Nome (email)
   — cadastre no CRM"**, em vermelho, no card (Atenção) e no "Ver detalhes" (check-ins, fotos/medidas,
   treinos/dietas). Engajamento só avalia quem já está no CRM (não lista não cadastrados).
+
+### Atenção de hoje — visual calmo (09/10/2026)
+- Cartões do Kanban refeitos como no modelo do Ângelo: número cinza, nome, serviço, **uma linha de
+  texto cinza** com os motivos curtos ("Check-in pendente · Fotos 78d · Treino vencido") e rodapé
+  "Feito na semana / Ver perfil ↗". Sem selos coloridos; cor só na bolinha da coluna e borda
+  laranja no "próximo a chamar". Detalhes e ação sugerida ficam no balão (passar o mouse).
+  Rótulos curtos em `atencaoLabelCurto`. Regras de coluna/ordem/metas inalteradas.

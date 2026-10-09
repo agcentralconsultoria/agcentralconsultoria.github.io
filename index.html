@@ -816,6 +816,8 @@
   .atencao-col-body{display:flex;flex-direction:column;gap:10px;max-height:70vh;overflow-y:auto;}
   .atencao-kcard{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;}
   .atencao-kcard.is-done{opacity:.5;}
+  .atencao-kcard.is-proximo{border-left:3px solid var(--primary);}
+  .atencao-motivos-linha{font-size:13px;color:var(--text-muted);line-height:1.4;}
   .atencao-kcard-top{display:flex;align-items:flex-start;gap:10px;}
   .atencao-num{flex:0 0 auto;min-width:26px;text-align:center;padding:2px 6px;border-radius:8px;background:var(--bg);font-size:12px;font-weight:700;color:var(--text-muted);}
   .atencao-nome{font-weight:600;font-size:14.5px;color:var(--text);overflow-wrap:anywhere;}
@@ -9609,22 +9611,35 @@
     if(it.cat === 'preparar') return it.hoje ? 'hoje' : 'semana';
     return 'acompanhar';
   }
-  function atencaoCardHtml(it, num){
+  /* Motivo curto, em uma linha (como no modelo): "Check-in pendente", "Fotos 78d", "Treino vencido"... */
+  function atencaoLabelCurto(m){
+    var l = String(m.label || '').replace(/^[^A-Za-zÀ-ú0-9]+/, '').trim();
+    var n = (l.match(/(\d+)\s*dias?/) || [])[1];
+    if(m.key === 'fotos' || m.key === 'medidas'){
+      var nome = m.key === 'fotos' ? 'Fotos' : 'Medidas';
+      if(/amanh[ãa]/i.test(l)) return nome + ' amanhã';
+      if(/completam/i.test(l)) return nome + ' em ' + n + 'd';
+      return n ? nome + ' ' + n + 'd' : l;
+    }
+    if(m.key === 'checkin') return 'Check-in pendente';
+    if(m.key === 'treino') return /vencido/i.test(l) ? 'Treino vencido' : l.replace(/\s*dias?/, 'd');
+    if(m.key === 'consulta') return /Agendar retorno/i.test(l) ? 'Agendar retorno' : l;
+    if(m.key === 'carencia') return 'Plano em carência';
+    if(m.key === 'engajamento') return /recupera/i.test(l) ? 'Engajamento em recuperação' : (/caiu/i.test(l) ? 'Engajamento caiu' : 'Engajamento baixo');
+    return l;
+  }
+  function atencaoCardHtml(it, num, ehProximo){
     var p = it.p;
     var sub = esc(p.servico || '') + (isEssencialMensal(p) ? ' · ' + esc(p.plano) : '');
-    var motivos = it.motivos.map(function(m){
-      return '<div class="atencao-motivo">'+
-        '<span class="badge '+atencaoBadgeClass(m)+'">'+esc(m.label)+(m.hoje && m.label.indexOf('hoje') === -1 ? ' · hoje' : '')+'</span>'+
-        (m.detalhe ? '<span class="atencao-motivo-det">'+esc(m.detalhe)+'</span>' : '')+
-      '</div>';
-    }).join('');
-    return '<div class="atencao-kcard'+(it.marcado ? ' is-done' : '')+'">'+
+    var curtos = it.motivos.map(atencaoLabelCurto);
+    // detalhes e ação sugerida ficam no "balãozinho" (passar o mouse), pra o cartão ficar limpo
+    var dica = it.motivos.map(function(m){ return m.label + (m.detalhe ? ' — ' + m.detalhe : ''); }).join('\n') + (it.acoes.length ? '\nSugestão: ' + it.acoes.slice(0, 3).join(' · ') : '');
+    return '<div class="atencao-kcard'+(it.marcado ? ' is-done' : '')+(ehProximo ? ' is-proximo' : '')+'" title="'+esc(dica)+'">'+
       '<div class="atencao-kcard-top">'+
         '<span class="atencao-num">'+(num < 10 ? '0' : '')+num+'</span>'+
         '<div style="min-width:0;"><div class="atencao-nome">'+esc(p.nome)+'</div><div class="atencao-sub">'+sub+'</div></div>'+
       '</div>'+
-      '<div class="atencao-cell-motivos">'+motivos+'</div>'+
-      (it.acoes.length ? '<div class="atencao-cell-acao">'+esc(it.acoes.slice(0, 3).join(' · '))+'</div>' : '')+
+      '<div class="atencao-motivos-linha">'+esc(curtos.join(' · '))+'</div>'+
       '<div class="atencao-kcard-foot">'+
         '<label class="atencao-feito"><input type="checkbox" class="atencao-check" data-atencao-check="'+p.id+'"'+(it.marcado ? ' checked' : '')+' aria-label="Já olhei '+esc(p.nome)+' esta semana"> Feito na semana</label>'+
         '<button type="button" class="btn-icon" data-open-profile="'+p.id+'">Ver perfil ↗</button>'+
@@ -9672,7 +9687,7 @@
       }
     });
     if(prox){
-      var resumo = prox.motivos.slice(0, 2).map(function(m){ return m.label; }).join(' · ');
+      var resumo = prox.motivos.slice(0, 2).map(atencaoLabelCurto).join(' · ');
       proximo = '<div class="card atencao-proximo">'+
         '<span class="atencao-proximo-tag">PRÓXIMO A CHAMAR</span>'+
         '<div class="atencao-proximo-info"><div class="atencao-nome">'+esc(prox.p.nome)+'</div><div class="atencao-sub">'+esc(prox.p.servico || '')+'</div></div>'+
@@ -9683,7 +9698,7 @@
     var num = 0;
     var board = ATENCAO_COLUNAS.map(function(c){
       var lista = cols[c.key];
-      var cards = lista.map(function(it){ num++; return atencaoCardHtml(it, num); }).join('');
+      var cards = lista.map(function(it){ num++; return atencaoCardHtml(it, num, prox === it); }).join('');
       if(!cards) cards = '<div class="atencao-empty">'+(state.atencaoBusca ? 'Nenhum paciente.' : 'Nada por aqui. 🎉')+'</div>';
       return '<div class="atencao-col">'+
         '<div class="atencao-col-head"><span class="atencao-dot" style="background:'+c.cor+';"></span><span class="atencao-col-nome">'+c.nome+'</span><span class="atencao-col-n">'+lista.length+'</span></div>'+
