@@ -36,6 +36,10 @@ cat > "$PLIST" <<PLISTEOF
 PLISTEOF
 
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
-launchctl bootstrap "gui/$(id -u)" "$PLIST"
+# o macOS as vezes recusa religar logo depois de desligar: espera e tenta de novo
+for i in 1 2 3 4 5 6; do
+  sleep 2
+  if launchctl bootstrap "gui/$(id -u)" "$PLIST" 2>/dev/null; then break; fi
+done
 launchctl kickstart -k "gui/$(id -u)/$LABEL"
 echo "Vigia instalado e ligado. Log: $HOME/.agcentral/vigia.log"
