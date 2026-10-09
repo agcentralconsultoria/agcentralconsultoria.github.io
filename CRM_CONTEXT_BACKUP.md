@@ -1509,3 +1509,14 @@ conta de teste em modo prévia; (5) fotos/medidas e treinos/dietas;
   `cancelarSolicitado` e o vigia para sozinho (`atualizarPedido` -> resposta `cancelar:true`) —
   nada foi gravado no CRM antes do fim. Cancelamento não apaga o "última execução" real.
 - Regras Firestore: admin só pode atualizar pedido com `status/finalizadoEm/cancelarSolicitado`.
+
+### Fotos e medidas (09/10/2026) — sem IA
+- Fotos: "Última atualização de fotos" do perfil do aluno no Treino.io. Medidas: seção
+  "Medidas corporais" da aba Progresso (maior data do Histórico). Grava só `ultimasFotos` /
+  `ultimasMedidas` e **só se a data for mais nova** que a do CRM (função `automacaoVigia`,
+  ação `gravarDatas`; `dryRun` = prévia). Pendência = fotos/medidas há 30 dias ou mais (mesma
+  regra do Atenção de hoje) ou nunca enviadas.
+- Check-ins em Gravar direto rodou 1x (12:44): 16 check-ins, 29 observações, 15 "não enviou".
+- Treinos/dietas: aguarda decisão do Ângelo sobre o que fazer quando a ficha do Treino.io é
+  mais nova que a do CRM (o Treino.io não mostra vencimento da ficha na visão geral; mostra
+  "Criada em / Atualizada em"). Engajamento: ainda não construído.

@@ -19,6 +19,7 @@ const REGION = 'southamerica-east1';
 const PEDIDOS = 'automacaoPedidos';
 const RESUMO = 'automacaoResumo';
 const VIGIA_STATUS = db.doc('automacaoVigia/status');
+const PATIENTS_DOC = db.doc('crmData/patients');
 
 const STATUS_FINAIS = ['concluido', 'parcial', 'erro', 'cancelado'];
 // Pedido "executando" parado ha mais que isso e dado como falha (Mac dormiu, app fechou...).
@@ -110,6 +111,41 @@ exports.automacaoVigia = onRequest({
         return { pedido: { id: doc.id, tipo: d.tipo, modo: d.modo } };
       });
       res.status(200).json(resultado);
+      return;
+    }
+
+    // Fotos e medidas: grava SO as datas (ultimasFotos / ultimasMedidas), e so quando a data do
+    // Treino.io e MAIS NOVA que a do CRM (nunca volta no tempo). dryRun = previa (nao grava).
+    if (body.action === 'gravarDatas') {
+      const entries = Array.isArray(body.entries) ? body.entries.slice(0, 500) : [];
+      const dryRun = body.dryRun === true;
+      const dataOk = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+      const r = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(PATIENTS_DOC);
+        const list = snap.exists ? (snap.data().list || []) : [];
+        const porEmail = new Map();
+        list.forEach((p) => { if (p.email) porEmail.set(String(p.email).trim().toLowerCase(), p); });
+        const detalhes = [];
+        const pulados = [];
+        let atualizados = 0;
+        entries.forEach((e) => {
+          const email = String((e && e.email) || '').trim().toLowerCase();
+          const p = porEmail.get(email);
+          if (!p) { pulados.push('e-mail nao encontrado no CRM: ' + email); return; }
+          [['ultimasFotos', 'fotos'], ['ultimasMedidas', 'medidas']].forEach(([campo, nome]) => {
+            const novo = e[campo];
+            if (!dataOk(novo)) return;
+            if (p[campo] && String(p[campo]) >= novo) return; // CRM ja tem igual ou mais recente
+            detalhes.push(p.nome + ': ' + nome + ' ' + (p[campo] || 'sem registro') + ' -> ' + novo);
+            p[campo] = novo;
+            atualizados++;
+          });
+        });
+        if (atualizados && !dryRun) tx.set(PATIENTS_DOC, { list }, { merge: true });
+        return { atualizados, detalhes, pulados };
+      });
+      logger.info('gravarDatas: ' + r.atualizados + ' data(s)' + (dryRun ? ' (previa)' : '') + ', ' + r.pulados.length + ' pulado(s).');
+      res.status(200).json({ atualizados: r.atualizados, detalhes: r.detalhes, detalhesPulados: r.pulados, dryRun });
       return;
     }
 

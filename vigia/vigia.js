@@ -126,6 +126,65 @@ async function executarCheckins(pedido, faixa) {
   return { analisados, atualizados: r.checkinsAplicados + r.ausentesMarcados, pendencias, falhas: falhas.length, resumo, detalhes };
 }
 
+const DIAS_FOTOS_MEDIDAS = 30; // mesma regra do Atenção de hoje: a cada 30 dias
+
+function diasDesde(iso) {
+  return Math.round((new Date(hojeMenos(0) + 'T00:00:00') - new Date(iso + 'T00:00:00')) / 86400000);
+}
+
+// Fotos e medidas: lê as datas no Treino.io (sem IA) e atualiza as datas do CRM (só se for mais nova).
+async function executarFotosMedidas(pedido, faixa) {
+  const id = pedido.id;
+  const [de, ate] = faixa;
+  const previa = pedido.modo !== 'direto';
+  const { ctx, page } = await treino.abrirNavegador();
+  const entries = [];
+  const falhas = [];
+  const atrasados = [];
+  let analisados = 0;
+  try {
+    await atualizarPedido({ action: 'atualizar', id, etapa: 'Fotos e medidas: lendo a lista de alunos', progresso: Math.round(de + (ate - de) * 0.02) });
+    const alunos = await treino.listarAlunosAtivos(page);
+    if (!alunos.length) throw new Error('A lista de alunos veio vazia (login do Treino.io pode ter expirado).');
+    for (let i = 0; i < alunos.length; i++) {
+      const al = alunos[i];
+      try {
+        const d = await treino.lerFotosMedidas(page, al);
+        analisados++;
+        entries.push({ email: al.email, ultimasFotos: d.fotos || undefined, ultimasMedidas: d.medidas || undefined });
+        const partes = [];
+        if (!d.fotos) partes.push('fotos: nunca enviou');
+        else if (diasDesde(d.fotos) >= DIAS_FOTOS_MEDIDAS) partes.push('fotos há ' + diasDesde(d.fotos) + ' dias');
+        if (!d.medidas) partes.push('medidas: nunca enviou');
+        else if (diasDesde(d.medidas) >= DIAS_FOTOS_MEDIDAS) partes.push('medidas há ' + diasDesde(d.medidas) + ' dias');
+        if (partes.length) atrasados.push('Pendência: ' + al.nome + ' — ' + partes.join(', '));
+      } catch (e) {
+        falhas.push(al.nome + ': ' + String(e.message).split('\n')[0].slice(0, 100));
+      }
+      const prog = Math.round(de + (ate - de) * (0.05 + 0.85 * ((i + 1) / alunos.length)));
+      await atualizarPedido({ action: 'atualizar', id, etapa: 'Fotos e medidas: ' + (i + 1) + ' de ' + alunos.length + ' alunos', progresso: prog });
+    }
+  } finally {
+    await ctx.close();
+  }
+  await atualizarPedido({ action: 'atualizar', id, etapa: previa ? 'Fotos e medidas: calculando a prévia' : 'Fotos e medidas: gravando no CRM', progresso: Math.round(de + (ate - de) * 0.95) });
+  let r = { atualizados: 0, detalhes: [], detalhesPulados: [] };
+  if (entries.length) {
+    const resp = await chamar({ action: 'gravarDatas', dryRun: previa, entries });
+    r = resp;
+  }
+  const detalhes = []
+    .concat((r.detalhes || []).map((x) => (previa ? 'Entraria: ' : 'Gravado: ') + x))
+    .concat((r.detalhesPulados || []).map((x) => 'Pulado: ' + x))
+    .concat(falhas.map((x) => 'Falha: ' + x))
+    .concat(atrasados);
+  const resumo = (previa ? 'PRÉVIA (nada foi gravado). ' : '') + r.atualizados + ' data(s) de fotos/medidas ' + (previa ? 'entrariam' : 'gravadas') + '. ' +
+    atrasados.length + ' aluno(s) com fotos ou medidas há ' + DIAS_FOTOS_MEDIDAS + ' dias ou mais' +
+    ((r.detalhesPulados || []).length ? ', ' + r.detalhesPulados.length + ' pulado(s) (e-mail não está no CRM)' : '') +
+    (falhas.length ? ', ' + falhas.length + ' falha(s) de leitura' : '') + '.';
+  return { analisados, atualizados: r.atualizados, pendencias: atrasados.length + (r.detalhesPulados || []).length, falhas: falhas.length, resumo, detalhes };
+}
+
 const NAO_CONSTRUIDA = 'Esta automação ainda não foi construída. Nada foi lido nem alterado.';
 
 async function executar(pedido) {
@@ -137,9 +196,18 @@ async function executar(pedido) {
     if (tipo === 'checkins') {
       resultado = await executarCheckins(pedido, [0, 100]);
       if (resultado.falhas) status = 'parcial';
+    } else if (tipo === 'fotos') {
+      resultado = await executarFotosMedidas(pedido, [0, 100]);
+      if (resultado.falhas) status = 'parcial';
     } else if (tipo === 'todas') {
-      resultado = await executarCheckins(pedido, [0, 25]);
-      resultado.resumo += ' As outras 3 automações (fotos e medidas, treinos e dietas, engajamento) ainda não foram construídas.';
+      const a = await executarCheckins(pedido, [0, 25]);
+      const b = await executarFotosMedidas(pedido, [25, 50]);
+      resultado = {
+        analisados: Math.max(a.analisados, b.analisados), atualizados: a.atualizados + b.atualizados,
+        pendencias: a.pendencias + b.pendencias, falhas: a.falhas + b.falhas,
+        resumo: 'CHECK-INS: ' + a.resumo + ' FOTOS E MEDIDAS: ' + b.resumo + ' Treinos e dietas e engajamento ainda não foram construídos.',
+        detalhes: a.detalhes.map((x) => '[Check-ins] ' + x).concat(b.detalhes.map((x) => '[Fotos/medidas] ' + x)).slice(0, 100),
+      };
       status = 'parcial';
     } else {
       status = 'erro';
