@@ -837,6 +837,36 @@
     .atencao-board{grid-auto-columns:86%;}
     .atencao-meta{width:100%;}
   }
+  .auto-head{display:flex;align-items:center;gap:14px;margin:4px 0 14px;}
+  .auto-head-ico{width:52px;height:52px;border-radius:16px;background:linear-gradient(135deg,#EA580C,#C2410C);display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
+  .auto-head-ico svg,.auto-ico svg,.auto-todas-ico svg{width:60%;height:60%;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+  .auto-aviso{padding:12px 16px;margin:0 0 16px;font-size:13.5px;border-left:4px solid var(--warning);}
+  .auto-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:16px;}
+  .auto-card{margin:0;padding:16px;display:flex;flex-direction:column;gap:12px;border-top:3px solid var(--auto-cor);}
+  .auto-card-top{display:flex;align-items:center;gap:12px;}
+  .auto-ico{width:44px;height:44px;border-radius:50%;background:var(--auto-cor);display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
+  .auto-card-nome{font-weight:700;font-size:16px;line-height:1.2;}
+  .auto-desc{font-size:13.5px;color:var(--text-muted);}
+  .auto-status{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--text-muted);}
+  .auto-dot{width:10px;height:10px;border-radius:50%;background:var(--text-muted);opacity:.6;}
+  .auto-box{background:var(--bg);border-radius:12px;padding:12px;font-size:13px;flex:1;}
+  .auto-box-titulo{font-weight:700;margin-bottom:4px;}
+  .auto-box-vazio{color:var(--text-muted);margin-bottom:8px;}
+  .auto-stat{display:flex;justify-content:space-between;gap:8px;padding:2px 0;color:var(--text-muted);}
+  .auto-stat b{color:var(--text);}
+  .auto-btn{width:100%;justify-content:center;}
+  .auto-btn[disabled]{opacity:.55;cursor:not-allowed;}
+  .auto-todas{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:18px 20px;margin:0 0 16px;border:2px solid var(--primary);}
+  .auto-todas-ico{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,#EA580C,#C2410C);display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
+  .auto-todas-txt{flex:1 1 280px;min-width:0;}
+  .auto-todas-titulo{font-weight:700;font-size:18px;margin-bottom:2px;}
+  .auto-btn-todas{width:auto;min-width:200px;}
+  .auto-hist{margin:0 0 28px;padding:16px;}
+  @media (max-width: 1100px){ .auto-grid{grid-template-columns:repeat(2,minmax(0,1fr));} }
+  @media (max-width: 700px){
+    .auto-grid{grid-template-columns:1fr;}
+    .auto-btn-todas{width:100%;}
+  }
   .monthly-trend-value{font-size:11px;font-weight:700;color:var(--text);white-space:nowrap;}
   .monthly-trend-track{width:100%;height:90px;display:flex;align-items:flex-end;background:var(--bg);border-radius:5px;overflow:hidden;}
   .monthly-trend-fill{width:100%;border-radius:4px 4px 0 0;background:var(--gray-badge);opacity:.55;}
@@ -4562,6 +4592,7 @@
     return tab; // dashboard, pacientes, jornada, financeiro e cap-* tem o mesmo nome da area
   }
   function eqPodeAba(tab){
+    if(tab === 'automacao') return eqAdmin();
     if(isEquipeTab(tab)) return eqAdmin();
     if(!eqMembro()) return true;
     if(tab === 'pacientes') return eqPode('pacientes','ver') || eqPode('checkins','ver');
@@ -5643,6 +5674,7 @@
     '🧑‍💼':'<circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/>',
     '🔐':'<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
     '📜':'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8"/><path d="M8 17h5"/>',
+    '⚡':'<path d="M13 2 3 14h9l-1 8 10-12h-9z"/>',
     '📷':'<rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><path d="M17.5 6.5h.01"/>'
   };
   function sideIcoHtml(ico){
@@ -5679,6 +5711,7 @@
           '<span class="side-ico">'+sideIcoHtml('🛡️')+'</span><span class="side-label">Equipe</span>'+
           '<span class="side-caret">'+(state.equipeExpanded?'▾':'▸')+'</span></button>'+
           (state.equipeExpanded ? '<div class="side-sub">'+EQUIPE_SUBTABS.map(function(s){ return sideItemHtml(s.tab, s.ico, s.label); }).join('')+'</div>' : '') : '')+
+        (eqPodeAba('automacao') ? sideItemHtml('automacao','⚡','Automação') : '')+
       '</nav>'+
       '<div class="sidebar-foot">'+
         '<div class="side-section">Geral</div>'+
@@ -5689,9 +5722,65 @@
       '</div>'+
     '</aside>';
   }
+  /* ================= AUTOMACAO (so o Angelo) =================
+     Etapa 1: so a tela. Nada aqui executa nada ainda — os botoes ficam desativados e os
+     numeros mostram "—" ate existir execucao real (nunca dado de mentira). */
+  var AUTOMACOES = [
+    { key:'checkins', nome:'Atualizar check-ins', cor:'#EA580C',
+      desc:'Consulta o Treino.io, identifica novos check-ins e atualiza os registros no CRM.',
+      stats:['Pacientes analisados','Check-ins atualizados','Pendências encontradas'],
+      svg:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3h6v3H9z"/><path d="m9 13 2 2 4-4"/>' },
+    { key:'fotos', nome:'Atualizar fotos e medidas', cor:'#2563EB',
+      desc:'Verifica as últimas fotos e medidas dos pacientes e atualiza as datas no CRM.',
+      stats:['Pacientes analisados','Atualizações','Pendências encontradas'],
+      svg:'<path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/>' },
+    { key:'treinos', nome:'Atualizar treinos e dietas', cor:'#16A34A',
+      desc:'Verifica fichas de treino e dieta e identifica vencimentos. Só leitura no Treino.io.',
+      stats:['Pacientes analisados','Fichas atualizadas','Vencidas ou próximas'],
+      svg:'<path d="M6.5 6.5v11M17.5 6.5v11M3 9v6M21 9v6M6.5 12h11"/>' },
+    { key:'engajamento', nome:'Atualizar engajamento', cor:'#7C3AED',
+      desc:'Lê as conversas do WhatsApp e aplica a escala de 0 a 10 do CRM. Não envia mensagens.',
+      stats:['Pacientes analisados','Notas atualizadas','Atenção necessária'],
+      svg:'<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>' }
+  ];
+  function automacaoCardHtml(a){
+    var stats = a.stats.map(function(l){ return '<div class="auto-stat"><span>'+l+'</span><b>—</b></div>'; }).join('');
+    return '<div class="card auto-card" style="--auto-cor:'+a.cor+';">'+
+      '<div class="auto-card-top">'+
+        '<span class="auto-ico"><svg viewBox="0 0 24 24" aria-hidden="true">'+a.svg+'</svg></span>'+
+        '<div class="auto-card-nome">'+esc(a.nome)+'</div>'+
+      '</div>'+
+      '<div class="auto-desc">'+esc(a.desc)+'</div>'+
+      '<div class="auto-status"><span class="auto-dot"></span>Ainda não configurada</div>'+
+      '<div class="auto-box"><div class="auto-box-titulo">Última execução</div><div class="auto-box-vazio">Nenhuma execução ainda</div>'+stats+'</div>'+
+      '<button type="button" class="btn btn-primary auto-btn" disabled>Em breve</button>'+
+    '</div>';
+  }
+  function automacaoTemplate(){
+    return ''+
+    '<div class="auto-head">'+
+      '<span class="auto-head-ico"><svg viewBox="0 0 24 24" aria-hidden="true">'+SIDE_SVG['⚡']+'</svg></span>'+
+      '<div><h1 class="page-title" style="margin:0;">Automação</h1>'+
+      '<div class="atencao-subtitle">Execute tarefas automaticamente e mantenha seu CRM sempre atualizado.</div></div>'+
+    '</div>'+
+    '<div class="card auto-aviso"><b>Em construção.</b> Esta é a primeira etapa: só a tela. Os botões serão ligados nas próximas etapas e, enquanto isso, nenhum número abaixo é real.</div>'+
+    '<div class="auto-grid">'+AUTOMACOES.map(automacaoCardHtml).join('')+'</div>'+
+    '<div class="card auto-todas">'+
+      '<span class="auto-todas-ico"><svg viewBox="0 0 24 24" aria-hidden="true">'+SIDE_SVG['⚡']+'</svg></span>'+
+      '<div class="auto-todas-txt"><div class="auto-todas-titulo">Executar todas as automações</div>'+
+      '<div class="auto-desc">Executa as quatro automações em sequência (check-ins, fotos e medidas, treinos e dietas, engajamento), com relatório consolidado ao final.</div></div>'+
+      '<button type="button" class="btn btn-primary auto-btn auto-btn-todas" disabled>Em breve</button>'+
+    '</div>'+
+    '<div class="card auto-hist">'+
+      '<h2 class="section-title" style="margin:0 0 10px;">Histórico de execuções</h2>'+
+      '<div class="atencao-empty">Nenhuma execução registrada ainda.</div>'+
+    '</div>';
+  }
+
   function tabContentHtml(){
     if(!eqPodeAba(state.tab)) return '<div class="dash-novo">'+eqSemPermissaoHtml()+'</div>';
     if(isEquipeTab(state.tab)) return '<div class="dash-novo">'+equipeTemplate()+'</div>';
+    if(state.tab === 'automacao') return '<div class="dash-novo">'+automacaoTemplate()+'</div>';
     if(state.tab === 'dashboard') return '<div class="dash-novo">'+dashboardTemplate()+'</div>';
     if(state.tab === 'pacientes') return '<div class="dash-novo">'+pacientesTemplate()+'</div>';
     if(state.tab === 'jornada') return '<div class="dash-novo">'+jornadaTabTemplate()+'</div>';

@@ -1387,3 +1387,42 @@ Filtros do topo: Todos / Pendentes / Concluídos (`state.atencaoView`). Card
 check já fazia. "Próximo a chamar" = primeiro pendente na ordem das colunas.
 O quadradinho agora tem texto "Feito na semana". Sem arrastar cartões (colunas
 automáticas). Mobile: colunas com rolagem lateral. Resto do Dashboard intacto.
+
+---
+
+## 29. Aba Automação — etapa 1 (09/10/2026)
+
+Projeto: botões que fazem o Claude atualizar o CRM com 1 clique (check-ins,
+fotos e medidas, treinos e dietas, engajamento e "executar todas").
+**Só o Ângelo usa o CRM** (a aba usa `eqAdmin()`; não citar outros usuários).
+
+**Decisões do Ângelo (09/10/2026):**
+- Custo zero além da assinatura Pro: **sem API paga**. Treino.io não tem API,
+  então o Claude lê o site como se fosse o Ângelo (Chrome já logado).
+- Arquitetura combinada: botão do CRM grava um "pedido" no Firebase → um
+  "vigia" no MacBook (ligado, Claude aberto) roda o Claude Code com a
+  assinatura → grava o resultado no CRM. Treino.io e WhatsApp Web só leitura.
+- Primeira execução em modo prévia (ele aprova); depois de testado, grava
+  direto, sem perguntar.
+- WhatsApp Web no Chrome para as conversas (ele tem transcrição de áudio).
+- Fotos/medidas vêm do Treino.io. ~30 pacientes ativos.
+- Modelos: Sonnet (check-ins, engajamento), Haiku/Sonnet (fotos, treinos),
+  contas e datas em código comum, sem IA.
+- **Escala de engajamento 0–10** (única regra válida; nunca inventar outra):
+  0 = silêncio total na semana; 1–2 = só respondeu após cobrança/muito atraso,
+  seco, sem continuidade; 3–4 = um ponto fraco (resposta lenta, 2+ dias, OU
+  rápida porém seca/sem troca real); 5–6 = respondeu em 1–2 dias com troca
+  mínima real; 7–8 = respondeu no mesmo dia/dia seguinte E manteve troca real
+  (áudio com conteúdo razoável conta; "ok" curtíssimo não); 9–10 = como 7–8 E
+  puxou conversa sozinho em algum momento, antes do coach. Nota exata dentro
+  da faixa pela evidência. Áudio que não dá pra avaliar com segurança:
+  registrar **exceção**, nunca presumir.
+
+**Feito na etapa 1:** só a tela (`automacaoTemplate`, item de menu abaixo de
+Equipe, `eqPodeAba('automacao')`). Botões desativados ("Em breve"), números
+"—", histórico vazio — nunca dado de mentira. Nada executa ainda.
+
+**Próximas etapas:** (2) pedidos/execuções/histórico no Firebase + regras de
+segurança; (3) vigia no Mac, teste simples ponta a ponta; (4) check-ins na
+conta de teste em modo prévia; (5) fotos/medidas e treinos/dietas;
+(6) engajamento; (7) "executar todas" com relatório; (8) gravar direto.
