@@ -5797,7 +5797,7 @@
       '<div class="info-popover auto-info'+(aberto ? ' open' : '')+'">'+AUTOMACAO_INFO[key]+'</div>';
   }
   var AUTOMACAO_VIGIA_ONLINE_MS = 2 * 60 * 1000;
-  state.automacao = { pedidos:[], resumo:{}, vigia:null, modo:'previa', carregado:false, erro:'', enviando:false, info:{}, detAberto:{} };
+  state.automacao = { pedidos:[], resumo:{}, vigia:null, modo:'previa', carregado:false, erro:'', enviando:false, info:{}, detAberto:{}, vistos:{}, vistosIniciado:false };
 
   function automacaoLoadAsync(){
     var db = mfa.db;
@@ -5816,10 +5816,28 @@
       a.modo = cfg && cfg.modo === 'direto' ? 'direto' : 'previa';
       a.carregado = true;
       a.erro = '';
+      // Terminou uma execucao em "Gravar direto"? Recarrega os pacientes do Firebase na hora, pra
+      // tela nao ficar velha (e nunca sobrescrever, ao editar, o que a automacao gravou).
+      var novoDireto = false;
+      a.pedidos.forEach(function(p){
+        if((p.status === 'concluido' || p.status === 'parcial') && !a.vistos[p.id]){
+          a.vistos[p.id] = true;
+          if(a.vistosIniciado && p.modo === 'direto') novoDireto = true;
+        }
+      });
+      a.vistosIniciado = true;
+      if(novoDireto) return automacaoRefrescarPacientes();
     }).catch(function(err){
       console.error('automacao', err);
       state.automacao.erro = 'Não consegui ler os dados da Automação agora.';
     });
+  }
+  function automacaoRefrescarPacientes(){
+    return loadPatientsAsync().then(function(list){
+      state.patients = list;
+      showToast('Automação concluída: dados do CRM atualizados.', 'success');
+      if(!state.modal) render();
+    }).catch(function(err){ console.error('automacao refresh pacientes', err); });
   }
   function automacaoAtivos(){
     return state.automacao.pedidos.filter(function(p){ return p.status === 'pendente' || p.status === 'executando'; });
@@ -6058,8 +6076,9 @@
   }
   /* Acompanha o andamento enquanto a aba esta aberta (a cada 5 s). */
   setInterval(function(){
-    if(!state.loggedIn || state.booting || state.tab !== 'automacao' || state.modal || document.hidden) return;
-    if(!document.getElementById('automacaoWrap') || state.automacao.enviando) return;
+    if(!state.loggedIn || state.booting || state.modal || document.hidden || state.automacao.enviando) return;
+    // fora da aba Automacao so acompanha enquanto ha algo na fila/executando (pra atualizar os pacientes no fim)
+    if(state.tab !== 'automacao' && !automacaoAtivos().length) return;
     automacaoLoadAsync().then(refreshAutomacao);
   }, 5000);
 

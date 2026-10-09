@@ -1531,3 +1531,10 @@ conta de teste em modo prévia; (5) fotos/medidas e treinos/dietas;
 - Cuidado conhecido: cada edição do coach no Treino.io muda "Atualizada em" e pode gerar uma
   ficha nova em branco no CRM. Se virar ruído, trocar pra "só avisar".
 - "Executar todas" agora roda: check-ins, fotos/medidas, treinos/dietas. Falta: engajamento.
+
+### Atualização automática dos pacientes (09/10/2026)
+- Ao terminar uma execução em **Gravar direto**, o CRM recarrega os pacientes do Firebase na hora
+  (`automacaoRefrescarPacientes`) e mostra um aviso — antes só atualizava ao recarregar a página.
+  Importante: evita que uma edição com tela velha **sobrescreva** o que a automação gravou.
+  O acompanhamento (a cada 5 s) continua mesmo fora da aba Automação enquanto há algo na fila.
+  Prévia não recarrega nada. Custo: zero.
