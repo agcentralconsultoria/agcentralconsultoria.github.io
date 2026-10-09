@@ -862,6 +862,21 @@
   .auto-todas-titulo{font-weight:700;font-size:18px;margin-bottom:2px;}
   .auto-btn-todas{width:auto;min-width:200px;}
   .auto-hist{margin:0 0 28px;padding:16px;}
+  .auto-status.is-ok{color:var(--success);}
+  .auto-status.is-ok .auto-dot{background:var(--success);opacity:1;}
+  .auto-status.is-exec{color:var(--primary);}
+  .auto-status.is-exec .auto-dot{background:var(--primary);opacity:1;}
+  .auto-status.is-fila .auto-dot,.auto-status.is-parcial .auto-dot{background:var(--warning);opacity:1;}
+  .auto-status.is-fila,.auto-status.is-parcial{color:var(--warning);}
+  .auto-status.is-erro{color:var(--danger);}
+  .auto-status.is-erro .auto-dot{background:var(--danger);opacity:1;}
+  .auto-box-resumo{margin-top:6px;font-size:12px;color:var(--text-muted);}
+  .auto-modo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 14px;font-size:13.5px;font-weight:600;}
+  .auto-hist-row{display:grid;grid-template-columns:150px 1.3fr 1.3fr 1.6fr 90px;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--border);font-size:13px;}
+  .auto-hist-data,.auto-hist-tempo{color:var(--text-muted);}
+  .auto-hist-nome{font-weight:600;}
+  .auto-hist-resumo{grid-column:1/-1;font-size:12px;color:var(--text-muted);}
+  @media (max-width: 700px){ .auto-hist-row{grid-template-columns:1fr 1fr;} .auto-hist-nome,.auto-hist-res{grid-column:1/-1;} }
   @media (max-width: 1100px){ .auto-grid{grid-template-columns:repeat(2,minmax(0,1fr));} }
   @media (max-width: 700px){
     .auto-grid{grid-template-columns:1fr;}
@@ -5723,59 +5738,198 @@
     '</aside>';
   }
   /* ================= AUTOMACAO (so o Angelo) =================
-     Etapa 1: so a tela. Nada aqui executa nada ainda — os botoes ficam desativados e os
-     numeros mostram "—" ate existir execucao real (nunca dado de mentira). */
+     O botao cria um "pedido" no Firebase; o vigia do MacBook executa e devolve o andamento
+     e o resultado. Tudo que aparece aqui vem do Firebase: sem execucao, mostra "—". */
   var AUTOMACOES = [
     { key:'checkins', nome:'Atualizar check-ins', cor:'#EA580C',
       desc:'Consulta o Treino.io, identifica novos check-ins e atualiza os registros no CRM.',
-      stats:['Pacientes analisados','Check-ins atualizados','Pendências encontradas'],
+      stats:[['analisados','Pacientes analisados'],['atualizados','Check-ins atualizados'],['pendencias','Pendências encontradas']],
       svg:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3h6v3H9z"/><path d="m9 13 2 2 4-4"/>' },
     { key:'fotos', nome:'Atualizar fotos e medidas', cor:'#2563EB',
       desc:'Verifica as últimas fotos e medidas dos pacientes e atualiza as datas no CRM.',
-      stats:['Pacientes analisados','Atualizações','Pendências encontradas'],
+      stats:[['analisados','Pacientes analisados'],['atualizados','Atualizações'],['pendencias','Pendências encontradas']],
       svg:'<path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/>' },
     { key:'treinos', nome:'Atualizar treinos e dietas', cor:'#16A34A',
       desc:'Verifica fichas de treino e dieta e identifica vencimentos. Só leitura no Treino.io.',
-      stats:['Pacientes analisados','Fichas atualizadas','Vencidas ou próximas'],
+      stats:[['analisados','Pacientes analisados'],['atualizados','Fichas atualizadas'],['pendencias','Vencidas ou próximas']],
       svg:'<path d="M6.5 6.5v11M17.5 6.5v11M3 9v6M21 9v6M6.5 12h11"/>' },
     { key:'engajamento', nome:'Atualizar engajamento', cor:'#7C3AED',
       desc:'Lê as conversas do WhatsApp e aplica a escala de 0 a 10 do CRM. Não envia mensagens.',
-      stats:['Pacientes analisados','Notas atualizadas','Atenção necessária'],
+      stats:[['analisados','Pacientes analisados'],['atualizados','Notas atualizadas'],['pendencias','Atenção necessária']],
       svg:'<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>' }
   ];
+  var AUTOMACAO_NOMES = { checkins:'Atualizar check-ins', fotos:'Fotos e medidas', treinos:'Treinos e dietas', engajamento:'Engajamento', todas:'Todas as automações' };
+  var AUTOMACAO_VIGIA_ONLINE_MS = 2 * 60 * 1000;
+  state.automacao = { pedidos:[], resumo:{}, vigia:null, modo:'previa', carregado:false, erro:'', enviando:false };
+
+  function automacaoLoadAsync(){
+    var db = mfa.db;
+    return Promise.all([
+      mfa.getDocs(mfa.query(mfa.collection(db, 'automacaoPedidos'), mfa.orderBy('criadoEm', 'desc'), mfa.limit(30))),
+      mfa.getDocs(mfa.collection(db, 'automacaoResumo')),
+      mfa.getDoc(mfa.doc(db, 'automacaoVigia', 'status')),
+      mfa.getDoc(mfa.doc(db, 'crmData', 'automacaoConfig'))
+    ]).then(function(r){
+      var a = state.automacao;
+      a.pedidos = r[0].docs.map(function(d){ var x = d.data(); x.id = d.id; return x; });
+      a.resumo = {};
+      r[1].docs.forEach(function(d){ a.resumo[d.id] = d.data(); });
+      a.vigia = r[2].exists() ? r[2].data() : null;
+      var cfg = r[3].exists() ? r[3].data() : null;
+      a.modo = cfg && cfg.modo === 'direto' ? 'direto' : 'previa';
+      a.carregado = true;
+      a.erro = '';
+    }).catch(function(err){
+      console.error('automacao', err);
+      state.automacao.erro = 'Não consegui ler os dados da Automação agora.';
+    });
+  }
+  function automacaoAtivo(){
+    return state.automacao.pedidos.filter(function(p){ return p.status === 'pendente' || p.status === 'executando'; })[0] || null;
+  }
+  function automacaoVigiaOnline(){
+    var v = state.automacao.vigia;
+    return !!(v && v.ultimoContato && (Date.now() - v.ultimoContato) < AUTOMACAO_VIGIA_ONLINE_MS);
+  }
+  function automacaoDataHora(ms){
+    if(!ms) return '—';
+    return new Date(ms).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  }
+  function automacaoDuracao(p){
+    if(!p.iniciadoEm || !p.finalizadoEm) return '—';
+    var s = Math.max(0, Math.round((p.finalizadoEm - p.iniciadoEm) / 1000));
+    return s >= 60 ? Math.floor(s / 60) + ' min ' + (s % 60) + ' s' : s + ' s';
+  }
+  function automacaoStatusInfo(p){
+    if(!p) return null;
+    if(p.status === 'pendente') return { txt:'Na fila, aguardando o Mac', cls:'is-fila' };
+    if(p.status === 'executando') return { txt:'Executando' + (p.etapa ? ': ' + p.etapa : '') + (p.progresso ? ' (' + p.progresso + '%)' : ''), cls:'is-exec' };
+    if(p.status === 'concluido') return { txt:'Concluído', cls:'is-ok' };
+    if(p.status === 'parcial') return { txt:'Parcialmente concluído', cls:'is-parcial' };
+    return { txt:'Erro', cls:'is-erro' };
+  }
   function automacaoCardHtml(a){
-    var stats = a.stats.map(function(l){ return '<div class="auto-stat"><span>'+l+'</span><b>—</b></div>'; }).join('');
+    var r = state.automacao.resumo[a.key];
+    var ult = state.automacao.pedidos.filter(function(p){ return p.tipo === a.key; })[0];
+    var info = automacaoStatusInfo(ult && (ult.status === 'pendente' || ult.status === 'executando') ? ult : (ult || null));
+    if(!info) info = automacaoVigiaOnline() ? { txt:'Pronta para executar', cls:'is-ok' } : { txt:'Aguardando o Mac', cls:'is-fila' };
+    var stats = a.stats.map(function(s){ return '<div class="auto-stat"><span>'+s[1]+'</span><b>'+(r ? r[s[0]] : '—')+'</b></div>'; }).join('');
+    var ativo = automacaoAtivo();
     return '<div class="card auto-card" style="--auto-cor:'+a.cor+';">'+
       '<div class="auto-card-top">'+
         '<span class="auto-ico"><svg viewBox="0 0 24 24" aria-hidden="true">'+a.svg+'</svg></span>'+
         '<div class="auto-card-nome">'+esc(a.nome)+'</div>'+
       '</div>'+
       '<div class="auto-desc">'+esc(a.desc)+'</div>'+
-      '<div class="auto-status"><span class="auto-dot"></span>Ainda não configurada</div>'+
-      '<div class="auto-box"><div class="auto-box-titulo">Última execução</div><div class="auto-box-vazio">Nenhuma execução ainda</div>'+stats+'</div>'+
-      '<button type="button" class="btn btn-primary auto-btn" disabled>Em breve</button>'+
+      '<div class="auto-status '+info.cls+'"><span class="auto-dot"></span>'+esc(info.txt)+'</div>'+
+      '<div class="auto-box"><div class="auto-box-titulo">Última execução</div>'+
+        (r ? '<div class="auto-box-vazio">'+automacaoDataHora(r.finalizadoEm)+(r.modo === 'previa' ? ' · prévia' : '')+'</div>' : '<div class="auto-box-vazio">Nenhuma execução ainda</div>')+stats+
+        (r && r.resumo ? '<div class="auto-box-resumo">'+esc(r.resumo)+'</div>' : '')+
+      '</div>'+
+      '<button type="button" class="btn btn-primary auto-btn" data-auto-run="'+a.key+'"'+(ativo || state.automacao.enviando ? ' disabled' : '')+'>'+(ativo ? 'Em andamento…' : 'Executar agora')+'</button>'+
     '</div>';
   }
-  function automacaoTemplate(){
+  function automacaoHistoricoHtml(){
+    var ps = state.automacao.pedidos;
+    if(!ps.length) return '<div class="atencao-empty">Nenhuma execução registrada ainda.</div>';
+    return ps.map(function(p){
+      var info = automacaoStatusInfo(p);
+      var r = p.resultado;
+      return '<div class="auto-hist-row">'+
+        '<div class="auto-hist-data">'+automacaoDataHora(p.criadoEm)+'</div>'+
+        '<div class="auto-hist-nome">'+esc(AUTOMACAO_NOMES[p.tipo] || p.tipo)+(p.modo === 'previa' ? ' <span class="badge badge-gray">prévia</span>' : '')+'</div>'+
+        '<div class="auto-status '+info.cls+'"><span class="auto-dot"></span>'+esc(info.txt)+'</div>'+
+        '<div class="auto-hist-res">'+(r ? esc(r.analisados+' analisados · '+r.atualizados+' atualizados · '+r.pendencias+' pendências'+(r.falhas ? ' · '+r.falhas+' falhas' : '')) : '—')+'</div>'+
+        '<div class="auto-hist-tempo">'+automacaoDuracao(p)+'</div>'+
+        (r && r.resumo ? '<div class="auto-hist-resumo">'+esc(r.resumo)+'</div>' : '')+
+      '</div>';
+    }).join('');
+  }
+  function automacaoInnerHtml(){
+    var a = state.automacao;
+    var online = automacaoVigiaOnline();
+    var ativo = automacaoAtivo();
+    var modoBtn = function(k, label){ return '<button type="button" class="meta-type-btn'+(a.modo === k ? ' active' : '')+'" data-auto-modo="'+k+'">'+label+'</button>'; };
+    var ultTodas = a.pedidos.filter(function(p){ return p.tipo === 'todas'; })[0];
+    var infoTodas = automacaoStatusInfo(ultTodas);
     return ''+
     '<div class="auto-head">'+
       '<span class="auto-head-ico"><svg viewBox="0 0 24 24" aria-hidden="true">'+SIDE_SVG['⚡']+'</svg></span>'+
       '<div><h1 class="page-title" style="margin:0;">Automação</h1>'+
       '<div class="atencao-subtitle">Execute tarefas automaticamente e mantenha seu CRM sempre atualizado.</div></div>'+
     '</div>'+
-    '<div class="card auto-aviso"><b>Em construção.</b> Esta é a primeira etapa: só a tela. Os botões serão ligados nas próximas etapas e, enquanto isso, nenhum número abaixo é real.</div>'+
+    (a.erro ? '<div class="card auto-aviso">'+esc(a.erro)+'</div>' : '')+
+    '<div class="card auto-aviso '+(online ? 'is-online' : '')+'"><span class="auto-dot" style="display:inline-block;margin-right:8px;background:'+(online ? 'var(--success)' : 'var(--warning)')+';opacity:1;"></span>'+
+      (online ? '<b>Mac conectado.</b> Os pedidos são executados assim que você clica.' : '<b>Mac desconectado.</b> O programa que executa as tarefas ainda não está rodando no MacBook. Se você clicar agora, o pedido fica na fila até ele ligar.')+
+    '</div>'+
+    '<div class="auto-modo"><span>Modo de gravação:</span><div class="meta-type-toggle" style="margin:0;">'+modoBtn('previa','Prévia (só mostra o que mudaria)')+modoBtn('direto','Gravar direto')+'</div></div>'+
     '<div class="auto-grid">'+AUTOMACOES.map(automacaoCardHtml).join('')+'</div>'+
     '<div class="card auto-todas">'+
       '<span class="auto-todas-ico"><svg viewBox="0 0 24 24" aria-hidden="true">'+SIDE_SVG['⚡']+'</svg></span>'+
       '<div class="auto-todas-txt"><div class="auto-todas-titulo">Executar todas as automações</div>'+
-      '<div class="auto-desc">Executa as quatro automações em sequência (check-ins, fotos e medidas, treinos e dietas, engajamento), com relatório consolidado ao final.</div></div>'+
-      '<button type="button" class="btn btn-primary auto-btn auto-btn-todas" disabled>Em breve</button>'+
+      '<div class="auto-desc">Executa as quatro automações em sequência (check-ins, fotos e medidas, treinos e dietas, engajamento), com relatório consolidado ao final.</div>'+
+      (infoTodas ? '<div class="auto-status '+infoTodas.cls+'" style="margin-top:6px;"><span class="auto-dot"></span>'+esc(infoTodas.txt)+'</div>' : '')+'</div>'+
+      '<button type="button" class="btn btn-primary auto-btn auto-btn-todas" data-auto-run="todas"'+(ativo || a.enviando ? ' disabled' : '')+'>'+(ativo ? 'Em andamento…' : 'Executar todas agora')+'</button>'+
     '</div>'+
     '<div class="card auto-hist">'+
       '<h2 class="section-title" style="margin:0 0 10px;">Histórico de execuções</h2>'+
-      '<div class="atencao-empty">Nenhuma execução registrada ainda.</div>'+
+      automacaoHistoricoHtml()+
     '</div>';
   }
+  function automacaoTemplate(){
+    return '<div id="automacaoWrap">'+(state.automacao.carregado ? automacaoInnerHtml() : '<div class="atencao-empty">Carregando…</div>')+'</div>';
+  }
+  function refreshAutomacao(){
+    var wrap = document.getElementById('automacaoWrap');
+    if(!wrap) return;
+    wrap.innerHTML = automacaoInnerHtml();
+    bindAutomacaoEvents(wrap);
+  }
+  function automacaoCriarPedido(tipo){
+    var a = state.automacao;
+    if(a.enviando || automacaoAtivo()) return;
+    a.enviando = true;
+    refreshAutomacao();
+    var user = mfa.auth.currentUser;
+    var pedido = { tipo: tipo, modo: a.modo, status: 'pendente', criadoEm: Date.now(), criadoPor: user ? user.uid : '' };
+    mfa.addDoc(mfa.collection(mfa.db, 'automacaoPedidos'), pedido).then(function(ref){
+      eqRegistrarLogs([{ tabela:'Automação · pedido', acao:'criacao', registroId:ref.id, registroNome:AUTOMACAO_NOMES[tipo] || tipo, antes:null, depois:{ tipo:tipo, modo:a.modo } }]);
+      return automacaoLoadAsync();
+    }).catch(function(err){
+      console.error('automacao pedido', err);
+      a.erro = 'Não consegui criar o pedido. Tente de novo.';
+    }).then(function(){
+      a.enviando = false;
+      refreshAutomacao();
+    });
+  }
+  function bindAutomacaoEvents(wrap){
+    var runs = wrap.querySelectorAll('[data-auto-run]');
+    for(var i=0; i<runs.length; i++){
+      runs[i].addEventListener('click', function(){ automacaoCriarPedido(this.getAttribute('data-auto-run')); });
+    }
+    var modos = wrap.querySelectorAll('[data-auto-modo]');
+    for(var j=0; j<modos.length; j++){
+      modos[j].addEventListener('click', function(){
+        var novo = this.getAttribute('data-auto-modo');
+        if(novo === state.automacao.modo) return;
+        state.automacao.modo = novo;
+        refreshAutomacao();
+        mfa.setDoc(mfa.doc(mfa.db, 'crmData', 'automacaoConfig'), { modo: novo, updatedAt: Date.now() }).catch(function(err){ console.error('automacao modo', err); });
+      });
+    }
+  }
+  function attachAutomacaoEvents(){
+    var wrap = document.getElementById('automacaoWrap');
+    if(!wrap) return;
+    automacaoLoadAsync().then(refreshAutomacao);
+  }
+  /* Acompanha o andamento enquanto a aba esta aberta (a cada 5 s). */
+  setInterval(function(){
+    if(!state.loggedIn || state.booting || state.tab !== 'automacao' || state.modal || document.hidden) return;
+    if(!document.getElementById('automacaoWrap') || state.automacao.enviando) return;
+    automacaoLoadAsync().then(refreshAutomacao);
+  }, 5000);
 
   function tabContentHtml(){
     if(!eqPodeAba(state.tab)) return '<div class="dash-novo">'+eqSemPermissaoHtml()+'</div>';
@@ -5883,6 +6037,8 @@
       attachFinanceiroEvents();
     } else if(isEquipeTab(state.tab)){
       attachEquipeEvents();
+    } else if(state.tab === 'automacao'){
+      attachAutomacaoEvents();
     }
   }
 

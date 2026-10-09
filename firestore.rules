@@ -51,6 +51,27 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Automacao (so o Angelo). O CRM cria o pedido; so o servidor (vigia) muda andamento e resultado.
+    match /automacaoPedidos/{id} {
+      allow read: if admin();
+      allow create: if admin()
+        && request.resource.data.keys().hasOnly(['tipo', 'modo', 'status', 'criadoEm', 'criadoPor'])
+        && request.resource.data.tipo in ['checkins', 'fotos', 'treinos', 'engajamento', 'todas']
+        && request.resource.data.modo in ['previa', 'direto']
+        && request.resource.data.status == 'pendente'
+        && request.resource.data.criadoEm is number
+        && request.resource.data.criadoPor == request.auth.uid;
+      allow update, delete: if false;
+    }
+    match /automacaoResumo/{id} {
+      allow read: if admin();
+      allow write: if false;
+    }
+    match /automacaoVigia/{id} {
+      allow read: if admin();
+      allow write: if false;
+    }
+
     // calendarEvents, calendarSync, syncTokens, syncBatches etc.: so o servidor.
     match /{document=**} {
       allow read, write: if false;
