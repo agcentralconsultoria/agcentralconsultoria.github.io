@@ -55,10 +55,37 @@ async function abrirAluno(page, id) {
   await page.waitForSelector('text=Informações do aluno', { timeout: 30000 });
 }
 
+function isoDe(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function somarDias(iso, n) { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n); return isoDe(d); }
+// Sexta-feira da semana (segunda a domingo) em que a data cai. É a "casinha" da semana no CRM.
+function sextaDaSemana(iso) {
+  const d = new Date(iso + 'T00:00:00');
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + 4);
+  return isoDe(d);
+}
+
+// Aba Atualizações > Histórico: datas agendadas de check-in do aluno e se foram respondidas.
+// Devolve [{ data:'YYYY-MM-DD', status:'Respondida'|'Pendente'|'Cancelada' }]
+async function lerAgendadas(page) {
+  await page.getByRole('tab', { name: /Atualizações/ }).click();
+  await page.waitForTimeout(1200);
+  await page.getByRole('tab', { name: /Hist/ }).click();
+  await page.waitForTimeout(1500);
+  const linhas = await page.evaluate(() => {
+    const t = [...document.querySelectorAll('table')].find((x) => /Data agendada/.test(x.innerText));
+    if (!t) return [];
+    return [...t.querySelectorAll('tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((c) => c.innerText.replace(/\s+/g, ' ').trim()));
+  });
+  return linhas
+    .filter((c) => c.length >= 2 && /^\d{2}\/\d{2}\/\d{4}$/.test(c[0]))
+    .map((c) => ({ data: dataBRparaISO(c[0]), status: c[1] }));
+}
+
 // Lê, de um aluno, os check-ins semanais respondidos a partir de `desdeISO`.
 // Devolve [{ data: 'YYYY-MM-DD', observacoes: ['pergunta: resposta', ...] }]
 async function lerCheckinsDoAluno(page, aluno, desdeISO) {
   await abrirAluno(page, aluno.id);
+  const agendadas = await lerAgendadas(page);
   await page.getByRole('tab', { name: /Questionários/ }).click();
   await page.waitForSelector('text=Respostas aos questionários');
   await page.waitForTimeout(1200);
@@ -75,7 +102,8 @@ async function lerCheckinsDoAluno(page, aluno, desdeISO) {
 
   const resultado = [];
   for (const r of recentes) {
-    const linha = page.locator('table tbody tr', { hasText: r.quando }).first();
+    // só a tabela de respostas (a do histórico de agendamentos também tem a mesma data)
+    const linha = page.locator('table', { hasText: 'Data de resposta' }).locator('tbody tr', { hasText: r.quando }).first();
     await linha.getByText('Ver').click();
     await page.waitForSelector('text=Detalhes da resposta');
     await page.waitForTimeout(1200);
@@ -110,7 +138,7 @@ async function lerCheckinsDoAluno(page, aluno, desdeISO) {
     });
     resultado.push({ data: r.data, observacoes: obs });
   }
-  return resultado;
+  return { respondidos: resultado, agendadas };
 }
 
-module.exports = { abrirNavegador, listarAlunosAtivos, lerCheckinsDoAluno, dataBRparaISO };
+module.exports = { abrirNavegador, listarAlunosAtivos, lerCheckinsDoAluno, dataBRparaISO, sextaDaSemana, somarDias, isoDe };

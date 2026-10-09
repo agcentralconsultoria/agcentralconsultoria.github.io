@@ -593,8 +593,7 @@ exports.syncCheckins = onRequest({
   }
 
   const entries = body && Array.isArray(body.entries) ? body.entries : null;
-  const temAusencias = !!(body && body.ausencias && Array.isArray(body.ausencias.emails) && body.ausencias.emails.length);
-  if (!entries || (!entries.length && !temAusencias)) {
+  if (!entries || !entries.length) {
     logger.warn('syncCheckins rejeitado: body invalido ou lote vazio (codigo NAO foi consumido).');
     res.status(400).send('body invalido. Envie JSON { "batchId": "...", "entries": [ {email, date, enviou, peso, observacoes}, ... ] } com pelo menos 1 entrada, e Content-Type: application/json. O codigo de sincronizacao NAO foi consumido - pode reutilizar o mesmo.');
     return;
@@ -602,12 +601,6 @@ exports.syncCheckins = onRequest({
   const batchId = body.batchId ? String(body.batchId).slice(0, 100) : null;
   // dryRun (previa): faz todas as contas e devolve o que mudaria, mas NAO grava nada.
   const dryRun = body.dryRun === true;
-  // ausencias (opcional): { emails: [...] } = alunos cuja leitura no Treino.io deu certo.
-  // Quem estiver nessa lista, for do CRM e NAO tiver check-in na ultima semana ja encerrada
-  // (sexta + sabado; vale a partir do domingo) e marcado como "nao enviou" (vermelho).
-  const ausenciasEmails = body.ausencias && Array.isArray(body.ausencias.emails)
-    ? new Set(body.ausencias.emails.map((e) => String(e).trim().toLowerCase()))
-    : null;
 
   let authOk = false;
   if (vigiaOk) {
@@ -666,6 +659,8 @@ exports.syncCheckins = onRequest({
       let pesosAplicados = 0;
       let observacoesAplicadas = 0;
       let algumaMudanca = false;
+      let ausentes = 0;
+      const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 
       entries.forEach((entry) => {
         const email = entry && entry.email ? String(entry.email).trim().toLowerCase() : null;
@@ -701,6 +696,21 @@ exports.syncCheckins = onRequest({
         while (mes.obsCheckin.length < wk) mes.obsCheckin.push('');
 
         const partesLog = [`${p.nome}: ${monthKey} semana ${weekIndex + 1}`];
+
+        // "Nao enviou" detectado pelo vigia (prazo do paciente + 1 dia ja passou): so marca se a
+        // semana ainda estiver VAZIA (nunca sobrescreve true/false) e nunca pra Essencial,
+        // plano vencido ou quem so comecou depois daquela semana.
+        if (entry.enviou === false && entry.soSeVazio === true) {
+          const inicio = p.inicioPlano || p.createdDate || null;
+          const atual = mes.checkin[weekIndex];
+          const vazio = atual === null || atual === undefined;
+          if (!vazio || isEssencialMensal(p) || isVencido(p, hoje) || (inicio && inicio > date)) return;
+          mes.checkin[weekIndex] = false;
+          ausentes++;
+          algumaMudanca = true;
+          logLines.push(`${p.nome}: ${monthKey} semana ${weekIndex + 1} -> enviou=false (nao enviou)${entry.motivo ? ' - ' + String(entry.motivo).slice(0, 80) : ''}`);
+          return;
+        }
 
         if (typeof entry.enviou === 'boolean') {
           mes.checkin[weekIndex] = entry.enviou;
@@ -747,39 +757,7 @@ exports.syncCheckins = onRequest({
         if (partesLog.length > 1) logLines.push(partesLog.join(' -> '));
       });
 
-      let ausentesMarcados = 0;
-      if (ausenciasEmails) {
-        const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
-        const wd = new Date(hoje + 'T00:00:00').getDay(); // 0=dom ... 5=sex 6=sab
-        const desdeSexta = (wd - 5 + 7) % 7;               // sex=0, sab=1, dom=2 ... qui=6
-        // ultima semana ENCERRADA: a sexta so conta como encerrada a partir do domingo
-        const sexta = addDaysIso(hoje, -(desdeSexta >= 2 ? desdeSexta : desdeSexta + 7));
-        list.forEach((p) => {
-          const email = p.email ? String(p.email).trim().toLowerCase() : null;
-          if (!email || !ausenciasEmails.has(email)) return;
-          if (isEssencialMensal(p) || isVencido(p, hoje)) return;
-          const inicio = p.inicioPlano || p.createdDate || null;
-          if (inicio && inicio > sexta) return; // ainda nem tinha comecado naquela semana
-          const resolved = resolveMonthAndWeek(p, sexta);
-          if (!resolved) return;
-          const { monthKey, weekIndex } = resolved;
-          if (isTreinoQuinzenal(p)) {
-            const bruto = weekIndexForDate(monthKey, sexta);
-            if (bruto !== 0 && bruto !== 2) return; // semana desativada no quinzenal
-          }
-          const wk = weeksInMonth(monthKey);
-          if (!p.meses) p.meses = {};
-          if (!p.meses[monthKey]) p.meses[monthKey] = {};
-          const mes = p.meses[monthKey];
-          if (!Array.isArray(mes.checkin)) mes.checkin = [];
-          while (mes.checkin.length < wk) mes.checkin.push(null);
-          if (mes.checkin[weekIndex] !== null && mes.checkin[weekIndex] !== undefined) return; // ja tem true/false
-          mes.checkin[weekIndex] = false;
-          ausentesMarcados++;
-          algumaMudanca = true;
-          logLines.push(`${p.nome}: ${monthKey} semana ${weekIndex + 1} -> enviou=false (nao enviou o check-in)`);
-        });
-      }
+      let ausentesMarcados = ausentes;
       if (algumaMudanca && !dryRun) tx.set(PATIENTS_DOC, { list }, { merge: true });
       return { logLines, skipped, divergenciasPeso, checkins: checkinsAplicados, pesos: pesosAplicados, observacoes: observacoesAplicadas, ausentes: ausentesMarcados };
     });

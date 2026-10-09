@@ -43,11 +43,11 @@ function hojeMenos(dias) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
-async function enviarParaCrm(pedido, entries, lidosOk) {
+async function enviarParaCrm(pedido, entries) {
   const resp = await fetch(URL_SYNC, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-automacao-key': CHAVE },
-    body: JSON.stringify({ batchId: pedido.modo === 'direto' ? 'vigia-' + pedido.id : undefined, dryRun: pedido.modo !== 'direto', entries, ausencias: { emails: lidosOk } }),
+    body: JSON.stringify({ batchId: pedido.modo === 'direto' ? 'vigia-' + pedido.id : undefined, dryRun: pedido.modo !== 'direto', entries }),
   });
   const texto = await resp.text();
   if (!resp.ok) throw new Error('syncCheckins ' + resp.status + ' ' + texto.slice(0, 200));
@@ -62,23 +62,36 @@ async function executarCheckins(pedido, faixa) {
   const previa = pedido.modo !== 'direto';
   const { ctx, page } = await treino.abrirNavegador();
   const entries = [];
-  const lidosOk = [];
   const falhas = [];
   let semResposta = 0;
   let analisados = 0;
   try {
     await chamar({ action: 'atualizar', id, etapa: 'Check-ins: lendo a lista de alunos', progresso: Math.round(de + (ate - de) * 0.02) });
     const alunos = await treino.listarAlunosAtivos(page);
-    if (!alunos.length) throw new Error('A lista de alunos veio vazia (login do Treino.io pode ter expirado).');
+    const hoje = hojeMenos(0);
     const desde = hojeMenos(JANELA_DIAS);
+    if (!alunos.length) throw new Error('A lista de alunos veio vazia (login do Treino.io pode ter expirado).');
     for (let i = 0; i < alunos.length; i++) {
       const al = alunos[i];
       try {
-        const checkins = await treino.lerCheckinsDoAluno(page, al, desde);
+        const lido = await treino.lerCheckinsDoAluno(page, al, desde);
         analisados++;
-        lidosOk.push(al.email);
+        const checkins = lido.respondidos;
         if (!checkins.length) semResposta++;
         checkins.forEach((c) => entries.push({ email: al.email, date: c.data, enviou: true, observacoes: c.observacoes }));
+        // "Não enviou": prazo agendado do paciente + 1 dia de folga já passou e não foi respondido
+        const limite = treino.somarDias(hoje, -2);
+        const semanasComResposta = new Set();
+        checkins.forEach((c) => semanasComResposta.add(treino.sextaDaSemana(c.data)));
+        lido.agendadas.filter((a) => a.status === 'Respondida').forEach((a) => semanasComResposta.add(treino.sextaDaSemana(a.data)));
+        const jaMarcadas = new Set();
+        lido.agendadas.forEach((a) => {
+          if (a.status === 'Respondida' || a.data < desde || a.data > limite) return;
+          const sexta = treino.sextaDaSemana(a.data);
+          if (semanasComResposta.has(sexta) || jaMarcadas.has(sexta)) return;
+          jaMarcadas.add(sexta);
+          entries.push({ email: al.email, date: sexta, enviou: false, soSeVazio: true, motivo: 'agendado para ' + a.data.split('-').reverse().join('/') + ' (' + a.status + ' no Treino.io)' });
+        });
       } catch (e) {
         falhas.push(al.nome + ': ' + String(e.message).split('\n')[0].slice(0, 100));
       }
@@ -90,7 +103,7 @@ async function executarCheckins(pedido, faixa) {
   }
   await chamar({ action: 'atualizar', id, etapa: previa ? 'Check-ins: calculando a prévia' : 'Check-ins: gravando no CRM', progresso: Math.round(de + (ate - de) * 0.95) });
   let r = { checkinsAplicados: 0, observacoesAplicadas: 0, ausentesMarcados: 0, pulados: 0, detalhesPulados: [], detalhes: [] };
-  if (entries.length || lidosOk.length) r = await enviarParaCrm(pedido, entries, lidosOk);
+  if (entries.length) r = await enviarParaCrm(pedido, entries);
   const pendencias = semResposta + r.pulados;
   const detalhes = []
     .concat((r.detalhes || []).map((x) => (previa ? 'Entraria: ' : 'Gravado: ') + x))
@@ -98,7 +111,7 @@ async function executarCheckins(pedido, faixa) {
     .concat(falhas.map((x) => 'Falha: ' + x));
   const resumo = (previa ? 'PRÉVIA (nada foi gravado). ' : '') +
     r.checkinsAplicados + ' check-in(s) ' + (previa ? 'entrariam' : 'gravados') + ', ' + r.observacoesAplicadas + ' observação(ões), ' +
-    r.ausentesMarcados + ' ' + (previa ? 'seriam marcados' : 'marcados') + ' como NÃO enviou (semana encerrada). ' +
+    r.ausentesMarcados + ' ' + (previa ? 'seriam marcados' : 'marcados') + ' como NÃO enviou (prazo do paciente + 1 dia já passou). ' +
     semResposta + ' aluno(s) sem check-in nos últimos ' + JANELA_DIAS + ' dias' +
     (r.pulados ? ', ' + r.pulados + ' pulado(s) (e-mail/semana não encontrados no CRM)' : '') +
     (falhas.length ? ', ' + falhas.length + ' falha(s) de leitura' : '') + '.';

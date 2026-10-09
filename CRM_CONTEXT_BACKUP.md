@@ -1484,3 +1484,20 @@ conta de teste em modo prévia; (5) fotos/medidas e treinos/dietas;
 - O histórico registra TODA execução (previa ou direta). O (i) de cada card diz a
   verdade: check-ins/fotos/treinos = sem IA (zero token); engajamento = Claude Sonnet
   5.5, esforço médio (planejado).
+
+### Regra do "não enviou" v2 + vigia automático (09/10/2026)
+- **Substitui** a regra "sexta+sábado fixa": o prazo é **por paciente**, lido no Treino.io
+  (aluno > Atualizações > Histórico: Data agendada + Status Respondida/Pendente/Cancelada).
+  Prazo = data agendada **+1 dia de folga**; passou e não respondeu => `checkin[semana]=false`
+  (vermelho). "Cancelada" é tratada como "não respondeu" (suposição: o Treino.io cancela o que
+  ficou sem resposta) — **cada linha da prévia mostra o motivo** pro Ângelo conferir.
+  Semana = sexta da semana (seg-dom) da data agendada. Só marca se o campo estiver vazio.
+  Filtros no servidor (`soSeVazio`): ignora Essencial, vencido, quem começou depois.
+  Premium treino+dieta / só dieta = semanal; só treino = quinzenal (mesmo método, via agenda
+  do Treino.io); Essencial (1 aluno) = mensal, fora desta regra por enquanto.
+- **Vigia automático**: `vigia/instalar.sh` copia o vigia pra `~/.agcentral/vigia` e registra o
+  LaunchAgent `~/Library/LaunchAgents/br.com.agcentral.vigia.plist` (liga no login e reinicia
+  se cair; `KeepAlive`). Log: `~/.agcentral/vigia.log`. **Depois de mudar o código do vigia,
+  rodar `bash vigia/instalar.sh` de novo.** Mac desligado/dormindo = pausa (pedidos esperam).
+  Parar: `launchctl bootout gui/$(id -u)/br.com.agcentral.vigia`.
+- Ainda NÃO construídas: fotos/medidas, treinos/dietas, engajamento.
