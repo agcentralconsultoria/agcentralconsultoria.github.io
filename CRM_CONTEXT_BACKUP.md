@@ -1573,3 +1573,11 @@ conta de teste em modo prévia; (5) fotos/medidas e treinos/dietas;
   "Feito na semana / Ver perfil ↗". Sem selos coloridos; cor só na bolinha da coluna e borda
   laranja no "próximo a chamar". Detalhes e ação sugerida ficam no balão (passar o mouse).
   Rótulos curtos em `atencaoLabelCurto`. Regras de coluna/ordem/metas inalteradas.
+
+### Atenção de hoje — cartões v2 (10/10/2026, modelo enviado pelo Ângelo)
+- Decisões: fundo das colunas **neutro**; **pílula** com o motivo mais importante, cor pela
+  **gravidade** (atenção = vermelho, preparar = amarelo, observar = verde/cinza); quadro cinza de
+  detalhes com ícones ("Treino: vencido" + detalhe pequeno); **só a palavra "vencido" em vermelho**;
+  sem botão "⋮"; "Ver perfil ↗" em botão de largura total. Ordem só de exibição: gravidade, depois
+  check-in > engajamento > treino > carência > consulta > renovação > fotos > medidas.
+  Funções: `atencaoPilulaHtml`, `atencaoLinhaDetalheHtml`, `atencaoCardHtml`. Regras inalteradas.

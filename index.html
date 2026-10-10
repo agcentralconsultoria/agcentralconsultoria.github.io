@@ -817,7 +817,23 @@
   .atencao-kcard{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;}
   .atencao-kcard.is-done{opacity:.5;}
   .atencao-kcard.is-proximo{border-left:3px solid var(--primary);}
-  .atencao-motivos-linha{font-size:13px;color:var(--text-muted);line-height:1.4;}
+  .atencao-pilula{display:inline-flex;align-self:flex-start;align-items:center;gap:8px;padding:6px 12px 6px 6px;border-radius:999px;font-size:13px;font-weight:600;}
+  .atencao-pilula-ico{width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;flex:0 0 auto;}
+  .atencao-pilula.is-grave{background:var(--danger-bg);color:var(--danger);}
+  .atencao-pilula.is-grave .atencao-pilula-ico{background:var(--danger);}
+  .atencao-pilula.is-preparar{background:var(--warning-bg);color:var(--warning);}
+  .atencao-pilula.is-preparar .atencao-pilula-ico{background:var(--warning);}
+  .atencao-pilula.is-bom{background:var(--success-bg);color:var(--success);}
+  .atencao-pilula.is-bom .atencao-pilula-ico{background:var(--success);}
+  .atencao-pilula.is-neutro{background:var(--bg);color:var(--text-muted);}
+  .atencao-pilula.is-neutro .atencao-pilula-ico{background:var(--text-muted);}
+  .atencao-det{background:var(--bg);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--text);}
+  .atencao-det-linha{display:flex;align-items:flex-start;gap:8px;}
+  .atencao-ico{width:16px;height:16px;flex:0 0 auto;margin-top:1px;fill:none;stroke:var(--text-muted);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+  .atencao-det-sub{font-size:12px;color:var(--text-muted);}
+  .atencao-vencido{color:var(--danger);font-weight:600;}
+  .atencao-ver{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font:inherit;font-size:13.5px;font-weight:600;text-align:left;cursor:pointer;}
+  .atencao-ver:hover{border-color:var(--primary);color:var(--primary);}
   .atencao-kcard-top{display:flex;align-items:flex-start;gap:10px;}
   .atencao-num{flex:0 0 auto;min-width:26px;text-align:center;padding:2px 6px;border-radius:8px;background:var(--bg);font-size:12px;font-weight:700;color:var(--text-muted);}
   .atencao-nome{font-weight:600;font-size:14.5px;color:var(--text);overflow-wrap:anywhere;}
@@ -9628,22 +9644,73 @@
     if(m.key === 'engajamento') return /recupera/i.test(l) ? 'Engajamento em recuperação' : (/caiu/i.test(l) ? 'Engajamento caiu' : 'Engajamento baixo');
     return l;
   }
+  /* Icones de linha do quadro de detalhes do cartao (mesmo traco do menu lateral). */
+  var ATENCAO_ICO = {
+    fotos:'<path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/>',
+    medidas:'<path d="M3 17 17 3l4 4L7 21z"/><path d="m7 13 2 2M10 10l2 2M13 7l2 2"/>',
+    checkin:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="m9 13 2 2 4-4"/>',
+    treino:'<path d="M6.5 6.5v11M17.5 6.5v11M3 9v6M21 9v6M6.5 12h11"/>',
+    consulta:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>',
+    engajamento:'<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
+    plano:'<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>'
+  };
+  function atencaoIcoHtml(k){
+    return '<svg class="atencao-ico" viewBox="0 0 24 24" aria-hidden="true">'+(ATENCAO_ICO[k] || ATENCAO_ICO.plano)+'</svg>';
+  }
+  /* Uma linha do quadro de detalhes: "Treino: vencido" (+ detalhe pequeno embaixo). So "vencido" fica vermelho. */
+  function atencaoLinhaDetalheHtml(m){
+    var l = String(m.label || '').replace(/^[^A-Za-zÀ-ú0-9]+/, '').trim();
+    var ico = m.key, txt;
+    if(m.key === 'fotos' || m.key === 'medidas'){
+      var nome = m.key === 'fotos' ? 'Fotos' : 'Medidas';
+      txt = nome + ': ' + l.replace(new RegExp('^' + nome + '\\s*', 'i'), '');
+    } else if(m.key === 'checkin'){
+      txt = 'Check-in: ' + (/atrasado/i.test(l) ? 'atrasado' : 'pendente');
+    } else if(m.key === 'treino'){
+      txt = /vencido/i.test(l) ? 'Treino: vencido' : 'Treino: ' + l.replace(/^Treino\s*/i, '');
+    } else if(m.key === 'consulta'){
+      txt = /Agendar retorno/i.test(l) ? 'Consulta: retorno atrasado' : (/Sem consulta/i.test(l) ? 'Consulta: sem data marcada' : 'Consulta: ' + l.replace(/^Consulta\s*/i, ''));
+    } else if(m.key === 'engajamento'){
+      txt = 'Engajamento: ' + (/recupera/i.test(l) ? 'em recuperação' : (/caiu/i.test(l) ? 'caiu' : 'baixo'));
+    } else if(m.key === 'carencia'){
+      ico = 'plano'; txt = 'Plano: vencido, em carência';
+    } else if(m.key === 'renovacao'){
+      ico = 'plano'; txt = 'Renovação: preparar';
+    } else {
+      ico = 'plano'; txt = l;
+    }
+    var html = esc(txt).replace(/vencido/, '<span class="atencao-vencido">vencido</span>');
+    return '<div class="atencao-det-linha">'+atencaoIcoHtml(ico)+'<div><div>'+html+'</div>'+(m.detalhe ? '<div class="atencao-det-sub">'+esc(m.detalhe)+'</div>' : '')+'</div></div>';
+  }
+  /* Pilula do motivo principal: cor pela GRAVIDADE (atencao = vermelho, preparar = amarelo,
+     observar = verde se recuperando / cinza). */
+  function atencaoPilulaHtml(m){
+    var cls = m.cat === 'atencao' ? 'is-grave' : (m.cat === 'preparar' ? 'is-preparar' : (m.tom === 'success' ? 'is-bom' : 'is-neutro'));
+    var simbolo = m.cat === 'atencao' ? '!' : (m.cat === 'preparar' ? '•' : '✓');
+    return '<div class="atencao-pilula '+cls+'"><span class="atencao-pilula-ico">'+simbolo+'</span>'+esc(atencaoLabelCurto(m))+'</div>';
+  }
   function atencaoCardHtml(it, num, ehProximo){
     var p = it.p;
-    var sub = esc(p.servico || '') + (isEssencialMensal(p) ? ' · ' + esc(p.plano) : '');
-    var curtos = it.motivos.map(atencaoLabelCurto);
-    // detalhes e ação sugerida ficam no "balãozinho" (passar o mouse), pra o cartão ficar limpo
-    var dica = it.motivos.map(function(m){ return m.label + (m.detalhe ? ' — ' + m.detalhe : ''); }).join('\n') + (it.acoes.length ? '\nSugestão: ' + it.acoes.slice(0, 3).join(' · ') : '');
-    return '<div class="atencao-kcard'+(it.marcado ? ' is-done' : '')+(ehProximo ? ' is-proximo' : '')+'" title="'+esc(dica)+'">'+
+    var sub = esc(String(p.servico || '').replace(/\s*\+\s*/g, ' · ')) + (isEssencialMensal(p) ? ' · ' + esc(p.plano) : '');
+    // so a ORDEM de exibicao: o mais importante vira a pilula (gravidade primeiro, depois o tipo)
+    var PESO = { checkin:0, engajamento:1, treino:2, carencia:3, consulta:4, renovacao:5, fotos:6, medidas:7 };
+    var ordenados = it.motivos.slice().sort(function(a, b){
+      return (ATENCAO_CAT_ORDEM[a.cat] - ATENCAO_CAT_ORDEM[b.cat]) || ((PESO[a.key] == null ? 9 : PESO[a.key]) - (PESO[b.key] == null ? 9 : PESO[b.key]));
+    });
+    var principal = ordenados[0];
+    var resto = ordenados.slice(1);
+    // sem outros motivos, o quadro mostra o detalhe do proprio motivo principal
+    var detalhes = resto.length ? resto : (principal && principal.detalhe ? [principal] : []);
+    var dica = it.acoes.length ? 'Sugestão: ' + it.acoes.slice(0, 3).join(' · ') : '';
+    return '<div class="atencao-kcard'+(it.marcado ? ' is-done' : '')+(ehProximo ? ' is-proximo' : '')+'"'+(dica ? ' title="'+esc(dica)+'"' : '')+'>'+
       '<div class="atencao-kcard-top">'+
         '<span class="atencao-num">'+(num < 10 ? '0' : '')+num+'</span>'+
         '<div style="min-width:0;"><div class="atencao-nome">'+esc(p.nome)+'</div><div class="atencao-sub">'+sub+'</div></div>'+
       '</div>'+
-      '<div class="atencao-motivos-linha">'+esc(curtos.join(' · '))+'</div>'+
-      '<div class="atencao-kcard-foot">'+
-        '<label class="atencao-feito"><input type="checkbox" class="atencao-check" data-atencao-check="'+p.id+'"'+(it.marcado ? ' checked' : '')+' aria-label="Já olhei '+esc(p.nome)+' esta semana"> Feito na semana</label>'+
-        '<button type="button" class="btn-icon" data-open-profile="'+p.id+'">Ver perfil ↗</button>'+
-      '</div>'+
+      (principal ? atencaoPilulaHtml(principal) : '')+
+      (detalhes.length ? '<div class="atencao-det">'+detalhes.map(atencaoLinhaDetalheHtml).join('')+'</div>' : '')+
+      '<label class="atencao-feito"><input type="checkbox" class="atencao-check" data-atencao-check="'+p.id+'"'+(it.marcado ? ' checked' : '')+' aria-label="Já olhei '+esc(p.nome)+' esta semana"> Feito na semana</label>'+
+      '<button type="button" class="atencao-ver" data-open-profile="'+p.id+'">Ver perfil ↗</button>'+
     '</div>';
   }
   function atencaoHojeBodyHtml(hoje){
