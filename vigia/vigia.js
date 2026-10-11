@@ -65,6 +65,27 @@ function hojeMenos(dias) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
+// Motivo em português simples (aparece pro Ângelo no "o que faltou").
+function motivoAmigavel(e) {
+  const m = String((e && e.message) || e);
+  if (/Timeout/i.test(m)) return 'tempo esgotado ao abrir a página';
+  if (/net::|ERR_|fetch failed|ENOTFOUND/i.test(m)) return 'sem conexão com a internet';
+  if (/deslogado/i.test(m)) return 'login expirado (precisa entrar de novo)';
+  return m.split('\n')[0].slice(0, 80);
+}
+
+// Tenta 2 vezes (espera um pouco entre elas) antes de dar o aluno como "faltou".
+async function comRetentativa(fn) {
+  try { return await fn(); }
+  catch (e) { if (e && e.message === 'CANCELADO') throw e; await dormir(4000); return await fn(); }
+}
+
+// Só os alunos pedidos (refazer o que faltou). ids vazio/null/'*' = todos.
+function filtrarAlunos(lista, ids) {
+  if (!ids || !ids.length || ids.indexOf('*') !== -1) return lista;
+  return lista.filter((a) => ids.indexOf(a.id) !== -1);
+}
+
 async function enviarParaCrm(pedido, entries) {
   const resp = await fetch(URL_SYNC, {
     method: 'POST',
@@ -78,7 +99,7 @@ async function enviarParaCrm(pedido, entries) {
 
 // Check-ins: lê cada aluno ativo do Treino.io e manda os check-ins respondidos ao CRM.
 // `faixa` = [de, ate] em % do progresso total do pedido (pra "todas" dividir o gráfico).
-async function executarCheckins(pedido, faixa) {
+async function executarCheckins(pedido, faixa, somenteIds) {
   const id = pedido.id;
   const [de, ate] = faixa;
   const previa = pedido.modo !== 'direto';
@@ -86,11 +107,12 @@ async function executarCheckins(pedido, faixa) {
   const entries = [];
   const nomesPorEmail = {};
   const falhas = [];
+  const faltou = [];
   let semResposta = 0;
   let analisados = 0;
   try {
     await atualizarPedido({ action: 'atualizar', id, etapa: 'Check-ins: lendo a lista de alunos', progresso: Math.round(de + (ate - de) * 0.02) });
-    const alunos = await treino.listarAlunosAtivos(page);
+    const alunos = filtrarAlunos(await treino.listarAlunosAtivos(page), somenteIds);
     const hoje = hojeMenos(0);
     const desde = hojeMenos(JANELA_DIAS);
     if (!alunos.length) throw new Error('A lista de alunos veio vazia (login do Treino.io pode ter expirado).');
@@ -98,7 +120,7 @@ async function executarCheckins(pedido, faixa) {
       const al = alunos[i];
       nomesPorEmail[al.email] = al.nome;
       try {
-        const lido = await treino.lerCheckinsDoAluno(page, al, desde);
+        const lido = await comRetentativa(() => treino.lerCheckinsDoAluno(page, al, desde));
         analisados++;
         const checkins = lido.respondidos;
         if (!checkins.length) semResposta++;
@@ -117,7 +139,8 @@ async function executarCheckins(pedido, faixa) {
           entries.push({ email: al.email, date: sexta, enviou: false, soSeVazio: true, motivo: 'agendado para ' + a.data.split('-').reverse().join('/') + ' (' + a.status + ' no Treino.io)' });
         });
       } catch (e) {
-        falhas.push(al.nome + ': ' + String(e.message).split('\n')[0].slice(0, 100));
+        falhas.push(al.nome + ': ' + motivoAmigavel(e));
+        faltou.push({ tipo: 'checkins', id: al.id, nome: al.nome, motivo: motivoAmigavel(e) });
       }
       const prog = Math.round(de + (ate - de) * (0.05 + 0.85 * ((i + 1) / alunos.length)));
       await atualizarPedido({ action: 'atualizar', id, etapa: 'Check-ins: ' + (i + 1) + ' de ' + alunos.length + ' alunos', progresso: prog });
@@ -139,7 +162,7 @@ async function executarCheckins(pedido, faixa) {
     semResposta + ' aluno(s) sem check-in nos últimos ' + JANELA_DIAS + ' dias' +
     (r.pulados ? ', ' + r.pulados + ' pulado(s) (e-mail/semana não encontrados no CRM)' : '') +
     (falhas.length ? ', ' + falhas.length + ' falha(s) de leitura' : '') + '.';
-  return { analisados, atualizados: r.checkinsAplicados + r.ausentesMarcados, pendencias, falhas: falhas.length, resumo, detalhes };
+  return { analisados, atualizados: r.checkinsAplicados + r.ausentesMarcados, pendencias, falhas: falhas.length, faltou, resumo, detalhes };
 }
 
 const DIAS_FOTOS_MEDIDAS = 30; // mesma regra do Atenção de hoje: a cada 30 dias
@@ -149,7 +172,7 @@ function diasDesde(iso) {
 }
 
 // Fotos e medidas: lê as datas no Treino.io (sem IA) e atualiza as datas do CRM (só se for mais nova).
-async function executarFotosMedidas(pedido, faixa) {
+async function executarFotosMedidas(pedido, faixa, somenteIds) {
   const id = pedido.id;
   const [de, ate] = faixa;
   const previa = pedido.modo !== 'direto';
@@ -157,17 +180,18 @@ async function executarFotosMedidas(pedido, faixa) {
   const entries = [];
   const nomesPorEmail = {};
   const falhas = [];
+  const faltou = [];
   const atrasados = [];
   let analisados = 0;
   try {
     await atualizarPedido({ action: 'atualizar', id, etapa: 'Fotos e medidas: lendo a lista de alunos', progresso: Math.round(de + (ate - de) * 0.02) });
-    const alunos = await treino.listarAlunosAtivos(page);
+    const alunos = filtrarAlunos(await treino.listarAlunosAtivos(page), somenteIds);
     if (!alunos.length) throw new Error('A lista de alunos veio vazia (login do Treino.io pode ter expirado).');
     for (let i = 0; i < alunos.length; i++) {
       const al = alunos[i];
       nomesPorEmail[al.email] = al.nome;
       try {
-        const d = await treino.lerFotosMedidas(page, al);
+        const d = await comRetentativa(() => treino.lerFotosMedidas(page, al));
         analisados++;
         entries.push({ email: al.email, ultimasFotos: d.fotos || undefined, ultimasMedidas: d.medidas || undefined });
         const partes = [];
@@ -177,7 +201,8 @@ async function executarFotosMedidas(pedido, faixa) {
         else if (diasDesde(d.medidas) >= DIAS_FOTOS_MEDIDAS) partes.push('medidas há ' + diasDesde(d.medidas) + ' dias');
         if (partes.length) atrasados.push('Pendência: ' + al.nome + ' — ' + partes.join(', '));
       } catch (e) {
-        falhas.push(al.nome + ': ' + String(e.message).split('\n')[0].slice(0, 100));
+        falhas.push(al.nome + ': ' + motivoAmigavel(e));
+        faltou.push({ tipo: 'fotos', id: al.id, nome: al.nome, motivo: motivoAmigavel(e) });
       }
       const prog = Math.round(de + (ate - de) * (0.05 + 0.85 * ((i + 1) / alunos.length)));
       await atualizarPedido({ action: 'atualizar', id, etapa: 'Fotos e medidas: ' + (i + 1) + ' de ' + alunos.length + ' alunos', progresso: prog });
@@ -200,12 +225,12 @@ async function executarFotosMedidas(pedido, faixa) {
     atrasados.length + ' aluno(s) com fotos ou medidas há ' + DIAS_FOTOS_MEDIDAS + ' dias ou mais' +
     ((r.detalhesPulados || []).length ? ', ' + r.detalhesPulados.length + ' pulado(s) (e-mail não está no CRM)' : '') +
     (falhas.length ? ', ' + falhas.length + ' falha(s) de leitura' : '') + '.';
-  return { analisados, atualizados: r.atualizados, pendencias: atrasados.length + (r.detalhesPulados || []).length, falhas: falhas.length, resumo, detalhes };
+  return { analisados, atualizados: r.atualizados, pendencias: atrasados.length + (r.detalhesPulados || []).length, falhas: falhas.length, faltou, resumo, detalhes };
 }
 
 // Treinos e dietas: compara as fichas do Treino.io com as do CRM; ficha mais nova no Treino.io vira
 // ficha nova no CRM só com a data (sem conteúdo nem vencimento). Sem IA, zero token.
-async function executarTreinosDietas(pedido, faixa) {
+async function executarTreinosDietas(pedido, faixa, somenteIds) {
   const id = pedido.id;
   const [de, ate] = faixa;
   const previa = pedido.modo !== 'direto';
@@ -213,20 +238,22 @@ async function executarTreinosDietas(pedido, faixa) {
   const entries = [];
   const nomesPorEmail = {};
   const falhas = [];
+  const faltou = [];
   let analisados = 0;
   try {
     await atualizarPedido({ action: 'atualizar', id, etapa: 'Treinos e dietas: lendo a lista de alunos', progresso: Math.round(de + (ate - de) * 0.02) });
-    const alunos = await treino.listarAlunosAtivos(page);
+    const alunos = filtrarAlunos(await treino.listarAlunosAtivos(page), somenteIds);
     if (!alunos.length) throw new Error('A lista de alunos veio vazia (login do Treino.io pode ter expirado).');
     for (let i = 0; i < alunos.length; i++) {
       const al = alunos[i];
       nomesPorEmail[al.email] = al.nome;
       try {
-        const f = await treino.lerFichas(page, al);
+        const f = await comRetentativa(() => treino.lerFichas(page, al));
         analisados++;
         if (f.treino || f.dieta) entries.push({ email: al.email, treino: f.treino || undefined, dieta: f.dieta || undefined });
       } catch (e) {
-        falhas.push(al.nome + ': ' + String(e.message).split('\n')[0].slice(0, 100));
+        falhas.push(al.nome + ': ' + motivoAmigavel(e));
+        faltou.push({ tipo: 'treinos', id: al.id, nome: al.nome, motivo: motivoAmigavel(e) });
       }
       const prog = Math.round(de + (ate - de) * (0.05 + 0.85 * ((i + 1) / alunos.length)));
       await atualizarPedido({ action: 'atualizar', id, etapa: 'Treinos e dietas: ' + (i + 1) + ' de ' + alunos.length + ' alunos', progresso: prog });
@@ -246,7 +273,7 @@ async function executarTreinosDietas(pedido, faixa) {
     (semVenc ? ', ' + semVenc + ' de treino sem vencimento (você precisa definir)' : '') +
     ((r.detalhesPulados || []).length ? ', ' + r.detalhesPulados.length + ' pulado(s) (e-mail não está no CRM)' : '') +
     (falhas.length ? ', ' + falhas.length + ' falha(s) de leitura' : '') + '.';
-  return { analisados, atualizados: r.criadas, pendencias: semVenc + (r.detalhesPulados || []).length, falhas: falhas.length, resumo, detalhes };
+  return { analisados, atualizados: r.criadas, pendencias: semVenc + (r.detalhesPulados || []).length, falhas: falhas.length, faltou, resumo, detalhes };
 }
 
 // ---------------- Engajamento (WhatsApp Web + Claude) ----------------
@@ -297,21 +324,22 @@ function extrairJson(txt) {
   return JSON.parse(m[0]);
 }
 
-async function executarEngajamento(pedido, faixa) {
+async function executarEngajamento(pedido, faixa, somenteIds) {
   const id = pedido.id;
   const [de, ate] = faixa;
   const previa = pedido.modo !== 'direto';
   const hoje = hojeMenos(0);
   await atualizarPedido({ action: 'atualizar', id, etapa: 'Engajamento: vendo quem precisa de nota', progresso: Math.round(de + (ate - de) * 0.02) });
   const pend = await chamarEngaj({ acao: 'pendentes' });
-  const pacientes = pend.pacientes || [];
+  const pacientes = (pend.pacientes || []).filter((p) => !somenteIds || !somenteIds.length || somenteIds.indexOf('*') !== -1 || somenteIds.indexOf(p.email) !== -1);
   const entries = [];
   const detalhes = [];
   const falhas = [];
+  const faltou = [];
   let analisados = 0; let excecoes = 0; let naoLidasDevolvidas = 0; let pulados = (pend.semTelefone || []).length;
   (pend.semTelefone || []).forEach((n) => detalhes.push('Pulado: ' + n + ' — sem telefone no CRM'));
   if (!pacientes.length) {
-    return { analisados: 0, atualizados: 0, pendencias: pulados, falhas: 0, resumo: (previa ? 'PRÉVIA (nada foi gravado). ' : '') + 'Nenhuma semana encerrada sem nota de engajamento.' + (pulados ? ' ' + pulados + ' sem telefone.' : ''), detalhes };
+    return { analisados: 0, atualizados: 0, pendencias: pulados, falhas: 0, faltou: [], resumo: (previa ? 'PRÉVIA (nada foi gravado). ' : '') + 'Nenhuma semana encerrada sem nota de engajamento.' + (pulados ? ' ' + pulados + ' sem telefone.' : ''), detalhes };
   }
   const { ctx, page } = await whatsapp.abrirWhatsApp();
   try {
@@ -347,7 +375,7 @@ async function executarEngajamento(pedido, faixa) {
           try {
             const bruto = await claude.perguntar(montarPrompt(p.nome, sem, contexto), { modelo: 'sonnet', esforco: 'medium' });
             r = extrairJson(bruto);
-          } catch (e) { falhas.push(rotulo + ': ' + String(e.message).slice(0, 90)); continue; }
+          } catch (e) { falhas.push(rotulo + ': ' + motivoAmigavel(e)); faltou.push({ tipo: 'engajamento', id: p.email, nome: p.nome + ' (' + periodo + ')', motivo: 'Claude não conseguiu avaliar: ' + motivoAmigavel(e) }); continue; }
           const fatoBase = recebidas.length + ' msg do paciente' + (audios ? ' (' + audios + ' áudio)' : '');
           if (r.excecao || r.nota === null || r.nota === undefined || !Number.isInteger(Number(r.nota)) || r.nota < 0 || r.nota > 10) {
             excecoes++;
@@ -358,7 +386,8 @@ async function executarEngajamento(pedido, faixa) {
           detalhes.push(rotulo + ' → nota ' + r.nota + ' | Fato: ' + String(r.fatos || fatoBase).slice(0, 55) + ' | IA: ' + String(r.interpretacao || '').slice(0, 45));
         }
       } catch (e) {
-        falhas.push(p.nome + ': ' + String(e.message).split('\n')[0].slice(0, 100));
+        falhas.push(p.nome + ': ' + motivoAmigavel(e));
+        faltou.push({ tipo: 'engajamento', id: p.email, nome: p.nome, motivo: motivoAmigavel(e) });
       }
       await atualizarPedido({ action: 'atualizar', id, etapa: 'Engajamento: ' + (i + 1) + ' de ' + pacientes.length + ' pacientes', progresso: Math.round(de + (ate - de) * (0.05 + 0.85 * ((i + 1) / pacientes.length))) });
       await dormir(2000 + Math.floor(Math.random() * 2500)); // ritmo calmo, como uma pessoa
@@ -372,47 +401,78 @@ async function executarEngajamento(pedido, faixa) {
   const todos = detalhes.concat((r.detalhesPulados || []).map((x) => 'Pulado: ' + x)).concat(falhas.map((x) => 'Falha: ' + x));
   const resumo = (previa ? 'PRÉVIA (nada foi gravado). ' : '') + r.gravadas + ' nota(s) ' + (previa ? 'entrariam' : 'gravadas') + ' (só em semana encerrada e campo vazio)' +
     (excecoes ? ', ' + excecoes + ' exceção(ões) sem nota (você decide)' : '') + (pulados ? ', ' + pulados + ' pulado(s)' : '') + (naoLidasDevolvidas ? ', ' + naoLidasDevolvidas + ' conversa(s) devolvida(s) para "não lida"' : '') + (falhas.length ? ', ' + falhas.length + ' falha(s)' : '') + '.';
-  return { analisados, atualizados: r.gravadas, pendencias: excecoes + pulados + (r.detalhesPulados || []).length, falhas: falhas.length, resumo, detalhes: todos };
+  return { analisados, atualizados: r.gravadas, pendencias: excecoes + pulados + (r.detalhesPulados || []).length, falhas: falhas.length, faltou, resumo, detalhes: todos };
 }
 
-const NAO_CONSTRUIDA = 'Esta automação ainda não foi construída. Nada foi lido nem alterado.';
+const TIPOS_EXEC = {
+  checkins: { nome: 'Check-ins', fn: executarCheckins },
+  fotos: { nome: 'Fotos e medidas', fn: executarFotosMedidas },
+  treinos: { nome: 'Treinos e dietas', fn: executarTreinosDietas },
+  engajamento: { nome: 'Engajamento', fn: executarEngajamento },
+};
+const ORDEM_TIPOS = ['checkins', 'fotos', 'treinos', 'engajamento'];
+
+// Roda uma ou várias automações em sequência. Uma etapa que quebra por inteiro NÃO derruba as outras:
+// fica registrada em "faltou" ("automação inteira") e dá pra refazer depois.
+async function executarPlano(pedido, plano) {
+  const n = plano.length;
+  const partes = [];
+  const faltou = [];
+  for (let i = 0; i < n; i++) {
+    const { tipo, ids } = plano[i];
+    const def = TIPOS_EXEC[tipo];
+    const faixa = [Math.round((100 * i) / n), Math.round((100 * (i + 1)) / n)];
+    try {
+      const r = await def.fn(pedido, faixa, ids);
+      partes.push({ tipo, nome: def.nome, r });
+      (r.faltou || []).forEach((x) => faltou.push(x));
+    } catch (e) {
+      if (e.message === 'CANCELADO') throw e;
+      log('Etapa ' + def.nome + ' falhou por inteiro: ' + e.message);
+      partes.push({ tipo, nome: def.nome, r: null, motivo: motivoAmigavel(e) });
+      faltou.push({ tipo, id: '*', nome: '(automação inteira)', motivo: motivoAmigavel(e) });
+    }
+  }
+  const ok = partes.filter((p) => p.r);
+  const soma = (k) => ok.reduce((t, p) => t + (p.r[k] || 0), 0);
+  const detalhes = [];
+  partes.forEach((p) => {
+    if (!p.r) { detalhes.push('Falha: [' + p.nome + '] não rodou — ' + p.motivo); return; }
+    p.r.detalhes.forEach((x) => detalhes.push(n > 1 ? '[' + p.nome + '] ' + x : x));
+  });
+  const resultado = {
+    analisados: ok.reduce((m, p) => Math.max(m, p.r.analisados || 0), 0),
+    atualizados: soma('atualizados'), pendencias: soma('pendencias'), falhas: soma('falhas') + (partes.length - ok.length),
+    faltou,
+    resumo: partes.map((p) => (n > 1 ? p.nome.toUpperCase() + ': ' : '') + (p.r ? p.r.resumo : 'NÃO RODOU (' + p.motivo + ').')).join(' '),
+    detalhes: detalhes.slice(0, 100),
+  };
+  const status = !ok.length ? 'erro' : (faltou.length ? 'parcial' : 'concluido');
+  return { status, resultado };
+}
 
 async function executar(pedido) {
   const { id, tipo } = pedido;
   log('Pedido ' + id + ' (' + tipo + ', modo ' + pedido.modo + ') iniciado.');
   try {
-    let status = 'concluido';
-    let resultado;
-    if (tipo === 'checkins') {
-      resultado = await executarCheckins(pedido, [0, 100]);
-      if (resultado.falhas) status = 'parcial';
-    } else if (tipo === 'fotos') {
-      resultado = await executarFotosMedidas(pedido, [0, 100]);
-      if (resultado.falhas) status = 'parcial';
-    } else if (tipo === 'treinos') {
-      resultado = await executarTreinosDietas(pedido, [0, 100]);
-      if (resultado.falhas) status = 'parcial';
-    } else if (tipo === 'engajamento') {
-      resultado = await executarEngajamento(pedido, [0, 100]);
-      if (resultado.falhas) status = 'parcial';
+    let plano;
+    if (tipo === 'retomar') {
+      // refaz SÓ o que faltou no pedido de origem
+      const origem = await chamar({ action: 'origem', id: pedido.deOrigem });
+      const porTipo = {};
+      (origem.faltou || []).forEach((f) => { (porTipo[f.tipo] = porTipo[f.tipo] || []).push(f.id); });
+      plano = ORDEM_TIPOS.filter((t) => porTipo[t]).map((t) => ({ tipo: t, ids: porTipo[t] }));
+      if (!plano.length) throw new Error('não há nada que faltou nesse pedido');
     } else if (tipo === 'todas') {
-      const a = await executarCheckins(pedido, [0, 25]);
-      const b = await executarFotosMedidas(pedido, [25, 50]);
-      const c = await executarTreinosDietas(pedido, [50, 75]);
-      const e = await executarEngajamento(pedido, [75, 100]);
-      resultado = {
-        analisados: Math.max(a.analisados, b.analisados, c.analisados, e.analisados), atualizados: a.atualizados + b.atualizados + c.atualizados + e.atualizados,
-        pendencias: a.pendencias + b.pendencias + c.pendencias + e.pendencias, falhas: a.falhas + b.falhas + c.falhas + e.falhas,
-        resumo: 'CHECK-INS: ' + a.resumo + ' FOTOS E MEDIDAS: ' + b.resumo + ' TREINOS E DIETAS: ' + c.resumo + ' ENGAJAMENTO: ' + e.resumo,
-        detalhes: a.detalhes.map((x) => '[Check-ins] ' + x).concat(b.detalhes.map((x) => '[Fotos/medidas] ' + x), c.detalhes.map((x) => '[Treinos/dietas] ' + x), e.detalhes.map((x) => '[Engajamento] ' + x)).slice(0, 100),
-      };
-      status = 'parcial';
+      plano = ORDEM_TIPOS.map((t) => ({ tipo: t, ids: null }));
+    } else if (TIPOS_EXEC[tipo]) {
+      plano = [{ tipo, ids: null }];
     } else {
-      status = 'erro';
-      resultado = { analisados: 0, atualizados: 0, pendencias: 0, falhas: 0, resumo: NAO_CONSTRUIDA, detalhes: [] };
+      throw new Error('tipo de automação desconhecido: ' + tipo);
     }
+    const { status, resultado } = await executarPlano(pedido, plano);
     await chamar({ action: 'finalizar', id, status, resultado });
-    log('Pedido ' + id + ' finalizado (' + status + '): ' + resultado.resumo);
+    log('Pedido ' + id + ' finalizado (' + status + '): ' + resultado.resumo.slice(0, 300));
   } catch (err) {
     if (err.message === 'CANCELADO') {
       log('Pedido ' + id + ' cancelado pelo Angelo.');
@@ -423,7 +483,7 @@ async function executar(pedido) {
     }
     log('Falha no pedido ' + id + ': ' + err.message);
     try {
-      await chamar({ action: 'finalizar', id, status: 'erro', resultado: { analisados: 0, atualizados: 0, pendencias: 0, falhas: 1, resumo: 'O vigia falhou: ' + String(err.message).slice(0, 300) } });
+      await chamar({ action: 'finalizar', id, status: 'erro', resultado: { analisados: 0, atualizados: 0, pendencias: 0, falhas: 1, resumo: 'O vigia falhou: ' + motivoAmigavel(err), faltou: [] } });
     } catch (e2) { log('Não consegui nem registrar o erro: ' + e2.message); }
   }
 }

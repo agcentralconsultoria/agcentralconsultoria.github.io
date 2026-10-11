@@ -1581,3 +1581,17 @@ conta de teste em modo prévia; (5) fotos/medidas e treinos/dietas;
   sem botão "⋮"; "Ver perfil ↗" em botão de largura total. Ordem só de exibição: gravidade, depois
   check-in > engajamento > treino > carência > consulta > renovação > fotos > medidas.
   Funções: `atencaoPilulaHtml`, `atencaoLinhaDetalheHtml`, `atencaoCardHtml`. Regras inalteradas.
+
+### "Parcialmente concluído" detalhado + refazer só o que faltou (10/10/2026)
+- Pedido do Ângelo: parcial precisa dizer **onde/o quê** faltou e dar pra **continuar de onde parou**.
+- O vigia agora devolve `resultado.faltou = [{tipo, id, nome, motivo}]` (aluno/paciente, automação,
+  motivo em português: "tempo esgotado ao abrir a página", "sem conexão com a internet"...). Etapa que
+  quebra por inteiro vira `{id:'*', nome:'(automação inteira)'}` e **não derruba as outras** (antes
+  derrubava). Cada leitura de aluno tenta **2 vezes** antes de desistir; timeout do Treino.io 45 s.
+- Status "parcial" só quando `faltou` não está vazio (antes "Executar todas" saía sempre parcial —
+  bug corrigido). Falha de "devolver não lida" é só aviso, não deixa parcial.
+- Tela: "Parcialmente concluído · faltou N" + caixa **⚠ O que faltou (N)** (nome em vermelho, automação,
+  motivo) no card e no histórico, e botão **Tentar de novo só o que faltou** → cria pedido
+  `tipo:'retomar'` + `deOrigem` (regras Firestore aceitam). O vigia lê o pedido de origem (`action:
+  origem`) e refaz só aqueles alunos/etapas; ao fim o original ganha `retomadoPor` (some o botão) e,
+  se concluiu, o card da automação volta a "concluído".

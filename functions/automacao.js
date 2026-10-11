@@ -108,7 +108,7 @@ exports.automacaoVigia = onRequest({
         if (!doc) return { pedido: null, motivo: 'fila_vazia' };
         const d = doc.data();
         tx.update(doc.ref, { status: 'executando', iniciadoEm: agora, etapa: 'Iniciando' });
-        return { pedido: { id: doc.id, tipo: d.tipo, modo: d.modo } };
+        return { pedido: { id: doc.id, tipo: d.tipo, modo: d.modo, deOrigem: d.deOrigem || null } };
       });
       res.status(200).json(resultado);
       return;
@@ -198,6 +198,14 @@ exports.automacaoVigia = onRequest({
     }
     const ref = db.collection(PEDIDOS).doc(id);
 
+    if (body.action === 'origem') {
+      const snap = await ref.get();
+      if (!snap.exists) { res.status(404).send('pedido de origem nao existe'); return; }
+      const od = snap.data();
+      res.status(200).json({ tipo: od.tipo, modo: od.modo, faltou: (od.resultado && od.resultado.faltou) || [] });
+      return;
+    }
+
     if (body.action === 'atualizar') {
       // devolve cancelar:true se o Angelo pediu pra cancelar (o vigia para na hora)
       const cancelar = await db.runTransaction(async (tx) => {
@@ -229,7 +237,9 @@ exports.automacaoVigia = onRequest({
         atualizados: inteiro(r.atualizados),
         pendencias: inteiro(r.pendencias),
         falhas: inteiro(r.falhas),
-        resumo: texto(r.resumo, 500),
+        resumo: texto(r.resumo, 1500),
+        // O QUE FALTOU (aluno, automacao e motivo): alimenta o aviso na tela e o botao "refazer so o que faltou"
+        faltou: (Array.isArray(r.faltou) ? r.faltou : []).slice(0, 100).map((f) => ({ tipo: texto(f && f.tipo, 20), id: texto(f && f.id, 80), nome: texto(f && f.nome, 80), motivo: texto(f && f.motivo, 120) })),
         detalhes: (Array.isArray(r.detalhes) ? r.detalhes : []).slice(0, MAX_DETALHES).map((x) => texto(x, 200)),
       };
       await db.runTransaction(async (tx) => {
@@ -239,15 +249,30 @@ exports.automacaoVigia = onRequest({
         // reenvio do mesmo "finalizar" (queda de conexao) nao duplica nada
         if (STATUS_FINAIS.indexOf(d.status) !== -1) return;
         if (d.status !== 'executando') throw new Error('pedido nao esta executando');
+        const origemSnap = d.tipo === 'retomar' && d.deOrigem ? await tx.get(db.collection(PEDIDOS).doc(String(d.deOrigem))) : null;
         tx.update(ref, { status, finalizadoEm: agora, resultado, etapa: status === 'erro' ? 'Falhou' : status === 'cancelado' ? 'Cancelado' : 'Finalizado', progresso: 100 });
         // cancelamento nao apaga o resumo da ultima execucao de verdade
         if (status === 'cancelado') return;
+        // "Refazer o que faltou": marca o pedido original como retomado (some o botao) e, se tudo
+        // deu certo, o card de cada automacao envolvida deixa de aparecer como parcial.
+        if (d.tipo === 'retomar') {
+          if (origemSnap && origemSnap.exists) {
+            tx.update(origemSnap.ref, { retomadoPor: id });
+            if (status === 'concluido') {
+              const od = origemSnap.data();
+              const tipos = new Set(((od.resultado && od.resultado.faltou) || []).map((x) => x.tipo));
+              tipos.forEach((t) => { if (t && t !== 'retomar') tx.set(db.collection(RESUMO).doc(t), { status: 'concluido', faltou: [], refeitoEm: agora }, { merge: true }); });
+            }
+          }
+          return;
+        }
         // "Ultima execucao" de cada card (o CRM le isto direto)
         tx.set(db.collection(RESUMO).doc(d.tipo), {
           tipo: d.tipo, pedidoId: id, status, finalizadoEm: agora, modo: d.modo || 'previa',
           avisos: resultado.detalhes.filter((x) => /^(Pulado|Falha|NÃO CADASTRADO):/.test(x)).slice(0, 20),
           analisados: resultado.analisados, atualizados: resultado.atualizados,
           pendencias: resultado.pendencias, falhas: resultado.falhas, resumo: resultado.resumo,
+          faltou: resultado.faltou,
         });
       });
       res.status(200).json({ ok: true });

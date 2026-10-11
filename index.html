@@ -907,6 +907,9 @@
   @media (max-width: 700px){ .auto-info{width:230px;} .auto-todas-titulo .auto-info{position:static;width:auto;margin:8px 0 0;} .auto-todas-titulo .auto-info-wrap{display:inline;} }
   .auto-avisos{margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--warning-bg);font-size:12.5px;}
   .auto-avisos ul{margin:4px 0 0;padding-left:16px;color:var(--text);}
+  .auto-faltou{margin-top:8px;padding:10px 12px;border-radius:10px;background:var(--warning-bg);font-size:12.5px;}
+  .auto-faltou ul{margin:6px 0 8px;padding-left:16px;color:var(--text);}
+  .auto-refazer{width:100%;justify-content:center;}
   .auto-ok{margin-top:8px;font-size:12.5px;font-weight:600;color:var(--success);}
   .auto-hist-det li.is-aviso{color:var(--warning);font-weight:600;}
   .nome-nc{color:var(--danger);font-weight:700;}
@@ -5801,7 +5804,7 @@
       stats:[['analisados','Pacientes analisados'],['atualizados','Notas atualizadas'],['pendencias','Atenção necessária']],
       svg:'<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>' }
   ];
-  var AUTOMACAO_NOMES = { checkins:'Atualizar check-ins', fotos:'Fotos e medidas', treinos:'Treinos e dietas', engajamento:'Engajamento', todas:'Todas as automações' };
+  var AUTOMACAO_NOMES = { checkins:'Atualizar check-ins', fotos:'Fotos e medidas', treinos:'Treinos e dietas', engajamento:'Engajamento', todas:'Todas as automações', retomar:'Refazer o que faltou' };
   /* Texto do (i) de cada automacao: qual modelo e esforco ela usa (pra lembrar depois). */
   var AUTOMACAO_INFO = {
     checkins: '<b>Quem faz:</b> programa automático do vigia, no seu Mac.<br><b>Inteligência artificial:</b> nenhuma.<br><b>Modelo:</b> não usa.<br><b>Esforço:</b> não usa.<br><b>Tokens:</b> zero.<br><i>Por quê:</i> ler datas e tabelas não precisa de IA, então é mais rápido e não gasta sua assinatura. <b>Já funciona.</b>',
@@ -5867,8 +5870,8 @@
   function automacaoPodeEnfileirar(tipo){
     var at = automacaoAtivos();
     if(state.automacao.enviando) return false;
-    if(tipo === 'todas') return !at.length;
-    return !at.some(function(p){ return p.tipo === tipo || p.tipo === 'todas'; });
+    if(tipo === 'todas' || tipo === 'retomar') return !at.length;
+    return !at.some(function(p){ return p.tipo === tipo || p.tipo === 'todas' || p.tipo === 'retomar'; });
   }
   function automacaoVigiaOnline(){
     var v = state.automacao.vigia;
@@ -5902,7 +5905,7 @@
     if(p.status === 'executando' && p.cancelarSolicitado) return { txt:'Cancelando…', cls:'is-fila' };
     if(p.status === 'executando') return { txt:'Executando' + (p.etapa ? ': ' + p.etapa : '') + (p.progresso ? ' (' + p.progresso + '%)' : ''), cls:'is-exec' };
     if(p.status === 'concluido') return { txt:'Concluído', cls:'is-ok' };
-    if(p.status === 'parcial') return { txt:'Parcialmente concluído', cls:'is-parcial' };
+    if(p.status === 'parcial'){ var nf = p.resultado && p.resultado.faltou ? p.resultado.faltou.length : 0; return { txt:'Parcialmente concluído' + (nf ? ' · faltou ' + nf : ''), cls:'is-parcial' }; }
     return { txt:'Erro', cls:'is-erro' };
   }
   /* Anel de andamento: % no meio e, embaixo, a estimativa do que falta (so depois de 5%). */
@@ -5950,6 +5953,7 @@
       '<div class="auto-box"><div class="auto-box-titulo">Última execução</div>'+
         (r ? '<div class="auto-box-vazio">'+automacaoDataHora(r.finalizadoEm)+(r.modo === 'previa' ? ' · prévia' : '')+'</div>' : '<div class="auto-box-vazio">Nenhuma execução ainda</div>')+stats+
         (r && r.resumo ? '<div class="auto-box-resumo">'+esc(r.resumo)+'</div>' : '')+
+        (r && r.status === 'parcial' && r.faltou && r.faltou.length && ult ? automacaoFaltouBoxHtml(r.faltou, ult.status === 'parcial' && !ult.retomadoPor ? ult.id : '') : '')+
         (r && r.avisos && r.avisos.length ? '<div class="auto-avisos"><b>⚠ Atenção ('+r.avisos.length+')</b><ul>'+r.avisos.slice(0, 6).map(function(x){ var nc = /^NÃO CADASTRADO:/.test(x); return '<li>'+(nc ? automacaoNcHtml(x) : esc(x.replace(/^(Pulado|Falha):\s*/, '')))+'</li>'; }).join('')+(r.avisos.length > 6 ? '<li>…e mais '+(r.avisos.length - 6)+' no Histórico</li>' : '')+'</ul></div>' : (r && Array.isArray(r.avisos) && r.status !== 'erro' ? '<div class="auto-ok">✓ Sem erros nem avisos</div>' : ''))+
       '</div>'+
       automacaoBotoesHtml(a.key, ult, 'auto-btn')+
@@ -5960,6 +5964,19 @@
     var m = String(x).match(/^(NÃO CADASTRADO:\s*)(.*?)(\s*\(\S+@\S+\).*)$/);
     if(!m) return esc(x);
     return esc(m[1])+'<span class="nome-nc">'+esc(m[2])+'</span>'+esc(m[3]);
+  }
+  /* "O QUE FALTOU": quem (aluno), em qual automacao e por que. Vem do vigia (resultado.faltou). */
+  function automacaoFaltouListaHtml(faltou){
+    var nomes = { checkins:'Check-ins', fotos:'Fotos e medidas', treinos:'Treinos e dietas', engajamento:'Engajamento' };
+    return '<ul>'+faltou.slice(0, 8).map(function(f){
+      return '<li><span class="nome-nc">'+esc(f.nome || f.id)+'</span> — '+esc(nomes[f.tipo] || f.tipo)+': '+esc(f.motivo || 'não concluído')+'</li>';
+    }).join('')+(faltou.length > 8 ? '<li>…e mais '+(faltou.length - 8)+'</li>' : '')+'</ul>';
+  }
+  function automacaoFaltouBoxHtml(faltou, origemId){
+    if(!faltou || !faltou.length) return '';
+    var pode = origemId && automacaoPodeEnfileirar('retomar');
+    return '<div class="auto-faltou"><b>⚠ O que faltou ('+faltou.length+')</b>'+automacaoFaltouListaHtml(faltou)+
+      (origemId ? '<button type="button" class="btn btn-secondary auto-refazer" data-auto-refazer="'+esc(origemId)+'"'+(pode ? '' : ' disabled')+'>Tentar de novo só o que faltou</button>' : '')+'</div>';
   }
   function automacaoHistoricoHtml(){
     var ps = state.automacao.pedidos;
@@ -5974,6 +5991,7 @@
         '<div class="auto-hist-res">'+(r ? esc(r.analisados+' analisados · '+r.atualizados+' atualizados · '+r.pendencias+' pendências'+(r.falhas ? ' · '+r.falhas+' falhas' : '')) : '—')+'</div>'+
         '<div class="auto-hist-tempo">'+automacaoDuracao(p)+'</div>'+
         (r && r.resumo ? '<div class="auto-hist-resumo">'+esc(r.resumo)+'</div>' : '')+
+        (p.status === 'parcial' && r && r.faltou && r.faltou.length ? '<div style="grid-column:1/-1;">'+(p.retomadoPor ? '<div class="auto-ok" style="margin:0 0 6px;">✓ O que faltou foi refeito depois.</div>' : '')+automacaoFaltouBoxHtml(r.faltou, p.retomadoPor ? '' : p.id)+'</div>' : '')+
         (r && r.detalhes && r.detalhes.length ? '<details class="auto-hist-det" data-auto-det="'+esc(p.id)+'"'+(state.automacao.detAberto[p.id] ? ' open' : '')+'><summary>Ver detalhes ('+r.detalhes.length+')</summary><ul>'+r.detalhes.map(function(x){ var nc = /^NÃO CADASTRADO:/.test(x); var aviso = nc || /^(Pulado|Falha):/.test(x); return '<li class="'+(nc ? '' : (aviso ? 'is-aviso' : ''))+'">'+(aviso ? '⚠ ' : '')+(nc ? automacaoNcHtml(x) : esc(x))+'</li>'; }).join('')+'</ul></details>' : '')+
       '</div>';
     }).join('');
@@ -5995,7 +6013,7 @@
     '<div class="card auto-aviso '+(online ? 'is-online' : '')+'"><span class="auto-dot" style="display:inline-block;margin-right:8px;background:'+(online ? 'var(--success)' : 'var(--warning)')+';opacity:1;"></span>'+
       (online ? '<b>Mac conectado.</b> Os pedidos são executados assim que você clica.' : '<b>Mac desconectado.</b> O programa que executa as tarefas ainda não está rodando no MacBook. Se você clicar agora, o pedido fica na fila até ele ligar.')+
     '</div>'+
-    (ativo ? '<div class="auto-fila"><span>'+automacaoAtivos().length+' na fila/executando</span><button type="button" class="btn btn-secondary" data-auto-cancelar-tudo>Cancelar tudo</button></div>' : '')+
+    (ativo ? '<div class="auto-fila"><span>'+automacaoAtivos().length+' na fila/executando'+(ativo.tipo === 'retomar' && ativo.status === 'executando' ? ' — refazendo o que faltou'+(ativo.progresso ? ' ('+ativo.progresso+'%)' : '') : '')+'</span><button type="button" class="btn btn-secondary" data-auto-cancelar-tudo>Cancelar tudo</button></div>' : '')+
     '<div class="auto-modo"><span>Modo de gravação:</span><div class="meta-type-toggle" style="margin:0;">'+modoBtn('previa','Prévia (só mostra o que mudaria)')+modoBtn('direto','Gravar direto')+'</div></div>'+
     '<div class="auto-grid">'+AUTOMACOES.map(automacaoCardHtml).join('')+'</div>'+
     '<div class="card auto-todas">'+
@@ -6004,6 +6022,7 @@
       '<div class="auto-desc">Executa as quatro automações em sequência (check-ins, fotos e medidas, treinos e dietas, engajamento), com relatório consolidado ao final.</div>'+
       (true ? '<div class="auto-status '+infoTodas.cls+'" style="margin-top:6px;"><span class="auto-dot"></span>'+esc(infoTodas.txt.split(':')[0])+'</div>' : '')+'</div>'+
       automacaoAnelHtml(ultTodas)+
+      (ultTodas && ultTodas.status === 'parcial' && ultTodas.resultado && ultTodas.resultado.faltou && ultTodas.resultado.faltou.length && automacaoMesmoDia(ultTodas.finalizadoEm) ? '<div style="flex:1 1 100%;">'+automacaoFaltouBoxHtml(ultTodas.resultado.faltou, ultTodas.retomadoPor ? '' : ultTodas.id)+'</div>' : '')+
       automacaoBotoesHtml('todas', ultTodas, 'auto-btn auto-btn-todas')+
     '</div>'+
     '<div class="card auto-hist">'+
@@ -6020,13 +6039,14 @@
     wrap.innerHTML = automacaoInnerHtml();
     bindAutomacaoEvents(wrap);
   }
-  function automacaoCriarPedido(tipo){
+  function automacaoCriarPedido(tipo, extra){
     var a = state.automacao;
     if(!automacaoPodeEnfileirar(tipo)) return;
     a.enviando = true;
     refreshAutomacao();
     var user = mfa.auth.currentUser;
-    var pedido = { tipo: tipo, modo: a.modo, status: 'pendente', criadoEm: Date.now(), criadoPor: user ? user.uid : '' };
+    var pedido = { tipo: tipo, modo: (extra && extra.modo) || a.modo, status: 'pendente', criadoEm: Date.now(), criadoPor: user ? user.uid : '' };
+    if(extra && extra.deOrigem) pedido.deOrigem = extra.deOrigem;
     mfa.addDoc(mfa.collection(mfa.db, 'automacaoPedidos'), pedido).then(function(ref){
       eqRegistrarLogs([{ tabela:'Automação · pedido', acao:'criacao', registroId:ref.id, registroNome:AUTOMACAO_NOMES[tipo] || tipo, antes:null, depois:{ tipo:tipo, modo:a.modo } }]);
       return automacaoLoadAsync();
@@ -6060,6 +6080,13 @@
     var runs = wrap.querySelectorAll('[data-auto-run]');
     for(var i=0; i<runs.length; i++){
       runs[i].addEventListener('click', function(){ automacaoCriarPedido(this.getAttribute('data-auto-run')); });
+    }
+    var refaz = wrap.querySelectorAll('[data-auto-refazer]');
+    for(var rf=0; rf<refaz.length; rf++){
+      refaz[rf].addEventListener('click', function(){
+        var origem = state.automacao.pedidos.filter(function(p){ return p.id === this.getAttribute('data-auto-refazer'); }.bind(this))[0];
+        if(origem) automacaoCriarPedido('retomar', { deOrigem: origem.id, modo: origem.modo });
+      });
     }
     var cancs = wrap.querySelectorAll('[data-auto-cancelar]');
     for(var c=0; c<cancs.length; c++){

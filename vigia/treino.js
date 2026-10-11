@@ -16,7 +16,7 @@ async function abrirNavegador() {
     viewport: { width: 1400, height: 900 },
   });
   const page = ctx.pages()[0] || await ctx.newPage();
-  page.setDefaultTimeout(20000);
+  page.setDefaultTimeout(45000);
   return { ctx, page };
 }
 
