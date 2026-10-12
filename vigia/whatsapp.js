@@ -48,13 +48,17 @@ async function lerConversa(page, telefone, desdeISO, ateISO, hojeISO) {
   }
   // Ao abrir a conversa o WhatsApp marca tudo como lido; o aviso "N mensagens não lidas" fica no
   // painel enquanto a conversa está aberta. Guardamos isso pra devolver "não lida" no fim.
-  const antes = await page.evaluate(() => {
+  const verAviso = () => page.evaluate(() => {
     const painel = document.querySelector('[data-testid="conversation-panel-messages"]') || document.querySelector('#main');
     const tem = !!painel && /\b\d+\s+(mensagens?\s+n[aã]o\s+lidas?|unread\s+messages?)/i.test(painel.innerText);
     const tit = document.querySelector('[data-testid="conversation-info-header-chat-title"]');
     return { naoLidas: tem, titulo: tit ? tit.innerText.trim() : '' };
   });
+  // olha logo que abre e de novo depois das mensagens carregarem (olhar so no começo perdia o aviso)
+  let antes = await verAviso();
   await page.waitForTimeout(3500);
+  const depoisAviso = await verAviso();
+  antes = { naoLidas: antes.naoLidas || depoisAviso.naoLidas, titulo: depoisAviso.titulo || antes.titulo };
 
   // carrega mensagens antigas rolando pra cima até passar do início da janela
   const painelSel = '[data-testid="conversation-panel-messages"]';
@@ -127,6 +131,29 @@ async function lerConversa(page, telefone, desdeISO, ateISO, hojeISO) {
   return { status: 'ok', mensagens, naoLidas: antes.naoLidas, titulo: antes.titulo };
 }
 
+// Nomes das conversas que JA estao como "nao lida" na lista (bolinha/contador), vistos antes de abrir
+// qualquer uma. So le a tela, nao clica em nada. Devolve [] se nao conseguir ler.
+async function listarNaoLidas(page) {
+  try {
+    await page.goto('https://web.whatsapp.com/');
+    await page.waitForSelector('#pane-side', { timeout: 30000 });
+    await page.waitForTimeout(2500);
+    return await page.evaluate(() => {
+      const achados = new Set();
+      document.querySelectorAll('#pane-side span[title]').forEach((s) => {
+        let linha = s;
+        for (let i = 0; i < 8 && linha.parentElement && linha.parentElement.id !== 'pane-side'; i++) {
+          linha = linha.parentElement;
+          if (/^(row|listitem|gridcell)$/.test(linha.getAttribute('role') || '')) break;
+        }
+        const rotulos = [...linha.querySelectorAll('[aria-label]')].map((x) => x.getAttribute('aria-label')).join('|');
+        if (/n[aã]o lidas?|unread/i.test(rotulos)) achados.add(s.getAttribute('title'));
+      });
+      return [...achados];
+    });
+  } catch (e) { return []; }
+}
+
 // Devolve a conversa pra "não lida" (a bolinha verde de notificação do Ângelo). Sai da conversa
 // (volta pra lista), acha o contato pelo nome e usa o menu "Marcar como não lida".
 async function marcarComoNaoLida(page, titulo) {
@@ -144,4 +171,4 @@ async function marcarComoNaoLida(page, titulo) {
   await page.waitForTimeout(800);
 }
 
-module.exports = { abrirWhatsApp, lerConversa, marcarComoNaoLida };
+module.exports = { abrirWhatsApp, lerConversa, marcarComoNaoLida, listarNaoLidas };

@@ -348,6 +348,9 @@ async function executarEngajamento(pedido, faixa, somenteIds) {
     await page.goto('https://web.whatsapp.com/');
     const logado = await page.waitForSelector('#pane-side', { timeout: 45000 }).then(() => true).catch(() => false);
     if (!logado) throw new Error('WhatsApp Web deslogado: rode "node vigia/login-whatsapp.js" e escaneie o QR code de novo.');
+    // quem ja estava como "não lida" antes de eu abrir qualquer conversa (só olha a lista, não mexe)
+    const jaNaoLidas = new Set(await whatsapp.listarNaoLidas(page));
+    log('WhatsApp: ' + jaNaoLidas.size + ' conversa(s) já estavam como não lidas.');
     for (let i = 0; i < pacientes.length; i++) {
       const p = pacientes[i];
       try {
@@ -357,8 +360,8 @@ async function executarEngajamento(pedido, faixa, somenteIds) {
         if (conv.status === 'sem_conversa') { pulados++; detalhes.push('Pulado: ' + p.nome + ' — número sem conversa no WhatsApp'); continue; }
         analisados++;
         // Se tinha mensagem não lida, devolve a conversa pra "não lida" (notificação do Ângelo)
-        if (conv.naoLidas) {
-          try { await whatsapp.marcarComoNaoLida(page, conv.titulo); naoLidasDevolvidas++; }
+        if (conv.naoLidas || jaNaoLidas.has(conv.titulo)) {
+          try { await whatsapp.marcarComoNaoLida(page, conv.titulo); naoLidasDevolvidas++; log('WhatsApp: conversa devolvida para não lida: ' + p.nome); }
           catch (e) { falhas.push('Não consegui deixar "não lida": ' + p.nome.slice(0, 24) + ' — ' + String(e.message).slice(0, 60)); }
         }
         for (const sem of p.semanas) {
