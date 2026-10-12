@@ -907,6 +907,101 @@
   @media (max-width: 700px){ .auto-info{width:230px;} .auto-todas-titulo .auto-info{position:static;width:auto;margin:8px 0 0;} .auto-todas-titulo .auto-info-wrap{display:inline;} }
   .auto-avisos{margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--warning-bg);font-size:12.5px;}
   .auto-avisos ul{margin:4px 0 0;padding-left:16px;color:var(--text);}
+  /* ---- Automacao: painel de resultados ---- */
+  .auto-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:0 0 14px;}
+  .auto-kpi{margin:0;padding:14px;display:flex;gap:12px;align-items:flex-start;min-width:0;}
+  .auto-kpi-ico{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;background:var(--bg);color:var(--text-muted);}
+  .auto-kpi-ico svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+  .auto-kpi.is-exec .auto-kpi-ico{background:var(--primary-light);color:var(--primary);}
+  .auto-kpi.is-ok .auto-kpi-ico{background:var(--success-bg);color:var(--success);}
+  .auto-kpi.is-pend .auto-kpi-ico{background:var(--warning-bg);color:var(--warning);}
+  .auto-kpi.is-falha .auto-kpi-ico{background:var(--danger-bg);color:var(--danger);}
+  .auto-kpi-txt{min-width:0;}
+  .auto-kpi-rot{font-size:12.5px;font-weight:600;color:var(--text-muted);}
+  .auto-kpi-val{font-size:22px;font-weight:700;line-height:1.25;overflow-wrap:anywhere;}
+  .auto-kpi.is-exec .auto-kpi-val{font-size:16px;}
+  .auto-kpi-sub{font-size:12px;color:var(--text-muted);}
+  .auto-kpi-link{display:inline-block;white-space:nowrap;margin-top:4px;padding:0;border:0;background:none;color:var(--primary);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;}
+  .auto-barra{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;}
+  .auto-filtros{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 420px;}
+  .auto-fil{display:inline-flex;align-items:center;gap:7px;}
+  .auto-fil i{width:9px;height:9px;border-radius:50%;background:var(--text-muted);display:inline-block;}
+  .auto-fil.is-todos i{display:none;}
+  .auto-fil.is-ok i{background:var(--success);} .auto-fil.is-pend i{background:var(--warning);} .auto-fil.is-falha i{background:var(--danger);}
+  .auto-busca{flex:1 1 220px;max-width:340px;margin:0;}
+  .auto-ordem{flex:0 0 auto;padding:9px 12px;border:1px solid var(--border);border-radius:999px;background:var(--surface);color:var(--text);font:inherit;font-size:13.5px;}
+  .auto-hist2{margin:0 0 28px;padding:6px 14px 10px;}
+  .auto-hist2-titulo{font-weight:700;font-size:15px;padding:10px 0 6px;}
+  .auto-vazio{padding:16px 8px;text-align:center;color:var(--text-muted);font-size:13px;}
+  .auto-chev{width:16px;flex:0 0 16px;color:var(--text-muted);font-size:12px;text-align:center;}
+  .auto-exec{border-top:1px solid var(--border);}
+  .auto-exec-head{width:100%;display:grid;grid-template-columns:16px 150px minmax(150px,1fr) minmax(170px,1.1fr) minmax(220px,2.2fr) 90px;gap:10px;align-items:center;padding:12px 2px;border:0;background:none;color:var(--text);font:inherit;font-size:13px;text-align:left;cursor:pointer;}
+  .auto-exec-head.is-fixa{cursor:default;}
+  .auto-exec-data,.auto-exec-tempo,.auto-exec-num{color:var(--text-muted);}
+  .auto-exec-nome{font-weight:700;font-size:14px;}
+  .auto-exec-tempo{text-align:right;}
+  .auto-exec-body{padding:0 0 12px 26px;display:flex;flex-direction:column;gap:8px;}
+  .auto-exec-msg{padding:10px 12px;border-radius:10px;background:var(--danger-bg);color:var(--danger);font-size:13px;}
+  .auto-cat{border:1px solid var(--border);border-radius:12px;background:var(--surface);}
+  .auto-cat-head{width:100%;display:flex;align-items:center;gap:10px;padding:11px 12px;border:0;background:none;color:var(--text);font:inherit;font-size:13px;text-align:left;cursor:pointer;}
+  .auto-cat-ico{width:18px;height:18px;flex:0 0 auto;fill:none;stroke:var(--text);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+  .auto-cat-nome{font-weight:700;font-size:14.5px;flex:0 0 auto;}
+  .auto-cat-nums{display:inline-flex;gap:6px;flex:0 0 auto;}
+  .auto-num{min-width:30px;padding:2px 9px;border-radius:999px;font-size:12.5px;font-weight:700;text-align:center;}
+  .auto-num.is-ok{background:var(--success-bg);color:var(--success);} .auto-num.is-pend{background:var(--warning-bg);color:var(--warning);}
+  .auto-num.is-falha{background:var(--danger-bg);color:var(--danger);} .auto-num.is-nc{background:var(--bg);color:var(--text-muted);}
+  .auto-cat-resumo{flex:1 1 auto;min-width:0;color:var(--text-muted);font-size:12.5px;}
+  .auto-cat-tempo{flex:0 0 auto;color:var(--text-muted);font-size:12.5px;}
+  .auto-cat-ver{flex:0 0 auto;padding:6px 12px;border:1px solid var(--border);border-radius:999px;font-size:12.5px;font-weight:600;white-space:nowrap;}
+  .auto-cat-head:hover .auto-cat-ver{border-color:var(--primary);color:var(--primary);}
+  .auto-tab{border-top:1px solid var(--border);padding:0 12px 8px;}
+  .auto-lin-cab,.auto-lin-top{display:grid;grid-template-columns:16px minmax(140px,1.3fr) minmax(160px,1.7fr) minmax(110px,1fr) 170px minmax(120px,1.5fr);gap:10px;align-items:center;}
+  .auto-lin-cab{padding:9px 0 7px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);}
+  .auto-lin{border-top:1px solid var(--border);}
+  .auto-lin-top{width:100%;padding:9px 0;border:0;background:none;color:var(--text);font:inherit;font-size:13px;text-align:left;cursor:pointer;}
+  .auto-lin-top:hover .auto-c-nome{color:var(--primary);}
+  .auto-c-nome{font-weight:600;overflow-wrap:anywhere;}
+  .auto-c-acao,.auto-c-per,.auto-c-obs{color:var(--text-muted);overflow-wrap:anywhere;}
+  .auto-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;}
+  .auto-chip i{width:8px;height:8px;border-radius:50%;background:currentColor;display:inline-block;}
+  .auto-chip.is-ok{background:var(--success-bg);color:var(--success);} .auto-chip.is-pend{background:var(--warning-bg);color:var(--warning);}
+  .auto-chip.is-falha{background:var(--danger-bg);color:var(--danger);} .auto-chip.is-nc{background:var(--bg);color:var(--text-muted);}
+  .auto-nota{font-weight:700;} .auto-nota.is-alta{color:var(--success);} .auto-nota.is-media{color:var(--warning);} .auto-nota.is-baixa{color:var(--danger);}
+  .auto-lin-det{margin:0 0 10px 26px;padding:12px;border-radius:10px;background:var(--bg);font-size:13px;}
+  .auto-det-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px 16px;}
+  .auto-det-grid span,.auto-det-bruto span{display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);}
+  .auto-det-grid b{font-weight:600;overflow-wrap:anywhere;}
+  .auto-det-bruto{margin-top:10px;}
+  .auto-det-bruto code{display:block;margin-top:4px;font-size:12px;color:var(--text-muted);white-space:pre-wrap;overflow-wrap:anywhere;}
+  .auto-mais{margin:8px 0 0;padding:7px 14px;border:1px solid var(--border);border-radius:999px;background:var(--surface);color:var(--text);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;}
+  .auto-tab-nota{padding:8px 0 0;font-size:12px;color:var(--text-muted);}
+  @media (max-width: 1250px){ .auto-kpis{grid-template-columns:repeat(3,minmax(0,1fr));} }
+  @media (max-width: 900px){
+    .auto-exec-head{grid-template-columns:16px 1fr auto;row-gap:4px;}
+    .auto-exec-head .auto-exec-nome{grid-column:2/-1;grid-row:1;}
+    .auto-exec-head .auto-exec-data{grid-column:2;grid-row:2;}
+    .auto-exec-head .auto-exec-tempo{grid-column:3;grid-row:2;}
+    .auto-exec-head .auto-status{grid-column:2/-1;grid-row:3;}
+    .auto-exec-head .auto-exec-num{grid-column:2/-1;grid-row:4;}
+    .auto-exec-body{padding-left:0;}
+    .auto-cat-head{flex-wrap:wrap;}
+    .auto-cat-resumo{flex:1 1 100%;order:9;}
+  }
+  @media (max-width: 760px){
+    .auto-kpis{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .auto-kpi.is-exec{grid-column:1/-1;}
+    .auto-busca{max-width:none;flex:1 1 100%;}
+    .auto-ordem{flex:1 1 100%;}
+    .auto-lin-cab{display:none;}
+    .auto-lin-top{grid-template-columns:16px 1fr auto;row-gap:3px;align-items:start;}
+    .auto-lin-top .auto-c-nome{grid-column:2;grid-row:1;}
+    .auto-lin-top .auto-c-st{grid-column:3;grid-row:1;}
+    .auto-lin-top .auto-c-acao{grid-column:2/-1;grid-row:2;}
+    .auto-lin-top .auto-c-per{grid-column:2/-1;grid-row:3;}
+    .auto-lin-top .auto-c-obs{grid-column:2/-1;grid-row:4;}
+    .auto-lin-det{margin-left:0;}
+    .auto-chip{white-space:normal;}
+  }
   .auto-faltou{margin-top:8px;padding:10px 12px;border-radius:10px;background:var(--warning-bg);font-size:12.5px;}
   .auto-faltou ul{margin:6px 0 8px;padding-left:16px;color:var(--text);}
   .auto-refazer{width:100%;justify-content:center;}
@@ -5819,7 +5914,8 @@
       '<div class="info-popover auto-info'+(aberto ? ' open' : '')+'">'+AUTOMACAO_INFO[key]+'</div>';
   }
   var AUTOMACAO_VIGIA_ONLINE_MS = 2 * 60 * 1000;
-  state.automacao = { pedidos:[], resumo:{}, vigia:null, modo:'previa', carregado:false, erro:'', enviando:false, info:{}, detAberto:{}, vistos:{}, vistosIniciado:false };
+  state.automacao = { pedidos:[], resumo:{}, vigia:null, modo:'previa', carregado:false, erro:'', enviando:false, info:{}, detAberto:{}, vistos:{}, vistosIniciado:false, ultimaCarga:0, regCache:{},
+    ui:{ filtro:'todos', busca:'', ordem:'recentes', exec:{}, cat:{}, row:{}, mais:{} } };
 
   function automacaoLoadAsync(){
     var db = mfa.db;
@@ -5837,6 +5933,7 @@
       var cfg = r[3].exists() ? r[3].data() : null;
       a.modo = cfg && cfg.modo === 'direto' ? 'direto' : 'previa';
       a.carregado = true;
+      a.ultimaCarga = Date.now();
       a.erro = '';
       // Terminou uma execucao em "Gravar direto"? Recarrega os pacientes do Firebase na hora, pra
       // tela nao ficar velha (e nunca sobrescrever, ao editar, o que a automacao gravou).
@@ -5940,7 +6037,11 @@
     var r = state.automacao.resumo[a.key];
     var ult = state.automacao.pedidos.filter(function(p){ return p.tipo === a.key; })[0];
     var info = automacaoStatusCard(ult);
-    var stats = a.stats.map(function(s){ return '<div class="auto-stat"><span>'+s[1]+'</span><b>'+(r ? r[s[0]] : '—')+'</b></div>'; }).join('');
+    // mesmos numeros do painel de resultados (contagem das linhas daquela execucao), pra nunca divergir
+    var pedR = r && r.pedidoId ? state.automacao.pedidos.filter(function(p){ return p.id === r.pedidoId; })[0] : null;
+    var cont = pedR && automacaoFinalizado(pedR) ? automacaoContagem(automacaoRegistros(pedR)) : null;
+    var valor = function(k){ if(!r) return '—'; if(cont && k === 'atualizados') return cont.ok; if(cont && k === 'pendencias') return cont.pend; return r[k]; };
+    var stats = a.stats.map(function(s){ return '<div class="auto-stat"><span>'+s[1]+'</span><b>'+valor(s[0])+'</b></div>'; }).join('');
     return '<div class="card auto-card" style="--auto-cor:'+a.cor+';">'+
       '<div class="auto-card-top">'+
         '<span class="auto-ico"><svg viewBox="0 0 24 24" aria-hidden="true">'+a.svg+'</svg></span>'+
@@ -5978,23 +6079,354 @@
     return '<div class="auto-faltou"><b>⚠ O que faltou ('+faltou.length+')</b>'+automacaoFaltouListaHtml(faltou)+
       (origemId ? '<button type="button" class="btn btn-secondary auto-refazer" data-auto-refazer="'+esc(origemId)+'"'+(pode ? '' : ' disabled')+'>Tentar de novo só o que faltou</button>' : '')+'</div>';
   }
-  function automacaoHistoricoHtml(){
-    var ps = state.automacao.pedidos;
-    if(!ps.length) return '<div class="atencao-empty">Nenhuma execução registrada ainda.</div>';
-    return ps.map(function(p){
-      var info = automacaoStatusInfo(p);
-      var r = p.resultado;
-      return '<div class="auto-hist-row">'+
-        '<div class="auto-hist-data">'+automacaoDataHora(p.criadoEm)+'</div>'+
-        '<div class="auto-hist-nome">'+esc(AUTOMACAO_NOMES[p.tipo] || p.tipo)+(p.modo === 'previa' ? ' <span class="badge badge-gray">prévia</span>' : '')+'</div>'+
-        '<div class="auto-status '+info.cls+'"><span class="auto-dot"></span>'+esc(info.txt)+'</div>'+
-        '<div class="auto-hist-res">'+(r ? esc(r.analisados+' analisados · '+r.atualizados+' atualizados · '+r.pendencias+' pendências'+(r.falhas ? ' · '+r.falhas+' falhas' : '')) : '—')+'</div>'+
-        '<div class="auto-hist-tempo">'+automacaoDuracao(p)+'</div>'+
-        (r && r.resumo ? '<div class="auto-hist-resumo">'+esc(r.resumo)+'</div>' : '')+
-        (p.status === 'parcial' && r && r.faltou && r.faltou.length ? '<div style="grid-column:1/-1;">'+(p.retomadoPor ? '<div class="auto-ok" style="margin:0 0 6px;">✓ O que faltou foi refeito depois.</div>' : '')+automacaoFaltouBoxHtml(r.faltou, p.retomadoPor ? '' : p.id)+'</div>' : '')+
-        (r && r.detalhes && r.detalhes.length ? '<details class="auto-hist-det" data-auto-det="'+esc(p.id)+'"'+(state.automacao.detAberto[p.id] ? ' open' : '')+'><summary>Ver detalhes ('+r.detalhes.length+')</summary><ul>'+r.detalhes.map(function(x){ var nc = /^NÃO CADASTRADO:/.test(x); var aviso = nc || /^(Pulado|Falha):/.test(x); return '<li class="'+(nc ? '' : (aviso ? 'is-aviso' : ''))+'">'+(aviso ? '⚠ ' : '')+(nc ? automacaoNcHtml(x) : esc(x))+'</li>'; }).join('')+'</ul></details>' : '')+
-      '</div>';
+  /* ================= PAINEL DE RESULTADOS (historico organizado) =================
+     So apresentacao: le o que o vigia ja devolve em resultado.detalhes (uma linha por acao) e
+     organiza por categoria / paciente / status. Nenhum numero e inventado: todo indicador e a
+     CONTAGEM das proprias linhas listadas embaixo, por isso indicadores e tabela sempre batem.
+     Cada linha tem UM status: ok (feito), pend (precisa de atencao), falha (erro tecnico).
+     Paciente fora do CRM nao e falha: vai pra categoria propria, sem repetir (chave = e-mail). */
+  var AUTO_CATS = [
+    { key:'checkins', nome:'Check-ins', svg:AUTOMACOES[0].svg, periodo:'Semana' },
+    { key:'fotos', nome:'Fotos e medidas', svg:AUTOMACOES[1].svg, periodo:'Datas' },
+    { key:'treinos', nome:'Treinos e dietas', svg:AUTOMACOES[2].svg, periodo:'Data da ficha' },
+    { key:'engajamento', nome:'Engajamento', svg:AUTOMACOES[3].svg, periodo:'Semana avaliada' },
+    { key:'naocad', nome:'Pacientes não cadastrados', svg:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>', periodo:'' },
+    { key:'outros', nome:'Outros registros', svg:'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/>', periodo:'Período' }
+  ];
+  var AUTO_CAT_NOME = { checkins:'Check-ins', fotos:'Fotos e medidas', treinos:'Treinos e dietas', engajamento:'Engajamento' };
+  var AUTO_PREFIXO_CAT = { 'Check-ins':'checkins', 'Fotos/medidas':'fotos', 'Fotos e medidas':'fotos', 'Treinos/dietas':'treinos', 'Treinos e dietas':'treinos', 'Engajamento':'engajamento' };
+  var AUTO_STATUS = { ok:['Sucesso','is-ok'], pend:['Pendência','is-pend'], falha:['Falha','is-falha'], nc:['Não cadastrado no CRM','is-nc'] };
+  var AUTO_ORDEM_STATUS = { falha:0, pend:1, nc:2, ok:3 };
+  var AUTO_LIMITE_LINHAS = 25;
+
+  function autoDataBR(iso){
+    var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return m ? m[3] + '/' + m[2] + '/' + m[1] : String(iso || '');
+  }
+  function autoNorm(t){
+    return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  }
+  function autoMs(ms){
+    var s = Math.max(0, Math.round(ms / 1000));
+    return s >= 60 ? Math.floor(s / 60) + ' min ' + (s % 60) + ' s' : s + ' s';
+  }
+  /* Linha sem "[Categoria]" na frente (ex.: "refazer o que faltou"): descobre a categoria pelo texto. */
+  function automacaoCatPorTexto(t){
+    if(/→\s*nota \d|^Exceção:|não lida|WhatsApp|sem telefone/i.test(t)) return 'engajamento';
+    if(/ficha de (treino|dieta)/i.test(t)) return 'treinos';
+    if(/semana \d+\s*->|agendado para|semana de check-in|sem check-in respondido/i.test(t)) return 'checkins';
+    if(/\b(fotos|medidas)\b/i.test(t)) return 'fotos';
+    return 'outros';
+  }
+  /* Transforma o resultado de uma execucao em registros (um por acao/paciente). Guarda em cache. */
+  function automacaoRegistros(p){
+    var a = state.automacao, chave = p.id + '|' + (p.finalizadoEm || 0);
+    if(a.regCache[chave]) return a.regCache[chave];
+    var r = p.resultado || {}, previa = p.modo !== 'direto';
+    var rows = [], ncMap = {}, ncLista = [];
+    var tipoCat = AUTO_CAT_NOME[p.tipo] ? p.tipo : null;
+    function add(cat, nome, acao, periodo, status, obs, extra, bruto, nota, marca){
+      rows.push({ cat:cat, nome:nome || '—', acao:acao || '', periodo:periodo || '', status:status, obs:obs || '', extra:extra || [], bruto:[bruto], nota:(nota === undefined ? null : nota), marca:marca || '' });
+    }
+    function addNc(nome, email, cat, bruto){
+      var k = String(email || '').toLowerCase();
+      var x = ncMap[k];
+      if(!x){ x = ncMap[k] = { nome:nome || '', email:k, cats:[], bruto:[], status:'nc' }; ncLista.push(x); }
+      if(nome && !x.nome) x.nome = nome;
+      if(AUTO_CAT_NOME[cat] && x.cats.indexOf(AUTO_CAT_NOME[cat]) === -1) x.cats.push(AUTO_CAT_NOME[cat]);
+      x.bruto.push(bruto);
+    }
+    (r.detalhes || []).forEach(function(linha){
+      var txt = String(linha), cat = tipoCat, m;
+      var pm = txt.match(/^\[([^\]]+)\]\s*(.*)$/);
+      if(pm && AUTO_PREFIXO_CAT[pm[1]]){ cat = AUTO_PREFIXO_CAT[pm[1]]; txt = pm[2]; }
+      if(!cat) cat = automacaoCatPorTexto(txt);
+
+      if((m = txt.match(/^NÃO CADASTRADO:\s*(.*?)\s*\((\S+@[^\s)]+)\)/))){ addNc(m[1] === 'nome não identificado' ? '' : m[1], m[2], cat, linha); return; }
+      if((m = txt.match(/^Pulado:\s*e-mail nao encontrado no CRM:\s*(\S+)/i))){ addNc('', m[1], cat, linha); return; }
+      if((m = txt.match(/^Falha:\s*\[([^\]]+)\]\s*não rodou\s*—\s*(.*)$/))){
+        add(AUTO_PREFIXO_CAT[m[1]] || cat, 'Automação inteira', 'Não rodou', '', 'falha', m[2], [['Motivo', m[2]]], linha); return;
+      }
+      if((m = txt.match(/^Falha:\s*(.*)$/))){
+        var f = m[1], fm;
+        if((fm = f.match(/^Não consegui deixar "não lida":\s*(.*?)\s*—\s*(.*)$/))) add(cat, fm[1], 'Não consegui devolver a conversa para "não lida"', '', 'falha', fm[2], [['Erro', fm[2]]], linha);
+        else if((fm = f.match(/^(.*?)\s*\((\d\d\/\d\d[–-]\d\d\/\d\d)\):\s*(.*)$/))) add(cat, fm[1], 'Falha ao avaliar a semana', fm[2], 'falha', fm[3], [['Erro', fm[3]]], linha);
+        else if((fm = f.match(/^(.*?):\s*(.*)$/))) add(cat, fm[1], 'Falha ao processar', '', 'falha', fm[2], [['Erro', fm[2]]], linha);
+        else add(cat, '—', 'Falha', '', 'falha', f, [['Erro', f]], linha);
+        return;
+      }
+      if((m = txt.match(/^Pulado:\s*(.*)$/))){
+        var pu = m[1], pp = pu.match(/^(.*?)\s*(?:—|:)\s*(.*)$/);
+        add(cat, pp ? pp[1] : '—', 'Pulado', '', 'pend', pp ? pp[2] : pu, [['Motivo', pp ? pp[2] : pu]], linha); return;
+      }
+      if((m = txt.match(/^Pendência:\s*(.*?)\s*—\s*(.*)$/))){
+        var pe = m[2].charAt(0).toUpperCase() + m[2].slice(1);
+        add(cat, m[1], pe, '', 'pend', '', [['Pendência', pe]], linha, null, /^sem check-in respondido/i.test(m[2]) ? 'semcheckin' : ''); return;
+      }
+      if((m = txt.match(/^Exceção:\s*(.*?)\s*\((\d\d\/\d\d[–-]\d\d\/\d\d)\)\s*—\s*(.*)$/))){
+        var ex = m[3].split(' | ');
+        add(cat, m[1], 'Sem nota (exceção)', m[2], 'pend', ex[0], [['Semana avaliada', m[2]], ['Motivo da exceção', ex[0]], ['Fato observado', ex[1] || '']], linha); return;
+      }
+      var verbo = (txt.match(/^(Gravado|Entraria|Criada):\s*/) || [])[1] || '';
+      var corpo = verbo ? txt.replace(/^(Gravado|Entraria|Criada):\s*/, '') : txt;
+      if((m = corpo.match(/^(.*?):\s*(\d{4})-(\d{2}) semana (\d+)\s*->\s*(.*)$/))){
+        var per = 'Semana ' + m[4] + ' (' + m[3] + '/' + m[2] + ')', resto = m[5], ob = (resto.match(/\+(\d+) observacao/) || [])[1];
+        if(/enviou=false/.test(resto)){
+          var mot = (resto.match(/\(nao enviou\)\s*-\s*(.*)$/) || [])[1] || '';
+          add(cat, m[1], previa ? 'Seria marcado como "não enviou"' : 'Marcado como "não enviou"', per, 'pend', mot, [['Semana', per], ['Motivo', mot || 'o prazo do check-in passou sem resposta']], linha, null, 'naoenviou');
+        } else if(/enviou=true/.test(resto)){
+          add(cat, m[1], previa ? 'Check-in seria registrado' : 'Check-in registrado', per, 'ok', ob ? '+' + ob + ' observação(ões)' : '', [['Semana', per], ['Observações adicionadas', ob || 'nenhuma']], linha);
+        } else {
+          add(cat, m[1], ob ? (previa ? 'Observações seriam adicionadas' : 'Observações adicionadas') : 'Registro atualizado', per, 'ok', ob ? '+' + ob + ' observação(ões)' : resto, [['Semana', per]], linha);
+        }
+        return;
+      }
+      if((m = corpo.match(/^(.*?):\s*(fotos|medidas)\s+(.+?)\s*->\s*(\d{4}-\d{2}-\d{2})$/))){
+        var oq = m[2] === 'fotos' ? 'Fotos' : 'Medidas', antes = /sem registro/.test(m[3]) ? 'sem registro' : autoDataBR(m[3]);
+        add(cat, m[1], oq + (previa ? ': data seria atualizada' : ': data atualizada'), antes + ' → ' + autoDataBR(m[4]), 'ok', '', [['Data anterior no CRM', antes], ['Data mais recente (Treino.io)', autoDataBR(m[4])]], linha); return;
+      }
+      if((m = corpo.match(/^(.*?):\s*ficha de (treino|dieta) de (\d{4}-\d{2}-\d{2})\s*\(CRM tinha (.*?)\)(.*)$/))){
+        var tinha = m[4] === 'nenhuma' ? 'nenhuma ficha' : autoDataBR(m[4]);
+        add(cat, m[1], 'Ficha de ' + m[2] + (previa ? ' seria criada' : ' criada') + ' no CRM (só com a data)', autoDataBR(m[3]), 'ok', 'CRM tinha: ' + tinha, [['Data da ficha no Treino.io', autoDataBR(m[3])], ['Ficha mais recente que o CRM tinha', tinha]], linha);
+        if(/defina o vencimento/.test(m[5])) add(cat, m[1], 'Definir o vencimento da ficha de treino', autoDataBR(m[3]), 'pend', 'A ficha ' + (previa ? 'entraria' : 'entrou') + ' sem vencimento', [['Data da ficha', autoDataBR(m[3])], ['O que fazer', 'Abrir o paciente e preencher o vencimento da ficha de treino']], linha);
+        return;
+      }
+      if((m = corpo.match(/^(.*?)\s*\((\d\d\/\d\d[–-]\d\d\/\d\d)\)\s*→\s*nota (\d+)\s*\|\s*(.*)$/))){
+        var ps = m[4].split(' | '), fato = (ps[0] || '').replace(/^Fato:\s*/, ''), ia = (ps[1] || '').replace(/^IA:\s*/, '');
+        add(cat, m[1], (previa ? 'Nota prevista: ' : 'Nota ') + m[3], m[2], 'ok', fato, [['Semana avaliada', m[2]], ['Nota', m[3]], ['Fato observado', fato], ['Interpretação', ia]], linha, Number(m[3])); return;
+      }
+      add(cat, '—', corpo, '', verbo ? 'ok' : 'pend', '', [], linha);
+    });
+    // quem ja aparece como "nao enviou" nao repete como "sem check-in respondido"
+    var jaNaoEnviou = {};
+    rows.forEach(function(x){ if(x.marca === 'naoenviou') jaNaoEnviou[x.nome] = 1; });
+    rows = rows.filter(function(x){ return !(x.marca === 'semcheckin' && jaNaoEnviou[x.nome]); });
+
+    // resumo e duracao por categoria: do proprio vigia (partes) ou, em execucao antiga, do texto do resumo
+    var resumos = {}, duracoes = {};
+    if(r.partes && r.partes.length){
+      r.partes.forEach(function(pt){ resumos[pt.tipo] = (resumos[pt.tipo] ? resumos[pt.tipo] + ' ' : '') + (pt.resumo || ''); duracoes[pt.tipo] = (duracoes[pt.tipo] || 0) + (pt.duracaoMs || 0); });
+    } else if(tipoCat){
+      resumos[tipoCat] = r.resumo || '';
+    } else if(r.resumo){
+      var rot = [['checkins','CHECK-INS: '],['fotos','FOTOS E MEDIDAS: '],['treinos','TREINOS E DIETAS: '],['engajamento','ENGAJAMENTO: ']];
+      var pos = rot.map(function(x){ return [x[0], r.resumo.indexOf(x[1]), x[1].length]; }).filter(function(x){ return x[1] !== -1; }).sort(function(x, y){ return x[1] - y[1]; });
+      pos.forEach(function(x, i){ resumos[x[0]] = r.resumo.slice(x[1] + x[2], i + 1 < pos.length ? pos[i + 1][1] : undefined).trim(); });
+    }
+    Object.keys(resumos).forEach(function(k){ resumos[k] = String(resumos[k]).replace(/^PRÉVIA \(nada foi gravado\)\.\s*/, ''); });
+    var reg = { rows:rows, nc:ncLista, resumos:resumos, duracoes:duracoes, previa:previa, truncado:!(r.partes && r.partes.length) && (r.detalhes || []).length >= 100 };
+    a.regCache[chave] = reg;
+    return reg;
+  }
+  /* Contagens de uma execucao, sem misturar coisas diferentes:
+     ok = acoes concluidas; pacientes = pacientes diferentes com alguma acao concluida;
+     pend = pendencias; falha = erros tecnicos; nc = pacientes fora do CRM (sem repetir). */
+  function automacaoContagem(reg, catKey){
+    var c = { ok:0, pend:0, falha:0, nc:reg.nc.length, pacientes:0 }, nomes = {};
+    reg.rows.forEach(function(x){
+      if(catKey && x.cat !== catKey) return;
+      c[x.status]++;
+      if(x.status === 'ok' && x.nome && x.nome !== '—') nomes[x.nome] = 1;
+    });
+    c.pacientes = Object.keys(nomes).length;
+    return c;
+  }
+  function automacaoFinalizado(p){
+    return !!(p && p.resultado && (p.status === 'concluido' || p.status === 'parcial' || p.status === 'erro'));
+  }
+  function automacaoUltimaExecucao(){
+    return state.automacao.pedidos.filter(automacaoFinalizado)[0] || null;
+  }
+  function automacaoPassa(x, ehNc){
+    var ui = state.automacao.ui;
+    if(ui.filtro !== 'todos' && (ehNc ? ui.filtro !== 'nc' : ui.filtro !== x.status)) return false;
+    if(ui.busca){
+      var alvo = autoNorm(ehNc ? x.nome + ' ' + x.email + ' ' + x.cats.join(' ') : x.nome + ' ' + x.acao + ' ' + x.periodo + ' ' + x.obs);
+      return autoNorm(ui.busca).split(/\s+/).every(function(t){ return !t || alvo.indexOf(t) !== -1; });
+    }
+    return true;
+  }
+  function automacaoChipHtml(st, previa){
+    var s = AUTO_STATUS[st];
+    return '<span class="auto-chip '+s[1]+'"><i></i>'+(st === 'ok' && previa ? 'Entraria (prévia)' : s[0])+'</span>';
+  }
+  function automacaoSvg(d, cls){
+    return '<svg class="'+cls+'" viewBox="0 0 24 24" aria-hidden="true">'+d+'</svg>';
+  }
+  function automacaoDetGridHtml(pares){
+    return '<div class="auto-det-grid">'+pares.filter(function(x){ return x[1] !== '' && x[1] !== null && x[1] !== undefined; }).map(function(x){
+      return '<div><span>'+esc(x[0])+'</span><b>'+esc(x[1])+'</b></div>';
+    }).join('')+'</div>';
+  }
+  function automacaoBrutoHtml(linhas){
+    return '<div class="auto-det-bruto"><span>Registro original da automação</span>'+linhas.map(function(l){ return '<code>'+esc(l)+'</code>'; }).join('')+'</div>';
+  }
+  /* Uma categoria de uma execucao: cabecalho com contagens + tabela de pacientes (expansivel). */
+  function automacaoCatHtml(p, reg, cat){
+    var ui = state.automacao.ui, ehNc = cat.key === 'naocad';
+    var todos = ehNc ? reg.nc : reg.rows.filter(function(x){ return x.cat === cat.key; });
+    var vis = todos.filter(function(x){ return automacaoPassa(x, ehNc); });
+    var filtrando = ui.filtro !== 'todos' || !!ui.busca;
+    if(filtrando && !vis.length) return '';
+    var chave = p.id + '|' + cat.key;
+    var aberto = filtrando ? ui.cat[chave] !== false : !!ui.cat[chave];
+    var c = automacaoContagem(reg, cat.key);
+    var chips = ehNc
+      ? '<span class="auto-num is-nc" title="Pacientes fora do CRM">'+todos.length+'</span>'
+      : '<span class="auto-num is-ok" title="'+(reg.previa ? 'Entrariam' : 'Concluídas')+'">'+c.ok+'</span><span class="auto-num is-pend" title="Pendências">'+c.pend+'</span><span class="auto-num is-falha" title="Falhas">'+c.falha+'</span>';
+    var resumo = ehNc ? 'Alunos do Treino.io sem cadastro correspondente no CRM. Nada é cadastrado automaticamente.' : (reg.resumos[cat.key] || '');
+    var head = '<button type="button" class="auto-cat-head" data-auto-cat="'+esc(chave)+'" data-aberto="'+(aberto ? '1' : '0')+'">'+
+      '<span class="auto-chev">'+(aberto ? '▾' : '▸')+'</span>'+
+      automacaoSvg(cat.svg, 'auto-cat-ico')+
+      '<span class="auto-cat-nome">'+esc(cat.nome)+'</span>'+
+      '<span class="auto-cat-nums">'+chips+'</span>'+
+      '<span class="auto-cat-resumo">'+esc(resumo)+'</span>'+
+      (reg.duracoes[cat.key] ? '<span class="auto-cat-tempo">'+autoMs(reg.duracoes[cat.key])+'</span>' : '')+
+      '<span class="auto-cat-ver">'+(aberto ? 'Recolher' : 'Ver detalhes →')+'</span>'+
+    '</button>';
+    if(!aberto) return '<div class="auto-cat">'+head+'</div>';
+    if(!todos.length) return '<div class="auto-cat">'+head+'<div class="auto-vazio">'+(ehNc ? 'Nenhum paciente fora do CRM nesta execução.' : 'Nenhum registro individual nesta categoria.')+'</div></div>';
+    var lista = vis.slice();
+    if(ui.ordem === 'status') lista.sort(function(x, y){ return AUTO_ORDEM_STATUS[x.status] - AUTO_ORDEM_STATUS[y.status]; });
+    else if(ui.ordem === 'nome') lista.sort(function(x, y){ return String(x.nome).localeCompare(String(y.nome), 'pt-BR'); });
+    var mostrarTudo = !!ui.mais[chave] || lista.length <= AUTO_LIMITE_LINHAS;
+    var cab = ehNc
+      ? '<div class="auto-lin-cab"><span></span><span>Nome</span><span>E-mail</span><span>Automações</span><span>Status</span><span></span></div>'
+      : '<div class="auto-lin-cab"><span></span><span>Paciente</span><span>Ação realizada</span><span>'+esc(cat.periodo)+'</span><span>Status</span><span>Observações</span></div>';
+    var linhas = (mostrarTudo ? lista : lista.slice(0, AUTO_LIMITE_LINHAS)).map(function(x){
+      var k = chave + '|' + todos.indexOf(x), ab = !!ui.row[k], det = '';
+      if(ab){
+        det = ehNc
+          ? automacaoDetGridHtml([['Nome', x.nome || 'não identificado'], ['E-mail', x.email], ['Automações que identificaram', x.cats.join(', ') || '—'], ['Status', 'Não cadastrado no CRM'], ['Motivo', 'O e-mail deste aluno no Treino.io não existe em nenhum paciente do CRM. Nada foi cadastrado automaticamente.']]) + automacaoBrutoHtml(x.bruto)
+          : automacaoDetGridHtml([['Paciente', x.nome], ['Automação', cat.nome], ['Ação', x.acao], ['Resultado', x.status === 'ok' && reg.previa ? 'Entraria (prévia: nada foi gravado)' : AUTO_STATUS[x.status][0]]].concat(x.extra)) + automacaoBrutoHtml(x.bruto);
+        det = '<div class="auto-lin-det">'+det+'</div>';
+      }
+      var cols = ehNc
+        ? '<span class="auto-c-nome">'+esc(x.nome || 'Nome não identificado')+'</span><span class="auto-c-acao">'+esc(x.email)+'</span><span class="auto-c-per">'+esc(x.cats.join(', ') || '—')+'</span><span class="auto-c-st">'+automacaoChipHtml('nc')+'</span><span class="auto-c-obs"></span>'
+        : '<span class="auto-c-nome">'+esc(x.nome)+'</span><span class="auto-c-acao">'+(x.nota !== null ? '<span class="auto-nota '+(x.nota >= 9 ? 'is-alta' : (x.nota >= 7 ? 'is-media' : 'is-baixa'))+'">'+esc(x.acao)+'</span>' : esc(x.acao))+'</span><span class="auto-c-per">'+esc(x.periodo || '—')+'</span><span class="auto-c-st">'+automacaoChipHtml(x.status, reg.previa)+'</span><span class="auto-c-obs">'+esc(x.obs || '—')+'</span>';
+      return '<div class="auto-lin'+(ab ? ' is-aberta' : '')+'"><button type="button" class="auto-lin-top" data-auto-row="'+esc(k)+'"><span class="auto-chev">'+(ab ? '▾' : '▸')+'</span>'+cols+'</button>'+det+'</div>';
     }).join('');
+    return '<div class="auto-cat is-aberta">'+head+'<div class="auto-tab">'+cab+linhas+
+      (mostrarTudo ? '' : '<button type="button" class="auto-mais" data-auto-mais="'+esc(chave)+'">Mostrar todos ('+lista.length+')</button>')+
+      (filtrando && vis.length < todos.length ? '<div class="auto-tab-nota">Mostrando '+vis.length+' de '+todos.length+' (filtro ativo).</div>' : '')+
+    '</div></div>';
+  }
+  /* Uma execucao do historico: linha-resumo que abre/fecha + as categorias. */
+  function automacaoExecHtml(p, ehUltima){
+    var ui = state.automacao.ui, info = automacaoStatusInfo(p), r = p.resultado;
+    var nome = esc(AUTOMACAO_NOMES[p.tipo] || p.tipo) + (p.modo === 'previa' ? ' <span class="badge badge-gray">prévia</span>' : '');
+    if(!automacaoFinalizado(p)){
+      return '<div class="auto-exec"><div class="auto-exec-head is-fixa"><span class="auto-chev"></span><span class="auto-exec-data">'+automacaoDataHora(p.criadoEm)+'</span><span class="auto-exec-nome">'+nome+'</span>'+
+        '<span class="auto-status '+info.cls+'"><span class="auto-dot"></span>'+esc(info.txt)+'</span><span class="auto-exec-num">'+(r && r.resumo ? esc(r.resumo) : '—')+'</span><span class="auto-exec-tempo"></span></div></div>';
+    }
+    var reg = automacaoRegistros(p), c = automacaoContagem(reg);
+    var aberto = ui.exec[p.id] === undefined ? ehUltima : !!ui.exec[p.id];
+    var numeros = r.analisados + ' analisados · ' + c.ok + (reg.previa ? ' entrariam' : (c.ok === 1 ? ' atualização' : ' atualizações')) + ' · ' + c.pend + (c.pend === 1 ? ' pendência' : ' pendências') + ' · ' + c.falha + (c.falha === 1 ? ' falha' : ' falhas') + ' · ' + c.nc + (c.nc === 1 ? ' não cadastrado' : ' não cadastrados');
+    var head = '<button type="button" class="auto-exec-head" data-auto-exec="'+esc(p.id)+'" data-aberto="'+(aberto ? '1' : '0')+'">'+
+      '<span class="auto-chev">'+(aberto ? '▾' : '▸')+'</span>'+
+      '<span class="auto-exec-data">'+automacaoDataHora(p.criadoEm)+'</span>'+
+      '<span class="auto-exec-nome">'+nome+'</span>'+
+      '<span class="auto-status '+info.cls+'"><span class="auto-dot"></span>'+esc(info.txt)+'</span>'+
+      '<span class="auto-exec-num">'+esc(numeros)+'</span>'+
+      '<span class="auto-exec-tempo">'+automacaoDuracao(p)+'</span>'+
+    '</button>';
+    if(!aberto) return '<div class="auto-exec">'+head+'</div>';
+    var cats = AUTO_CATS.filter(function(cat){
+      if(cat.key === 'naocad') return p.tipo === 'todas' || reg.nc.length > 0;
+      if(cat.key === 'outros') return reg.rows.some(function(x){ return x.cat === 'outros'; });
+      return p.tipo === 'todas' || p.tipo === cat.key || reg.resumos[cat.key] !== undefined || reg.rows.some(function(x){ return x.cat === cat.key; });
+    });
+    var corpoCats = cats.map(function(cat){ return automacaoCatHtml(p, reg, cat); }).join('');
+    var filtrando = ui.filtro !== 'todos' || !!ui.busca;
+    return '<div class="auto-exec is-aberta">'+head+'<div class="auto-exec-body">'+
+      (p.status === 'erro' && r.resumo ? '<div class="auto-exec-msg">'+esc(r.resumo)+'</div>' : '')+
+      (p.status === 'parcial' && r.faltou && r.faltou.length ? (p.retomadoPor ? '<div class="auto-ok" style="margin:0 0 6px;">✓ O que faltou foi refeito depois.</div>' : '')+automacaoFaltouBoxHtml(r.faltou, p.retomadoPor ? '' : p.id) : '')+
+      (reg.truncado ? '<div class="auto-tab-nota">Esta execução é antiga e guardou só as 100 primeiras linhas. As próximas guardam todas.</div>' : '')+
+      (corpoCats || '<div class="auto-vazio">'+(filtrando ? 'Nenhum registro desta execução passa no filtro atual.' : 'Esta execução não trouxe registros individuais.')+'</div>')+
+    '</div></div>';
+  }
+  function automacaoListaHtml(){
+    var ui = state.automacao.ui, ps = state.automacao.pedidos.slice();
+    if(!ps.length) return '<div class="auto-vazio">Nenhuma execução registrada ainda.</div>';
+    var ultima = automacaoUltimaExecucao();
+    if(ui.ordem === 'antigas') ps.reverse();
+    return ps.map(function(p){ return automacaoExecHtml(p, !!ultima && p.id === ultima.id); }).join('');
+  }
+  /* Indicadores da ULTIMA execucao + filtros + historico. */
+  function automacaoPainelHtml(){
+    var ui = state.automacao.ui, u = automacaoUltimaExecucao();
+    var reg = u ? automacaoRegistros(u) : null, c = reg ? automacaoContagem(reg) : null;
+    var info = u ? automacaoStatusInfo(u) : null;
+    function kpi(cls, svg, rot, val, sub, filtro){
+      return '<div class="card auto-kpi '+cls+'"><span class="auto-kpi-ico">'+automacaoSvg(svg, '')+'</span><div class="auto-kpi-txt">'+
+        '<div class="auto-kpi-rot">'+rot+'</div><div class="auto-kpi-val">'+val+'</div>'+(sub ? '<div class="auto-kpi-sub">'+sub+'</div>' : '')+
+        (filtro && c && c[filtro] ? '<button type="button" class="auto-kpi-link" data-auto-kpi="'+filtro+'">Ver detalhes →</button>' : '')+
+      '</div></div>';
+    }
+    var kpis = '<div class="auto-kpis">'+
+      kpi('is-exec', '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>', 'Última execução', u ? automacaoDataHora(u.criadoEm) : '—',
+        u ? esc(AUTOMACAO_NOMES[u.tipo] || u.tipo) + (reg.previa ? ' (prévia)' : '') + ' · ' + automacaoDuracao(u) + '<br><span class="auto-status '+info.cls+'" style="margin-top:4px;"><span class="auto-dot"></span>'+esc(info.txt)+'</span>' : 'Nenhuma execução ainda')+
+      kpi('is-ok', '<path d="M20 6 9 17l-5-5"/>', reg && reg.previa ? 'Atualizações previstas (prévia)' : 'Atualizações realizadas', c ? c.ok : '—',
+        c ? c.pacientes + (c.pacientes === 1 ? ' paciente' : ' pacientes') + (reg.previa ? ' seriam atualizados' : ' atualizados') + ' · ' + u.resultado.analisados + ' analisados' : '', 'ok')+
+      kpi('is-pend', '<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>', 'Pendências', c ? c.pend : '—', c ? 'precisam da sua atenção' : '', 'pend')+
+      kpi('is-falha', '<circle cx="12" cy="12" r="9"/><path d="m15 9-6 6M9 9l6 6"/>', 'Falhas', c ? c.falha : '—', c ? 'erros técnicos da automação' : '', 'falha')+
+      kpi('is-nc', AUTO_CATS[4].svg, 'Pacientes não cadastrados', c ? c.nc : '—', c ? 'estão no Treino.io e não no CRM' : '', 'nc')+
+    '</div>';
+    function fil(k, label, n, cls){
+      return '<button type="button" class="meta-type-btn auto-fil '+cls+(ui.filtro === k ? ' active' : '')+'" data-auto-filtro="'+k+'"><i></i>'+label+(c ? ' ('+n+')' : '')+'</button>';
+    }
+    var barra = '<div class="auto-barra">'+
+      '<div class="auto-filtros">'+
+        fil('todos', 'Todos', c ? c.ok + c.pend + c.falha + c.nc : 0, 'is-todos')+fil('ok', 'Sucessos', c ? c.ok : 0, 'is-ok')+fil('pend', 'Pendências', c ? c.pend : 0, 'is-pend')+fil('falha', 'Falhas', c ? c.falha : 0, 'is-falha')+fil('nc', 'Não cadastrados', c ? c.nc : 0, 'is-nc')+
+      '</div>'+
+      '<input type="text" id="autoBusca" class="search-input auto-busca" placeholder="Buscar paciente, e-mail ou detalhe…" value="'+esc(ui.busca)+'">'+
+      '<select id="autoOrdem" class="auto-ordem" aria-label="Ordenar">'+
+        [['recentes','Mais recentes'],['antigas','Mais antigas'],['status','Por status (falhas primeiro)'],['nome','Por nome (A–Z)']].map(function(o){ return '<option value="'+o[0]+'"'+(ui.ordem === o[0] ? ' selected' : '')+'>'+o[1]+'</option>'; }).join('')+
+      '</select>'+
+    '</div>';
+    return '<h2 class="section-title" style="margin:6px 0 10px;">Resultado das automações</h2>'+kpis+barra+
+      '<div class="card auto-hist2"><div class="auto-hist2-titulo">Histórico de execuções</div><div id="autoPainelLista">'+automacaoListaHtml()+'</div></div>';
+  }
+  function bindAutomacaoLista(lista){
+    function cada(sel, fn){ var els = lista.querySelectorAll(sel); for(var i = 0; i < els.length; i++) els[i].addEventListener('click', fn); }
+    var ui = state.automacao.ui;
+    cada('[data-auto-exec]', function(){ ui.exec[this.getAttribute('data-auto-exec')] = this.getAttribute('data-aberto') !== '1'; refreshAutomacao(); });
+    cada('[data-auto-cat]', function(){ ui.cat[this.getAttribute('data-auto-cat')] = this.getAttribute('data-aberto') !== '1'; refreshAutomacao(); });
+    cada('[data-auto-row]', function(){ var k = this.getAttribute('data-auto-row'); ui.row[k] = !ui.row[k]; refreshAutomacao(); });
+    cada('[data-auto-mais]', function(){ ui.mais[this.getAttribute('data-auto-mais')] = true; refreshAutomacao(); });
+    cada('[data-auto-refazer]', function(){
+      var id = this.getAttribute('data-auto-refazer');
+      var origem = state.automacao.pedidos.filter(function(p){ return p.id === id; })[0];
+      if(origem) automacaoCriarPedido('retomar', { deOrigem: origem.id, modo: origem.modo });
+    });
+  }
+  /* So a lista (usado ao digitar na busca, pra nao tirar o foco do campo). */
+  function refreshAutomacaoLista(){
+    var lista = document.getElementById('autoPainelLista'), wrap = document.getElementById('automacaoWrap');
+    if(!lista) return;
+    lista.innerHTML = automacaoListaHtml();
+    bindAutomacaoLista(lista);
+    if(wrap) wrap.__html = null;
+  }
+  function bindAutomacaoPainel(wrap){
+    var ui = state.automacao.ui, i;
+    var fs = wrap.querySelectorAll('[data-auto-filtro]');
+    for(i = 0; i < fs.length; i++) fs[i].addEventListener('click', function(){ ui.filtro = this.getAttribute('data-auto-filtro'); refreshAutomacao(); });
+    var ks = wrap.querySelectorAll('[data-auto-kpi]');
+    for(i = 0; i < ks.length; i++) ks[i].addEventListener('click', function(){
+      var u = automacaoUltimaExecucao();
+      ui.filtro = this.getAttribute('data-auto-kpi');
+      if(u) ui.exec[u.id] = true;
+      refreshAutomacao();
+      var alvo = document.getElementById('autoPainelLista');
+      if(alvo && alvo.scrollIntoView) alvo.scrollIntoView({ behavior:'smooth', block:'start' });
+    });
+    var busca = document.getElementById('autoBusca');
+    if(busca) busca.addEventListener('input', function(){ ui.busca = this.value; refreshAutomacaoLista(); });
+    var ordem = document.getElementById('autoOrdem');
+    if(ordem) ordem.addEventListener('change', function(){ ui.ordem = this.value; refreshAutomacao(); });
+    var lista = document.getElementById('autoPainelLista');
+    if(lista) bindAutomacaoLista(lista);
   }
   function automacaoInnerHtml(){
     var a = state.automacao;
@@ -6025,10 +6457,7 @@
       (ultTodas && ultTodas.status === 'parcial' && ultTodas.resultado && ultTodas.resultado.faltou && ultTodas.resultado.faltou.length && automacaoMesmoDia(ultTodas.finalizadoEm) ? '<div style="flex:1 1 100%;">'+automacaoFaltouBoxHtml(ultTodas.resultado.faltou, ultTodas.retomadoPor ? '' : ultTodas.id)+'</div>' : '')+
       automacaoBotoesHtml('todas', ultTodas, 'auto-btn auto-btn-todas')+
     '</div>'+
-    '<div class="card auto-hist">'+
-      '<h2 class="section-title" style="margin:0 0 10px;">Histórico de execuções</h2>'+
-      automacaoHistoricoHtml()+
-    '</div>';
+    automacaoPainelHtml();
   }
   function automacaoTemplate(){
     return '<div id="automacaoWrap">'+(state.automacao.carregado ? automacaoInnerHtml() : '<div class="atencao-empty">Carregando…</div>')+'</div>';
@@ -6036,8 +6465,16 @@
   function refreshAutomacao(){
     var wrap = document.getElementById('automacaoWrap');
     if(!wrap) return;
-    wrap.innerHTML = automacaoInnerHtml();
+    var html = automacaoInnerHtml();
+    if(wrap.__html === html) return; // nada mudou: nao redesenha (nao pisca, nao perde selecao)
+    var ativo = document.activeElement, foco = ativo && ativo.id === 'autoBusca' ? [ativo.selectionStart, ativo.selectionEnd] : null;
+    wrap.__html = html;
+    wrap.innerHTML = html;
     bindAutomacaoEvents(wrap);
+    if(foco){
+      var campo = document.getElementById('autoBusca');
+      if(campo){ campo.focus(); try { campo.setSelectionRange(foco[0], foco[1]); } catch(e){} }
+    }
   }
   function automacaoCriarPedido(tipo, extra){
     var a = state.automacao;
@@ -6083,6 +6520,7 @@
     }
     var refaz = wrap.querySelectorAll('[data-auto-refazer]');
     for(var rf=0; rf<refaz.length; rf++){
+      if(refaz[rf].closest('#autoPainelLista')) continue; // os do historico sao ligados em bindAutomacaoLista
       refaz[rf].addEventListener('click', function(){
         var origem = state.automacao.pedidos.filter(function(p){ return p.id === this.getAttribute('data-auto-refazer'); }.bind(this))[0];
         if(origem) automacaoCriarPedido('retomar', { deOrigem: origem.id, modo: origem.modo });
@@ -6098,10 +6536,7 @@
         automacaoCancelar(automacaoAtivos().filter(function(p){ return !p.cancelarSolicitado; }).map(function(p){ return p.id; }));
       });
     }
-    var dets = wrap.querySelectorAll('details[data-auto-det]');
-    for(var q=0; q<dets.length; q++){
-      dets[q].addEventListener('toggle', function(){ state.automacao.detAberto[this.getAttribute('data-auto-det')] = this.open; });
-    }
+    bindAutomacaoPainel(wrap);
     var infos = wrap.querySelectorAll('[data-auto-info]');
     for(var k=0; k<infos.length; k++){
       infos[k].addEventListener('click', function(){
@@ -6131,6 +6566,8 @@
     if(!state.loggedIn || state.booting || state.modal || document.hidden || state.automacao.enviando) return;
     // fora da aba Automacao so acompanha enquanto ha algo na fila/executando (pra atualizar os pacientes no fim)
     if(state.tab !== 'automacao' && !automacaoAtivos().length) return;
+    // sem nada na fila nao precisa olhar o banco a cada 5 s: de 30 em 30 s basta
+    if(!automacaoAtivos().length && Date.now() - (state.automacao.ultimaCarga || 0) < 30000) return;
     automacaoLoadAsync().then(refreshAutomacao);
   }, 5000);
 

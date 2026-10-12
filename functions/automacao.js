@@ -25,7 +25,7 @@ const STATUS_FINAIS = ['concluido', 'parcial', 'erro', 'cancelado'];
 // Pedido "executando" parado ha mais que isso e dado como falha (Mac dormiu, app fechou...).
 const EXECUCAO_PARADA_MS = 45 * 60 * 1000;
 const MAX_LOGS = 200;
-const MAX_DETALHES = 100;
+const MAX_DETALHES = 500;
 
 function chaveConfere(recebida, esperada) {
   const a = Buffer.from(String(recebida || ''));
@@ -241,6 +241,8 @@ exports.automacaoVigia = onRequest({
         // O QUE FALTOU (aluno, automacao e motivo): alimenta o aviso na tela e o botao "refazer so o que faltou"
         faltou: (Array.isArray(r.faltou) ? r.faltou : []).slice(0, 100).map((f) => ({ tipo: texto(f && f.tipo, 20), id: texto(f && f.id, 80), nome: texto(f && f.nome, 80), motivo: texto(f && f.motivo, 120) })),
         detalhes: (Array.isArray(r.detalhes) ? r.detalhes : []).slice(0, MAX_DETALHES).map((x) => texto(x, 200)),
+        // resumo e duracao por categoria (so pra tela organizar o painel)
+        partes: (Array.isArray(r.partes) ? r.partes : []).slice(0, 8).map((x) => ({ tipo: texto(x && x.tipo, 20), rodou: !!(x && x.rodou), duracaoMs: inteiro(x && x.duracaoMs), resumo: texto(x && x.resumo, 600), analisados: inteiro(x && x.analisados) })),
       };
       await db.runTransaction(async (tx) => {
         const snap = await tx.get(ref);

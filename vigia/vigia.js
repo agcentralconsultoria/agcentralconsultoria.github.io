@@ -109,6 +109,7 @@ async function executarCheckins(pedido, faixa, somenteIds) {
   const falhas = [];
   const faltou = [];
   let semResposta = 0;
+  const semRespostaNomes = []; // só pro relatório: quem são os "sem check-in" que já eram contados
   let analisados = 0;
   try {
     await atualizarPedido({ action: 'atualizar', id, etapa: 'Check-ins: lendo a lista de alunos', progresso: Math.round(de + (ate - de) * 0.02) });
@@ -123,7 +124,7 @@ async function executarCheckins(pedido, faixa, somenteIds) {
         const lido = await comRetentativa(() => treino.lerCheckinsDoAluno(page, al, desde));
         analisados++;
         const checkins = lido.respondidos;
-        if (!checkins.length) semResposta++;
+        if (!checkins.length) { semResposta++; semRespostaNomes.push(al.nome); }
         checkins.forEach((c) => entries.push({ email: al.email, date: c.data, enviou: true, observacoes: c.observacoes }));
         // "Não enviou": prazo agendado do paciente + 1 dia de folga já passou e não foi respondido
         const limite = treino.somarDias(hoje, -2);
@@ -155,7 +156,8 @@ async function executarCheckins(pedido, faixa, somenteIds) {
   const detalhes = []
     .concat((r.detalhes || []).map((x) => (previa ? 'Entraria: ' : 'Gravado: ') + x))
     .concat(linhasPulados(r.detalhesPulados, nomesPorEmail))
-    .concat(falhas.map((x) => 'Falha: ' + x));
+    .concat(falhas.map((x) => 'Falha: ' + x))
+    .concat(semRespostaNomes.map((n) => 'Pendência: ' + n + ' — sem check-in respondido nos últimos ' + JANELA_DIAS + ' dias'));
   const resumo = (previa ? 'PRÉVIA (nada foi gravado). ' : '') +
     r.checkinsAplicados + ' check-in(s) ' + (previa ? 'entrariam' : 'gravados') + ', ' + r.observacoesAplicadas + ' observação(ões), ' +
     r.ausentesMarcados + ' ' + (previa ? 'seriam marcados' : 'marcados') + ' como NÃO enviou (prazo do paciente + 1 dia já passou). ' +
@@ -422,14 +424,15 @@ async function executarPlano(pedido, plano) {
     const { tipo, ids } = plano[i];
     const def = TIPOS_EXEC[tipo];
     const faixa = [Math.round((100 * i) / n), Math.round((100 * (i + 1)) / n)];
+    const t0 = Date.now();
     try {
       const r = await def.fn(pedido, faixa, ids);
-      partes.push({ tipo, nome: def.nome, r });
+      partes.push({ tipo, nome: def.nome, r, ms: Date.now() - t0 });
       (r.faltou || []).forEach((x) => faltou.push(x));
     } catch (e) {
       if (e.message === 'CANCELADO') throw e;
       log('Etapa ' + def.nome + ' falhou por inteiro: ' + e.message);
-      partes.push({ tipo, nome: def.nome, r: null, motivo: motivoAmigavel(e) });
+      partes.push({ tipo, nome: def.nome, r: null, motivo: motivoAmigavel(e), ms: Date.now() - t0 });
       faltou.push({ tipo, id: '*', nome: '(automação inteira)', motivo: motivoAmigavel(e) });
     }
   }
@@ -445,7 +448,9 @@ async function executarPlano(pedido, plano) {
     atualizados: soma('atualizados'), pendencias: soma('pendencias'), falhas: soma('falhas') + (partes.length - ok.length),
     faltou,
     resumo: partes.map((p) => (n > 1 ? p.nome.toUpperCase() + ': ' : '') + (p.r ? p.r.resumo : 'NÃO RODOU (' + p.motivo + ').')).join(' '),
-    detalhes: detalhes.slice(0, 100),
+    detalhes: detalhes.slice(0, 500),
+    // resumo e duração de cada categoria (a tela usa pra montar o painel; não muda nenhuma regra)
+    partes: partes.map((p) => ({ tipo: p.tipo, rodou: !!p.r, duracaoMs: p.ms || 0, resumo: p.r ? p.r.resumo : 'NÃO RODOU (' + p.motivo + ').', analisados: p.r ? p.r.analisados || 0 : 0 })),
   };
   const status = !ok.length ? 'erro' : (faltou.length ? 'parcial' : 'concluido');
   return { status, resultado };

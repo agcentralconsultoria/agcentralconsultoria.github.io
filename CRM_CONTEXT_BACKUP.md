@@ -1595,3 +1595,25 @@ conta de teste em modo prévia; (5) fotos/medidas e treinos/dietas;
   `tipo:'retomar'` + `deOrigem` (regras Firestore aceitam). O vigia lê o pedido de origem (`action:
   origem`) e refaz só aqueles alunos/etapas; ao fim o original ganha `retomadoPor` (some o botão) e,
   se concluiu, o card da automação volta a "concluído".
+
+### Painel de resultados da Automação (12/10/2026)
+- Pedido do Ângelo (com modelo visual): trocar o "Histórico de execuções" (dezenas de linhas de texto)
+  por um painel. **Só apresentação — nenhuma regra/lógica das automações mudou.** Cards e botões de
+  cima (executar, fila, cancelar, prévia/direto) ficaram como estavam.
+- `automacaoRegistros(p)` lê `resultado.detalhes` (as mesmas linhas de sempre) e monta registros
+  {categoria, paciente, ação, período, status, observações, linha original}. Status único por linha:
+  ok / pend / falha; paciente fora do CRM vira categoria própria (sem repetir, chave = e-mail) e NÃO
+  conta como falha. Linha de ficha de treino criada sem vencimento vira 2 registros (ok + pendência).
+- **Todo indicador é a contagem dessas linhas** (`automacaoContagem`), por isso KPIs, filtros, cabeçalho
+  da execução, categorias e os números dos 4 cards sempre batem. "Analisados" vem do vigia.
+- Tela: 5 KPIs da última execução (com atalho "Ver detalhes"), filtros Todos/Sucessos/Pendências/
+  Falhas/Não cadastrados, busca (nome, e-mail, detalhe; sem acento), ordenação (recentes, antigas,
+  status, nome), histórico em sanfona (última aberta nas 5 categorias; anteriores recolhidas),
+  categoria expansível com tabela, paciente expansível com todos os dados + "Registro original".
+  Prévia aparece como "Entraria (prévia)". Nota de engajamento com a cor do CRM (9–10 verde, 7–8
+  amarelo, 0–6 vermelho) sem virar pendência (não mudei critério).
+- Sem hora por paciente: o vigia não registra (só data/hora e duração da execução). Não inventei.
+- Relatório do vigia (não é lógica): passa a mandar `partes` (resumo e duração por categoria), lista
+  pelo nome quem já era contado como "sem check-in nos últimos 10 dias" e guarda até 500 linhas
+  (antes 100). Servidor: `MAX_DETALHES = 500` + `partes`. Execução antiga funciona igual no painel.
+- Tela só redesenha quando algo muda e, sem nada na fila, consulta o banco a cada 30 s (antes 5 s).
