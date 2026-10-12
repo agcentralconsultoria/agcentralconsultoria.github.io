@@ -21,6 +21,9 @@ function perguntar(prompt, { modelo = 'sonnet', esforco = 'medium', timeoutMs = 
     proc.on('error', (e) => { clearTimeout(timer); reject(e); });
     proc.on('close', (code) => {
       clearTimeout(timer);
+      if (/OAuth session expired|Failed to authenticate|not logged in|\/login/i.test(out + err)) {
+        return reject(new Error('O login do Claude no Mac expirou. Abra o Terminal, rode "claude" e digite /login.'));
+      }
       if (code !== 0) return reject(new Error('Claude saiu com erro ' + code + ': ' + (err || out).slice(0, 200)));
       try {
         const j = JSON.parse(out);
