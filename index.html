@@ -6038,13 +6038,61 @@
     var cancel = meuAtivo && !meuAtivo.cancelarSolicitado ? '<button type="button" class="btn btn-secondary auto-btn-cancelar" data-auto-cancelar="'+esc(meuAtivo.id)+'">Cancelar</button>' : '';
     return '<div class="auto-btns">'+run+cancel+'</div>';
   }
+  /* "Executar todas" tambem atualiza o card de cada automacao: status, andamento e "Ultima execucao".
+     Pega o pedido mais recente que cobre esta automacao (dela mesma ou de "todas") e, quando ele
+     e mais novo que o resumo do servidor, monta o resumo so com a parte dela. */
+  var AUTO_ORDEM_CARDS = ['checkins', 'fotos', 'treinos', 'engajamento'];
+  function automacaoPedidoDoCard(key){
+    return state.automacao.pedidos.filter(function(p){
+      if(p.tipo === key) return true;
+      if(p.tipo !== 'todas') return false;
+      if(p.status === 'pendente' || p.status === 'executando') return true;
+      return automacaoFinalizado(p);
+    })[0] || null;
+  }
+  function automacaoStatusDaParte(p, key){
+    if(!p || p.tipo === key) return automacaoStatusCard(p);
+    if(p.status === 'pendente') return automacaoStatusInfo(p);
+    if(p.status === 'executando'){
+      var atual = -1;
+      AUTO_ORDEM_CARDS.forEach(function(k, i){ if(p.etapa && p.etapa.indexOf(AUTOMACAO_NOMES[k]) === 0) atual = i; });
+      var meu = AUTO_ORDEM_CARDS.indexOf(key);
+      if(atual === -1 || meu === atual) return automacaoStatusInfo(p);
+      return meu < atual ? { txt:'Concluído', cls:'is-ok' } : { txt:'Na fila, aguardando a anterior', cls:'is-fila' };
+    }
+    if(!automacaoMesmoDia(p.finalizadoEm)) return automacaoStatusCard(null);
+    var rp = automacaoResumoDaParte(p, key), pt = ((p.resultado && p.resultado.partes) || []).filter(function(x){ return x.tipo === key; })[0];
+    if(pt && !pt.rodou) return { txt:'Erro', cls:'is-erro' };
+    if(rp && rp.status === 'parcial') return { txt:'Parcialmente concluído · faltou ' + rp.faltou.length, cls:'is-parcial' };
+    if(rp) return { txt:'Concluído', cls:'is-ok' };
+    return automacaoStatusCard(null);
+  }
+  function automacaoResumoDaParte(p, key){
+    if(!p || p.tipo === key || !automacaoFinalizado(p)) return null;
+    var reg = automacaoRegistros(p), c = automacaoContagem(reg, key);
+    var pt = ((p.resultado.partes || []).filter(function(x){ return x.tipo === key; }))[0];
+    if(!reg.resumos[key] && !pt) return null;
+    var avisos = [];
+    (p.resultado.detalhes || []).forEach(function(l){
+      var pm = String(l).match(/^\[([^\]]+)\]\s*(.*)$/);
+      if(pm && AUTO_PREFIXO_CAT[pm[1]] === key && /^(Pulado|Falha|NÃO CADASTRADO):/.test(pm[2]) && avisos.length < 20) avisos.push(pm[2]);
+    });
+    var falhou = (p.resultado.faltou || []).filter(function(f){ return f.tipo === key; });
+    return { pedidoId:p.id, finalizadoEm:p.finalizadoEm, modo:p.modo, status: falhou.length ? 'parcial' : 'concluido',
+      analisados: pt ? pt.analisados : '—', atualizados:c.ok, pendencias:c.pend, falhas:c.falha,
+      resumo: reg.resumos[key] || '', faltou:falhou, avisos:avisos };
+  }
   function automacaoCardHtml(a){
     var r = state.automacao.resumo[a.key];
     var ult = state.automacao.pedidos.filter(function(p){ return p.tipo === a.key; })[0];
-    var info = automacaoStatusCard(ult);
+    var pc = automacaoPedidoDoCard(a.key);
+    var rParte = automacaoResumoDaParte(pc, a.key);
+    if(rParte && (!r || rParte.finalizadoEm > (r.finalizadoEm || 0))) r = rParte;
+    var ultCard = pc && pc.tipo !== a.key ? pc : ult;
+    var info = automacaoStatusDaParte(ultCard, a.key);
     // mesmos numeros do painel de resultados (contagem das linhas daquela execucao), pra nunca divergir
     var pedR = r && r.pedidoId ? state.automacao.pedidos.filter(function(p){ return p.id === r.pedidoId; })[0] : null;
-    var cont = pedR && automacaoFinalizado(pedR) ? automacaoContagem(automacaoRegistros(pedR)) : null;
+    var cont = pedR && automacaoFinalizado(pedR) ? automacaoContagem(automacaoRegistros(pedR), pedR.tipo === a.key ? undefined : a.key) : null;
     var valor = function(k){ if(!r) return '—'; if(cont && k === 'atualizados') return cont.ok; if(cont && k === 'pendencias') return cont.pend; return r[k]; };
     var stats = a.stats.map(function(s){ return '<div class="auto-stat"><span>'+s[1]+'</span><b>'+valor(s[0])+'</b></div>'; }).join('');
     return '<div class="card auto-card" style="--auto-cor:'+a.cor+';">'+
@@ -6055,11 +6103,11 @@
       '</div>'+
       '<div class="auto-desc">'+esc(a.desc)+'</div>'+
       '<div class="auto-status '+info.cls+'"><span class="auto-dot"></span>'+esc(info.txt.split(':')[0])+'</div>'+
-      automacaoAnelHtml(ult)+
+      automacaoAnelHtml(ultCard && ultCard.status === 'executando' && info.cls === 'is-exec' ? ultCard : ult)+
       '<div class="auto-box"><div class="auto-box-titulo">Última execução</div>'+
         (r ? '<div class="auto-box-vazio">'+automacaoDataHora(r.finalizadoEm)+(r.modo === 'previa' ? ' · prévia' : '')+'</div>' : '<div class="auto-box-vazio">Nenhuma execução ainda</div>')+stats+
         (r && r.resumo ? '<div class="auto-box-resumo">'+esc(r.resumo)+'</div>' : '')+
-        (r && r.status === 'parcial' && r.faltou && r.faltou.length && ult ? automacaoFaltouBoxHtml(r.faltou, ult.status === 'parcial' && !ult.retomadoPor ? ult.id : '') : '')+
+        (r && r.status === 'parcial' && r.faltou && r.faltou.length ? automacaoFaltouBoxHtml(r.faltou, ult && r.pedidoId === ult.id && ult.status === 'parcial' && !ult.retomadoPor ? ult.id : '') : '')+
         (r && r.avisos && r.avisos.length ? '<div class="auto-avisos"><b>⚠ Atenção ('+r.avisos.length+')</b><ul>'+r.avisos.slice(0, 6).map(function(x){ var nc = /^NÃO CADASTRADO:/.test(x); return '<li>'+(nc ? automacaoNcHtml(x) : esc(x.replace(/^(Pulado|Falha):\s*/, '')))+'</li>'; }).join('')+(r.avisos.length > 6 ? '<li>…e mais '+(r.avisos.length - 6)+' no Histórico</li>' : '')+'</ul></div>' : (r && Array.isArray(r.avisos) && r.status !== 'erro' ? '<div class="auto-ok">✓ Sem erros nem avisos</div>' : ''))+
       '</div>'+
       automacaoBotoesHtml(a.key, ult, 'auto-btn')+
