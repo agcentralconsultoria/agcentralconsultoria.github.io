@@ -6090,6 +6090,10 @@
     if(rp) return { txt:'Concluído', cls:'is-ok' };
     return automacaoStatusCard(null);
   }
+  /* O pedido "Refazer o que faltou" deste pedido terminou com sucesso? Entao o que faltou foi resolvido. */
+  function automacaoRefeito(p){
+    return !!(p && p.retomadoPor && state.automacao.pedidos.some(function(x){ return x.id === p.retomadoPor && x.status === 'concluido'; }));
+  }
   function automacaoResumoDaParte(p, key){
     if(!p || p.tipo === key || !automacaoFinalizado(p)) return null;
     var reg = automacaoRegistros(p), c = automacaoContagem(reg, key);
@@ -6101,7 +6105,9 @@
       if(pm && AUTO_PREFIXO_CAT[pm[1]] === key && /^(Pulado|Falha|NÃO CADASTRADO):/.test(pm[2]) && avisos.length < 20) avisos.push(pm[2]);
     });
     var falhou = (p.resultado.faltou || []).filter(function(f){ return f.tipo === key; });
-    return { pedidoId:p.id, finalizadoEm:p.finalizadoEm, modo:p.modo, status: falhou.length ? 'parcial' : 'concluido',
+    var refeito = falhou.length && automacaoRefeito(p);
+    if(refeito) falhou = [];
+    return { refeito:!!refeito, pedidoId:p.id, finalizadoEm:p.finalizadoEm, modo:p.modo, status: falhou.length ? 'parcial' : 'concluido',
       analisados: pt ? pt.analisados : '—', atualizados:c.ok, pendencias:c.pend, falhas:c.falha,
       resumo: reg.resumos[key] || '', faltou:falhou, avisos:avisos };
   }
@@ -6131,6 +6137,7 @@
       '<div class="auto-box"><div class="auto-box-titulo">Última execução</div>'+
         (r ? '<div class="auto-box-vazio">'+automacaoDataHora(r.finalizadoEm)+(r.modo === 'previa' ? ' · prévia' : '')+'</div>' : '<div class="auto-box-vazio">Nenhuma execução ainda</div>')+stats+
         (r && r.resumo ? '<div class="auto-box-resumo">'+esc(r.resumo)+'</div>' : '')+
+        (r && r.refeito ? '<div class="auto-ok" style="margin:8px 0 0;">✓ O que faltou foi refeito depois.</div>' : '')+
         (r && r.status === 'parcial' && r.faltou && r.faltou.length ? automacaoFaltouBoxHtml(r.faltou, ult && r.pedidoId === ult.id && ult.status === 'parcial' && !ult.retomadoPor ? ult.id : '', 'c|' + a.key) : '')+
         (avs.length ? '<div class="auto-avisos"><b>⚠ Atenção ('+avs.length+')</b><ul>'+avs.slice(0, state.automacao.ui.mais['a|' + a.key] ? avs.length : 3).map(function(x){ var nc = /^NÃO CADASTRADO:/.test(x); return '<li>'+(nc ? automacaoNcHtml(x) : esc(automacaoCurto(x.replace(/^(Pulado|Falha):\s*/, ''), 80)))+'</li>'; }).join('')+(avs.length > 3 ? automacaoMaisLi('a|' + a.key, !!state.automacao.ui.mais['a|' + a.key], avs.length - 3) : '')+'</ul></div>' : (r && Array.isArray(r.avisos) && r.status !== 'erro' && !(r.faltou && r.faltou.length) ? '<div class="auto-ok">✓ Sem erros nem avisos</div>' : ''))+
       '</div>'+
@@ -6545,6 +6552,7 @@
     var retAtivo = a.pedidos.filter(function(p){ return p.tipo === 'retomar' && (p.status === 'pendente' || p.status === 'executando'); })[0];
     var geral = retAtivo || ultTodas;
     var infoTodas = retAtivo ? automacaoStatusInfo(retAtivo) : automacaoStatusCard(ultTodas);
+    if(!retAtivo && ultTodas && ultTodas.status === 'parcial' && automacaoRefeito(ultTodas) && infoTodas.cls === 'is-parcial') infoTodas = { txt:'Concluído', cls:'is-ok' };
     return ''+
     '<div class="auto-head">'+
       '<span class="auto-head-ico"><svg viewBox="0 0 24 24" aria-hidden="true">'+SIDE_SVG['⚡']+'</svg></span>'+
@@ -6564,7 +6572,7 @@
       '<div class="auto-desc">Executa as quatro automações em sequência (check-ins, fotos e medidas, treinos e dietas, engajamento), com relatório consolidado ao final.</div>'+
       (true ? '<div class="auto-status '+infoTodas.cls+'" style="margin-top:6px;"><span class="auto-dot"></span>'+esc(infoTodas.txt.split(':')[0])+'</div>' : '')+'</div>'+
       automacaoAnelHtml(geral)+
-      (ultTodas && ultTodas.status === 'parcial' && ultTodas.resultado && ultTodas.resultado.faltou && ultTodas.resultado.faltou.length && automacaoMesmoDia(ultTodas.finalizadoEm) ? '<div style="flex:1 1 100%;">'+automacaoFaltouBoxHtml(ultTodas.resultado.faltou, ultTodas.retomadoPor ? '' : ultTodas.id, 't|' + ultTodas.id)+'</div>' : '')+
+      (ultTodas && ultTodas.status === 'parcial' && ultTodas.resultado && ultTodas.resultado.faltou && ultTodas.resultado.faltou.length && automacaoMesmoDia(ultTodas.finalizadoEm) ? '<div style="flex:1 1 100%;">'+(automacaoRefeito(ultTodas) ? '<div class="auto-ok">✓ O que faltou foi refeito depois.</div>' : automacaoFaltouBoxHtml(ultTodas.resultado.faltou, ultTodas.retomadoPor ? '' : ultTodas.id, 't|' + ultTodas.id))+'</div>' : '')+
       automacaoBotoesHtml('todas', ultTodas, 'auto-btn auto-btn-todas')+
     '</div>'+
     automacaoPainelHtml();
