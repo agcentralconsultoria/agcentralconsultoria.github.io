@@ -956,6 +956,9 @@
   .auto-cat-head:hover .auto-cat-ver{border-color:var(--primary);color:var(--primary);}
   .auto-tab{border-top:1px solid var(--border);padding:0 12px 8px;}
   .auto-lin-cab,.auto-lin-top{display:grid;grid-template-columns:16px minmax(140px,1.3fr) minmax(160px,1.7fr) minmax(110px,1fr) 170px minmax(120px,1.5fr);gap:10px;align-items:center;}
+  .auto-cad-btn{display:inline-block;padding:4px 12px;border:1px solid var(--border);border-radius:999px;background:var(--surface,#fff);color:var(--text);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;}
+  .auto-cad-btn:hover{border-color:var(--primary,#ea580c);color:var(--primary,#ea580c);}
+  .auto-det-acao{margin:10px 0 2px;}
   .auto-lin-cab{padding:9px 0 7px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);}
   .auto-lin{border-top:1px solid var(--border);}
   .auto-lin-top{width:100%;padding:9px 0;border:0;background:none;color:var(--text);font:inherit;font-size:13px;text-align:left;cursor:pointer;}
@@ -1805,6 +1808,7 @@
     instagramPrefillData: null,
     indicadoresMes: null,
     indicadoresView: 'mes',
+    automacaoNovo: null,      // {nome,email} do aluno do Treino.io sendo cadastrado pela aba Automação
     leadParaConverter: null,  // id do lead sendo transformado em paciente pelo formulario de Novo Paciente
     leadSearch: '',
     leadTemperaturaFilter: 'todos',
@@ -6253,6 +6257,10 @@
   function automacaoSvg(d, cls){
     return '<svg class="'+cls+'" viewBox="0 0 24 24" aria-hidden="true">'+d+'</svg>';
   }
+  function automacaoJaCadastrado(email){
+    var e = String(email || '').trim().toLowerCase();
+    return !!e && state.patients.some(function(p){ return String(p.email || '').trim().toLowerCase() === e; });
+  }
   function automacaoDetGridHtml(pares){
     return '<div class="auto-det-grid">'+pares.filter(function(x){ return x[1] !== '' && x[1] !== null && x[1] !== undefined; }).map(function(x){
       return '<div><span>'+esc(x[0])+'</span><b>'+esc(x[1])+'</b></div>';
@@ -6295,14 +6303,16 @@
       : '<div class="auto-lin-cab"><span></span><span>Paciente</span><span>Ação realizada</span><span>'+esc(cat.periodo)+'</span><span>Status</span><span>Observações</span></div>';
     var linhas = (mostrarTudo ? lista : lista.slice(0, AUTO_LIMITE_LINHAS)).map(function(x){
       var k = chave + '|' + todos.indexOf(x), ab = !!ui.row[k], det = '';
+      var jaCad = ehNc && automacaoJaCadastrado(x.email);
+      var botaoCad = ehNc ? '<span class="auto-cad-btn" role="button" tabindex="0" data-auto-cadastrar="'+esc(x.email)+'" data-auto-nome="'+esc(x.nome || '')+'">+ Cadastrar</span>' : '';
       if(ab){
         det = ehNc
-          ? automacaoDetGridHtml([['Nome', x.nome || 'não identificado'], ['E-mail', x.email], ['Automações que identificaram', x.cats.join(', ') || '—'], ['Status', 'Não cadastrado no CRM'], ['Motivo', 'O e-mail deste aluno no Treino.io não existe em nenhum paciente do CRM. Nada foi cadastrado automaticamente.']]) + automacaoBrutoHtml(x.bruto)
+          ? automacaoDetGridHtml([['Nome', x.nome || 'não identificado'], ['E-mail', x.email], ['Automações que identificaram', x.cats.join(', ') || '—'], ['Status', 'Não cadastrado no CRM'], ['Motivo', 'O e-mail deste aluno no Treino.io não existe em nenhum paciente do CRM. Nada foi cadastrado automaticamente.']]) + (jaCad ? '' : '<div class="auto-det-acao">'+botaoCad+'</div>') + automacaoBrutoHtml(x.bruto)
           : automacaoDetGridHtml([['Paciente', x.nome], ['Automação', cat.nome], ['Ação', x.acao], ['Resultado', x.status === 'ok' && reg.previa ? 'Entraria (prévia: nada foi gravado)' : AUTO_STATUS[x.status][0]]].concat(x.extra)) + automacaoBrutoHtml(x.bruto);
         det = '<div class="auto-lin-det">'+det+'</div>';
       }
       var cols = ehNc
-        ? '<span class="auto-c-nome">'+esc(x.nome || 'Nome não identificado')+'</span><span class="auto-c-acao">'+esc(x.email)+'</span><span class="auto-c-per">'+esc(x.cats.join(', ') || '—')+'</span><span class="auto-c-st">'+automacaoChipHtml('nc')+'</span><span class="auto-c-obs"></span>'
+        ? '<span class="auto-c-nome">'+esc(x.nome || 'Nome não identificado')+'</span><span class="auto-c-acao">'+esc(x.email)+'</span><span class="auto-c-per">'+esc(x.cats.join(', ') || '—')+'</span><span class="auto-c-st">'+(jaCad ? '<span class="auto-chip is-ok"><i></i>Já cadastrado</span>' : automacaoChipHtml('nc'))+'</span><span class="auto-c-obs">'+(jaCad ? '' : botaoCad)+'</span>'
         : '<span class="auto-c-nome">'+esc(x.nome)+'</span><span class="auto-c-acao">'+(x.nota !== null ? '<span class="auto-nota '+(x.nota >= 9 ? 'is-alta' : (x.nota >= 7 ? 'is-media' : 'is-baixa'))+'">'+esc(x.acao)+'</span>' : esc(x.acao))+'</span><span class="auto-c-per">'+esc(x.periodo || '—')+'</span><span class="auto-c-st">'+automacaoChipHtml(x.status, reg.previa)+'</span><span class="auto-c-obs">'+esc(x.obs || '—')+'</span>';
       return '<div class="auto-lin'+(ab ? ' is-aberta' : '')+'"><button type="button" class="auto-lin-top" data-auto-row="'+esc(k)+'"><span class="auto-chev">'+(ab ? '▾' : '▸')+'</span>'+cols+'</button>'+det+'</div>';
     }).join('');
@@ -6393,6 +6403,11 @@
     cada('[data-auto-exec]', function(){ ui.exec[this.getAttribute('data-auto-exec')] = this.getAttribute('data-aberto') !== '1'; refreshAutomacao(); });
     cada('[data-auto-cat]', function(){ ui.cat[this.getAttribute('data-auto-cat')] = this.getAttribute('data-aberto') !== '1'; refreshAutomacao(); });
     cada('[data-auto-row]', function(){ var k = this.getAttribute('data-auto-row'); ui.row[k] = !ui.row[k]; refreshAutomacao(); });
+    cada('[data-auto-cadastrar]', function(e){
+      e.stopPropagation();
+      state.automacaoNovo = { nome: this.getAttribute('data-auto-nome') || '', email: this.getAttribute('data-auto-cadastrar') || '' };
+      openFormModal('add', null);
+    });
     cada('[data-auto-mais]', function(){ ui.mais[this.getAttribute('data-auto-mais')] = true; refreshAutomacao(); });
     cada('[data-auto-refazer]', function(){
       var id = this.getAttribute('data-auto-refazer');
@@ -13119,6 +13134,7 @@
     state.eqModal = null;
     state.activeId = null;
     state.leadParaConverter = null;
+    state.automacaoNovo = null;
   }
 
   /* ---- Profile modal ---- */
@@ -13784,6 +13800,10 @@
       if(leadConv){
         novoBase.nome = leadConv.nome || '';
         novoBase.telefone = leadConv.whatsapp || '';
+      }
+      if(state.automacaoNovo){
+        novoBase.nome = state.automacaoNovo.nome || '';
+        novoBase.email = state.automacaoNovo.email || '';
       }
       html = formModalHtml('add', novoBase, state.competencia);
     } else if(state.modal === 'edit'){
