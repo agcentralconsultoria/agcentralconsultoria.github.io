@@ -195,12 +195,10 @@ async function executarFotosMedidas(pedido, faixa, somenteIds) {
       try {
         const d = await comRetentativa(() => treino.lerFotosMedidas(page, al));
         analisados++;
-        entries.push({ email: al.email, ultimasFotos: d.fotos || undefined, ultimasMedidas: d.medidas || undefined });
+        entries.push({ email: al.email, ultimasFotos: d.fotos || undefined });
         const partes = [];
-        if (!d.fotos) partes.push('fotos: nunca enviou');
-        else if (diasDesde(d.fotos) >= DIAS_FOTOS_MEDIDAS) partes.push('fotos há ' + diasDesde(d.fotos) + ' dias');
-        if (!d.medidas) partes.push('medidas: nunca enviou');
-        else if (diasDesde(d.medidas) >= DIAS_FOTOS_MEDIDAS) partes.push('medidas há ' + diasDesde(d.medidas) + ' dias');
+        if (!d.fotos) partes.push('fotos e medidas: nunca enviou');
+        else if (diasDesde(d.fotos) >= DIAS_FOTOS_MEDIDAS) partes.push('fotos e medidas há ' + diasDesde(d.fotos) + ' dias');
         if (partes.length) atrasados.push('Pendência: ' + al.nome + ' — ' + partes.join(', '));
       } catch (e) {
         falhas.push(al.nome + ': ' + motivoAmigavel(e));
@@ -223,8 +221,8 @@ async function executarFotosMedidas(pedido, faixa, somenteIds) {
     .concat(linhasPulados(r.detalhesPulados, nomesPorEmail))
     .concat(falhas.map((x) => 'Falha: ' + x))
     .concat(atrasados);
-  const resumo = (previa ? 'PRÉVIA (nada foi gravado). ' : '') + r.atualizados + ' data(s) de fotos/medidas ' + (previa ? 'entrariam' : 'gravadas') + '. ' +
-    atrasados.length + ' aluno(s) com fotos ou medidas há ' + DIAS_FOTOS_MEDIDAS + ' dias ou mais' +
+  const resumo = (previa ? 'PRÉVIA (nada foi gravado). ' : '') + r.atualizados + ' data(s) de fotos e medidas ' + (previa ? 'entrariam' : 'gravadas') + '. ' +
+    atrasados.length + ' aluno(s) com fotos e medidas há ' + DIAS_FOTOS_MEDIDAS + ' dias ou mais' +
     ((r.detalhesPulados || []).length ? ', ' + r.detalhesPulados.length + ' pulado(s) (e-mail não está no CRM)' : '') +
     (falhas.length ? ', ' + falhas.length + ' falha(s) de leitura' : '') + '.';
   return { analisados, atualizados: r.atualizados, pendencias: atrasados.length + (r.detalhesPulados || []).length, falhas: falhas.length, faltou, resumo, detalhes };

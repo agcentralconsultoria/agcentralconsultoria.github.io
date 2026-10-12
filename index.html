@@ -2497,6 +2497,7 @@
     ];
   }
   function migratePatient(p){
+    delete p.ultimasMedidas; // medidas deixaram de ser acompanhadas: vale so a data das fotos
     if(!p.createdDate) p.createdDate = todayISODate();
     if(!Array.isArray(p.fichasTreino)) p.fichasTreino = [];
     if(p.prioridade === 'Resolver esta semana') p.prioridade = 'Moderada';
@@ -9782,17 +9783,16 @@
     return nthFridayDate(monthKey, i);
   }
   /* Check-in mensal do Essencial = fotos + "Formulario de atualizacao (Coach Completo)"
-     dentro do ciclo de 30 dias do Treino IO. Medidas em jejum sao opcionais: faltar
-     medida nunca vira atraso. So usa datas registradas no paciente (ultimasFotos,
-     ultimoFormulario, ultimasMedidas, essencialProximoCheckin) — sem data, sem status.
+     dentro do ciclo de 30 dias do Treino IO. Medidas nao sao acompanhadas. So usa datas
+     registradas no paciente (ultimasFotos, ultimoFormulario, essencialProximoCheckin) — sem data, sem status.
      Prazo = data programada no Treino IO; sem ela, 30 dias depois do ultimo check-in
      completo. Nunca usa o primeiro/ultimo dia do mes. */
   var ESSENCIAL_CICLO_DIAS = 30;
   var ESSENCIAL_TOLERANCIA_DIAS = 3;
   function essencialCicloStatus(p, hoje){
     hoje = hoje || todayISODate();
-    var fotos = p.ultimasFotos || null, form = p.ultimoFormulario || null, medidas = p.ultimasMedidas || null;
-    var st = { estado: 'semdados', fotos: fotos, form: form, medidas: medidas, prazo: null, recebidoEm: null, semMedidas: false, faltando: [] };
+    var fotos = p.ultimasFotos || null, form = p.ultimoFormulario || null;
+    var st = { estado: 'semdados', fotos: fotos, form: form, prazo: null, recebidoEm: null, faltando: [] };
     var completo = (fotos && form && Math.abs(daysBetween(fotos, form)) <= ESSENCIAL_CICLO_DIAS) ? (fotos > form ? fotos : form) : null;
     var prazo = p.essencialProximoCheckin || (completo ? addDaysIso(completo, ESSENCIAL_CICLO_DIAS) : null);
     if(!prazo){
@@ -9810,7 +9810,6 @@
     if(fotosOk && formOk){
       st.estado = 'recebido';
       st.recebidoEm = fotos > form ? fotos : form;
-      st.semMedidas = !entre(medidas, inicio, hoje);
       return st;
     }
     if(!fotosOk) st.faltando.push('fotos');
@@ -9823,7 +9822,6 @@
     if(hoje <= prazo && completo && completo <= inicio && completo > addDaysIso(inicio, -ESSENCIAL_CICLO_DIAS)){
       st.estado = 'recebido';
       st.recebidoEm = completo;
-      st.semMedidas = !(medidas && Math.abs(daysBetween(medidas, completo)) <= ESSENCIAL_CICLO_DIAS);
       st.faltando = [];
       return st;
     }
@@ -9955,8 +9953,7 @@
   var FOTOS_MEDIDAS_AVISO_ANTES = 3;
   function atencaoMotivosFotosMedidas(p, hoje){
     var tipos = [
-      { key: 'fotos', data: p.ultimasFotos, nome: '📸 Fotos', det: 'últimas enviadas em ' },
-      { key: 'medidas', data: p.ultimasMedidas, nome: '📏 Medidas', det: 'últimas enviadas em ' }
+      { key: 'fotos', data: p.ultimasFotos, nome: '📸 Fotos e medidas', det: 'últimas enviadas em ' }
     ];
     var motivos = [];
     tipos.forEach(function(t){
@@ -9971,7 +9968,7 @@
         motivos.push(atencaoMotivo(t.key, 'preparar', t.nome + ' completam 30 dias ' + (faltam === 1 ? 'amanhã' : 'em ' + atencaoDiasTxt(faltam)), detalhe, '', { dias: faltam }));
       }
     });
-    var acao = motivos.length === 2 ? 'Pedir fotos e medidas' : motivos.length ? 'Pedir ' + motivos[0].key : '';
+    var acao = motivos.length ? 'Pedir fotos e medidas' : '';
     motivos.forEach(function(m){ m.acao = acao; });
     return motivos;
   }
@@ -10111,9 +10108,9 @@
     var l = String(m.label || '').replace(/^[^A-Za-zÀ-ú0-9]+/, '').trim();
     var n = (l.match(/(\d+)\s*dias?/) || [])[1];
     if(m.key === 'fotos' || m.key === 'medidas'){
-      var nome = m.key === 'fotos' ? 'Fotos' : 'Medidas';
+      var nome = 'Fotos';
       if(/amanh[ãa]/i.test(l)) return nome + ' amanhã';
-      if(/completam/i.test(l)) return nome + ' em ' + n + 'd';
+      if(/completam/i.test(l)) return nome + ' em ' + ((l.match(/(\d+)\s*dias?\s*$/) || [])[1] || n) + 'd';
       return n ? nome + ' ' + n + 'd' : l;
     }
     if(m.key === 'checkin') return 'Check-in pendente';
@@ -10141,8 +10138,7 @@
     var l = String(m.label || '').replace(/^[^A-Za-zÀ-ú0-9]+/, '').trim();
     var ico = m.key, txt;
     if(m.key === 'fotos' || m.key === 'medidas'){
-      var nome = m.key === 'fotos' ? 'Fotos' : 'Medidas';
-      txt = nome + ': ' + l.replace(new RegExp('^' + nome + '\\s*', 'i'), '');
+      txt = 'Fotos e medidas: ' + l.replace(/^Fotos e medidas\s*/i, '');
     } else if(m.key === 'checkin'){
       txt = 'Check-in: ' + (/atrasado/i.test(l) ? 'atrasado' : 'pendente');
     } else if(m.key === 'treino'){
@@ -13159,14 +13155,13 @@
         '<div class="profile-section">'+
           '<h3>Fotos e Medidas</h3>'+
           '<div class="info-grid">'+
-            '<div class="info-item"><div class="lab">Últimas fotos</div><div class="val">'+dataComDiasHtml(p.ultimasFotos, 'Sem registro')+'</div></div>'+
-            '<div class="info-item"><div class="lab">Últimas medidas em jejum</div><div class="val">'+dataComDiasHtml(p.ultimasMedidas, 'Sem registro (opcional)')+'</div></div>'+
+            '<div class="info-item"><div class="lab">Últimas fotos e medidas</div><div class="val">'+dataComDiasHtml(p.ultimasFotos, 'Sem registro')+'</div></div>'+
           '</div>'+
         '</div>';
     }
     var c = essencialCicloStatus(p);
     var badge;
-    if(c.estado === 'recebido') badge = '<span class="badge badge-success">Recebido em '+esc(atencaoDataCurta(c.recebidoEm))+(c.semMedidas ? ' · sem medidas' : '')+'</span>';
+    if(c.estado === 'recebido') badge = '<span class="badge badge-success">Recebido em '+esc(atencaoDataCurta(c.recebidoEm))+''+'</span>';
     else if(c.estado === 'atrasado') badge = '<span class="badge badge-danger">Atrasado · '+esc(essencialFaltandoTxt(c.faltando))+'</span>';
     else if(c.estado === 'aguardando') badge = '<span class="badge badge-warning">Aguardando · prazo '+esc(atencaoDataCurta(c.prazo))+' · '+esc(essencialFaltandoTxt(c.faltando))+'</span>';
     else if(c.estado === 'incompleto') badge = '<span class="badge badge-gray">Incompleto · '+esc(essencialFaltandoTxt(c.faltando))+' · sem prazo registrado</span>';
@@ -13178,7 +13173,6 @@
         '<div class="info-grid">'+
           '<div class="info-item"><div class="lab">Fotos</div><div class="val">'+dataComDiasHtml(c.fotos, 'Sem registro')+'</div></div>'+
           '<div class="info-item"><div class="lab">Formulário de atualização</div><div class="val">'+dataComDiasHtml(c.form, 'Sem registro')+'</div></div>'+
-          '<div class="info-item"><div class="lab">Medidas em jejum</div><div class="val">'+dataComDiasHtml(c.medidas, 'Sem registro (opcional)')+'</div></div>'+
           '<div class="info-item"><div class="lab">Prazo do ciclo</div><div class="val">'+(c.prazo ? esc(formatDate(c.prazo)) : '<span class="cell-muted">—</span>')+'</div></div>'+
         '</div>'+
       '</div>';
@@ -13512,8 +13506,7 @@
           '<div class="form-group"><label>Data da Consulta</label><input type="date" id="f_consulta" value="'+esc(p.consulta)+'"><div class="mini-label" style="text-align:left;margin-top:4px;">Status (Em dia/Próximo/Agendar retorno) é calculado automaticamente: verde ≥16 dias, amarelo ≤15 dias, vermelho se já passou.</div></div>'+
           '<div class="form-group"><label>Data de Nascimento</label><input type="date" id="f_nascimento" value="'+esc(p.nascimento)+'"></div>'+
           '<div class="form-group full"><label>Fotos e medidas (Treino IO)</label><div class="mini-label" style="text-align:left;margin-top:2px;">Preenchido pela automação de coleta. Só registre uma data quando houver envio no Treino IO.</div></div>'+
-          '<div class="form-group"><label>Data das últimas fotos</label><input type="date" id="f_ultimasFotos" value="'+esc(p.ultimasFotos||'')+'"></div>'+
-          '<div class="form-group"><label>Data das últimas medidas em jejum</label><input type="date" id="f_ultimasMedidas" value="'+esc(p.ultimasMedidas||'')+'"></div>'+
+          '<div class="form-group"><label>Data das últimas fotos e medidas</label><input type="date" id="f_ultimasFotos" value="'+esc(p.ultimasFotos||'')+'"></div>'+
           '<div class="form-group essencial-only"'+(isEssencialMensal(p)?'':' style="display:none;"')+'><label>Data do último Formulário de atualização</label><input type="date" id="f_ultimoFormulario" value="'+esc(p.ultimoFormulario||'')+'"></div>'+
           '<div class="form-group essencial-only"'+(isEssencialMensal(p)?'':' style="display:none;"')+'><label>Próximo check-in programado (Treino IO)</label><input type="date" id="f_essencialProximoCheckin" value="'+esc(p.essencialProximoCheckin||'')+'"></div>'+
           '<div class="form-group full"><label>Paciente Novo</label>'+
@@ -13578,7 +13571,6 @@
         consulta: document.getElementById('f_consulta').value,
         nascimento: document.getElementById('f_nascimento').value,
         ultimasFotos: document.getElementById('f_ultimasFotos').value,
-        ultimasMedidas: document.getElementById('f_ultimasMedidas').value,
         ultimoFormulario: document.getElementById('f_ultimoFormulario').value,
         essencialProximoCheckin: document.getElementById('f_essencialProximoCheckin').value,
         isNovoPaciente: document.getElementById('f_novo_paciente').checked,

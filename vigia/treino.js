@@ -141,8 +141,7 @@ async function lerCheckinsDoAluno(page, aluno, desdeISO) {
   return { respondidos: resultado, agendadas };
 }
 
-// Fotos e medidas de um aluno (só datas). Fotos: "Última atualização de fotos" no perfil.
-// Medidas: seção "Medidas corporais" da aba Progresso (maior data do Histórico). Sem registro => null.
+// Fotos e medidas de um aluno (só a data): "Última atualização de fotos" no perfil. Medidas não são mais lidas. Sem registro => null.
 async function lerFotosMedidas(page, aluno) {
   await abrirAluno(page, aluno.id);
   await page.waitForTimeout(1200);
@@ -151,26 +150,7 @@ async function lerFotosMedidas(page, aluno) {
     const m = t.match(/Última atualização de fotos\s*\n?\s*(\d{2}\/\d{2}\/\d{4})/);
     return m ? m[1] : null;
   });
-  await page.getByRole('tab', { name: /Progresso/ }).click();
-  await page.waitForTimeout(1500);
-  const medidas = await page.evaluate(() => {
-    const h = [...document.querySelectorAll('main h1,main h2,main h3,main h4,main h5')].find((e) => /Medidas corporais/.test(e.innerText));
-    if (!h) return null;
-    let box = h;
-    for (let i = 0; i < 4 && box.parentElement; i++) { box = box.parentElement; if (box.querySelector('table')) break; }
-    const datas = [];
-    box.querySelectorAll('table tbody tr').forEach((tr) => {
-      const c = tr.querySelector('td');
-      const m = c && c.innerText.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-      if (m) datas.push(m[3] + '-' + m[2] + '-' + m[1]);
-    });
-    if (!datas.length) {
-      // sem tabela: usa as datas "em dd/mm/aaaa" dos resumos
-      (box.innerText.match(/\d{2}\/\d{2}\/\d{4}/g) || []).forEach((d) => datas.push(d.split('/').reverse().join('-')));
-    }
-    return datas.length ? datas.sort().pop() : null;
-  });
-  return { fotos: dataBRparaISO(fotos), medidas };
+  return { fotos: dataBRparaISO(fotos) };
 }
 
 // Fichas ativas do aluno (Visão geral > Fichas): data de "Atualizada em" do treino e da dieta.

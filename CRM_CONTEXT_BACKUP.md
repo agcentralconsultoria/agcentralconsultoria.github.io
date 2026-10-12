@@ -1617,3 +1617,9 @@ conta de teste em modo prévia; (5) fotos/medidas e treinos/dietas;
   pelo nome quem já era contado como "sem check-in nos últimos 10 dias" e guarda até 500 linhas
   (antes 100). Servidor: `MAX_DETALHES = 500` + `partes`. Execução antiga funciona igual no painel.
 - Tela só redesenha quando algo muda e, sem nada na fila, consulta o banco a cada 30 s (antes 5 s).
+
+### 29.x Fotos e medidas = só a data das fotos (12/10/2026)
+Decisão do Ângelo: medidas deixam de ser acompanhadas (muitos pacientes não enviam). O CRM tem um campo só
+("Data das últimas fotos e medidas" = `ultimasFotos`, lido de "Última atualização de fotos" do Treino.io).
+`ultimasMedidas` é apagado dos pacientes ao carregar (`migratePatient`) e sai do perfil, formulário, Atenção de hoje,
+ciclo Essencial e do vigia (que também não abre mais a aba Progresso). Servidor segue aceitando o campo, mas ninguém envia.
