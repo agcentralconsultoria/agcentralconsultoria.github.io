@@ -6052,9 +6052,15 @@
      Pega o pedido mais recente que cobre esta automacao (dela mesma ou de "todas") e, quando ele
      e mais novo que o resumo do servidor, monta o resumo so com a parte dela. */
   var AUTO_ORDEM_CARDS = ['checkins', 'fotos', 'treinos', 'engajamento'];
+  /* "Refazer o que faltou" mexe so nas automacoes que tinham falhado no pedido de origem. */
+  function automacaoRetomaTipo(p, key){
+    var o = state.automacao.pedidos.filter(function(x){ return x.id === p.deOrigem; })[0];
+    return !!(o && o.resultado && (o.resultado.faltou || []).some(function(f){ return f.tipo === key; }));
+  }
   function automacaoPedidoDoCard(key){
     return state.automacao.pedidos.filter(function(p){
       if(p.tipo === key) return true;
+      if(p.tipo === 'retomar') return (p.status === 'pendente' || p.status === 'executando') && automacaoRetomaTipo(p, key);
       if(p.tipo !== 'todas') return false;
       if(p.status === 'pendente' || p.status === 'executando') return true;
       return automacaoFinalizado(p);
@@ -6063,6 +6069,13 @@
   function automacaoStatusDaParte(p, key){
     if(!p || p.tipo === key) return automacaoStatusCard(p);
     if(p.status === 'pendente') return automacaoStatusInfo(p);
+    if(p.tipo === 'retomar' && p.status === 'executando' && automacaoRetomaTipo(p, key)){
+      var ordem = AUTO_ORDEM_CARDS.filter(function(k){ return automacaoRetomaTipo(p, k); }), atualR = -1;
+      ordem.forEach(function(k, i){ if(p.etapa && p.etapa.indexOf(AUTOMACAO_NOMES[k]) === 0) atualR = i; });
+      var meuR = ordem.indexOf(key);
+      if(atualR === -1 || meuR === atualR) return automacaoStatusInfo(p);
+      return meuR < atualR ? { txt:'Concluído', cls:'is-ok' } : { txt:'Na fila, aguardando a anterior', cls:'is-fila' };
+    }
     if(p.status === 'executando'){
       var atual = -1;
       AUTO_ORDEM_CARDS.forEach(function(k, i){ if(p.etapa && p.etapa.indexOf(AUTOMACAO_NOMES[k]) === 0) atual = i; });
@@ -6529,7 +6542,9 @@
     var ativo = automacaoAtivo();
     var modoBtn = function(k, label){ return '<button type="button" class="meta-type-btn'+(a.modo === k ? ' active' : '')+'" data-auto-modo="'+k+'">'+label+'</button>'; };
     var ultTodas = a.pedidos.filter(function(p){ return p.tipo === 'todas'; })[0];
-    var infoTodas = automacaoStatusCard(ultTodas);
+    var retAtivo = a.pedidos.filter(function(p){ return p.tipo === 'retomar' && (p.status === 'pendente' || p.status === 'executando'); })[0];
+    var geral = retAtivo || ultTodas;
+    var infoTodas = retAtivo ? automacaoStatusInfo(retAtivo) : automacaoStatusCard(ultTodas);
     return ''+
     '<div class="auto-head">'+
       '<span class="auto-head-ico"><svg viewBox="0 0 24 24" aria-hidden="true">'+SIDE_SVG['⚡']+'</svg></span>'+
@@ -6548,7 +6563,7 @@
       '<div class="auto-todas-txt"><div class="auto-todas-titulo">Executar todas as automações <span class="auto-info-wrap">'+automacaoInfoHtml('todas')+'</span></div>'+
       '<div class="auto-desc">Executa as quatro automações em sequência (check-ins, fotos e medidas, treinos e dietas, engajamento), com relatório consolidado ao final.</div>'+
       (true ? '<div class="auto-status '+infoTodas.cls+'" style="margin-top:6px;"><span class="auto-dot"></span>'+esc(infoTodas.txt.split(':')[0])+'</div>' : '')+'</div>'+
-      automacaoAnelHtml(ultTodas)+
+      automacaoAnelHtml(geral)+
       (ultTodas && ultTodas.status === 'parcial' && ultTodas.resultado && ultTodas.resultado.faltou && ultTodas.resultado.faltou.length && automacaoMesmoDia(ultTodas.finalizadoEm) ? '<div style="flex:1 1 100%;">'+automacaoFaltouBoxHtml(ultTodas.resultado.faltou, ultTodas.retomadoPor ? '' : ultTodas.id, 't|' + ultTodas.id)+'</div>' : '')+
       automacaoBotoesHtml('todas', ultTodas, 'auto-btn auto-btn-todas')+
     '</div>'+
