@@ -6094,6 +6094,7 @@
     var pedR = r && r.pedidoId ? state.automacao.pedidos.filter(function(p){ return p.id === r.pedidoId; })[0] : null;
     var cont = pedR && automacaoFinalizado(pedR) ? automacaoContagem(automacaoRegistros(pedR), pedR.tipo === a.key ? undefined : a.key) : null;
     var valor = function(k){ if(!r) return '—'; if(cont && k === 'atualizados') return cont.ok; if(cont && k === 'pendencias') return cont.pend; return r[k]; };
+    var avs = ((r && r.avisos) || []).filter(function(x){ return !(r.faltou && r.faltou.length && /^Falha:/.test(x)); });
     var stats = a.stats.map(function(s){ return '<div class="auto-stat"><span>'+s[1]+'</span><b>'+valor(s[0])+'</b></div>'; }).join('');
     return '<div class="card auto-card" style="--auto-cor:'+a.cor+';">'+
       '<div class="auto-card-top">'+
@@ -6108,7 +6109,7 @@
         (r ? '<div class="auto-box-vazio">'+automacaoDataHora(r.finalizadoEm)+(r.modo === 'previa' ? ' · prévia' : '')+'</div>' : '<div class="auto-box-vazio">Nenhuma execução ainda</div>')+stats+
         (r && r.resumo ? '<div class="auto-box-resumo">'+esc(r.resumo)+'</div>' : '')+
         (r && r.status === 'parcial' && r.faltou && r.faltou.length ? automacaoFaltouBoxHtml(r.faltou, ult && r.pedidoId === ult.id && ult.status === 'parcial' && !ult.retomadoPor ? ult.id : '') : '')+
-        (r && r.avisos && r.avisos.length ? '<div class="auto-avisos"><b>⚠ Atenção ('+r.avisos.length+')</b><ul>'+r.avisos.slice(0, 6).map(function(x){ var nc = /^NÃO CADASTRADO:/.test(x); return '<li>'+(nc ? automacaoNcHtml(x) : esc(x.replace(/^(Pulado|Falha):\s*/, '')))+'</li>'; }).join('')+(r.avisos.length > 6 ? '<li>…e mais '+(r.avisos.length - 6)+' no Histórico</li>' : '')+'</ul></div>' : (r && Array.isArray(r.avisos) && r.status !== 'erro' ? '<div class="auto-ok">✓ Sem erros nem avisos</div>' : ''))+
+        (avs.length ? '<div class="auto-avisos"><b>⚠ Atenção ('+avs.length+')</b><ul>'+avs.slice(0, 3).map(function(x){ var nc = /^NÃO CADASTRADO:/.test(x); return '<li>'+(nc ? automacaoNcHtml(x) : esc(automacaoCurto(x.replace(/^(Pulado|Falha):\s*/, ''), 80)))+'</li>'; }).join('')+(avs.length > 3 ? '<li>…e mais '+(avs.length - 3)+' no Histórico</li>' : '')+'</ul></div>' : (r && Array.isArray(r.avisos) && r.status !== 'erro' && !(r.faltou && r.faltou.length) ? '<div class="auto-ok">✓ Sem erros nem avisos</div>' : ''))+
       '</div>'+
       automacaoBotoesHtml(a.key, ult, 'auto-btn')+
     '</div>';
@@ -6120,11 +6121,16 @@
     return esc(m[1])+'<span class="nome-nc">'+esc(m[2])+'</span>'+esc(m[3]);
   }
   /* "O QUE FALTOU": quem (aluno), em qual automacao e por que. Vem do vigia (resultado.faltou). */
+  /* Texto curto pra caixinha do card: corta o trecho tecnico ({...}) e limita o tamanho. */
+  function automacaoCurto(t, n){
+    t = String(t || '').split('{')[0].replace(/[\s:—-]+$/, '').trim();
+    return t.length > n ? t.slice(0, n - 1).trim() + '…' : t;
+  }
   function automacaoFaltouListaHtml(faltou){
     var nomes = { checkins:'Check-ins', fotos:'Fotos e medidas', treinos:'Treinos e dietas', engajamento:'Engajamento' };
-    return '<ul>'+faltou.slice(0, 8).map(function(f){
-      return '<li><span class="nome-nc">'+esc(f.nome || f.id)+'</span> — '+esc(nomes[f.tipo] || f.tipo)+': '+esc(f.motivo || 'não concluído')+'</li>';
-    }).join('')+(faltou.length > 8 ? '<li>…e mais '+(faltou.length - 8)+'</li>' : '')+'</ul>';
+    return '<ul>'+faltou.slice(0, 3).map(function(f){
+      return '<li><span class="nome-nc">'+esc(automacaoCurto(f.nome || f.id, 38))+'</span> — '+esc(automacaoCurto(String(f.motivo || 'não concluído').replace(/^(Check-ins|Fotos e medidas|Treinos e dietas|Engajamento):\s*/i, '').replace(/^Claude não conseguiu avaliar:\s*/i, ''), 50))+'</li>';
+    }).join('')+(faltou.length > 3 ? '<li>…e mais '+(faltou.length - 3)+' (veja todos no Histórico)</li>' : '')+'</ul>';
   }
   function automacaoFaltouBoxHtml(faltou, origemId){
     if(!faltou || !faltou.length) return '';
