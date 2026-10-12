@@ -863,6 +863,8 @@
   .auto-claude .auto-dot{display:inline-block;opacity:1;}
   .auto-conectar{padding:4px 14px;font-size:12.5px;margin-left:6px;}
   .auto-claude-erro{color:var(--danger);}
+  .auto-mais-li{list-style:none;margin-left:-16px;margin-top:4px;}
+  .auto-mais-btn{border:0;background:none;padding:0;font:inherit;font-size:12.5px;font-weight:600;color:var(--primary,#ea580c);cursor:pointer;text-decoration:underline;}
   .auto-aviso{padding:12px 16px;margin:0 0 16px;font-size:13.5px;border-left:4px solid var(--warning);}
   .auto-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:16px;}
   .auto-card{margin:0;padding:16px;display:flex;flex-direction:column;gap:12px;border-top:3px solid var(--auto-cor);}
@@ -6116,8 +6118,8 @@
       '<div class="auto-box"><div class="auto-box-titulo">Última execução</div>'+
         (r ? '<div class="auto-box-vazio">'+automacaoDataHora(r.finalizadoEm)+(r.modo === 'previa' ? ' · prévia' : '')+'</div>' : '<div class="auto-box-vazio">Nenhuma execução ainda</div>')+stats+
         (r && r.resumo ? '<div class="auto-box-resumo">'+esc(r.resumo)+'</div>' : '')+
-        (r && r.status === 'parcial' && r.faltou && r.faltou.length ? automacaoFaltouBoxHtml(r.faltou, ult && r.pedidoId === ult.id && ult.status === 'parcial' && !ult.retomadoPor ? ult.id : '') : '')+
-        (avs.length ? '<div class="auto-avisos"><b>⚠ Atenção ('+avs.length+')</b><ul>'+avs.slice(0, 3).map(function(x){ var nc = /^NÃO CADASTRADO:/.test(x); return '<li>'+(nc ? automacaoNcHtml(x) : esc(automacaoCurto(x.replace(/^(Pulado|Falha):\s*/, ''), 80)))+'</li>'; }).join('')+(avs.length > 3 ? '<li>…e mais '+(avs.length - 3)+' no Histórico</li>' : '')+'</ul></div>' : (r && Array.isArray(r.avisos) && r.status !== 'erro' && !(r.faltou && r.faltou.length) ? '<div class="auto-ok">✓ Sem erros nem avisos</div>' : ''))+
+        (r && r.status === 'parcial' && r.faltou && r.faltou.length ? automacaoFaltouBoxHtml(r.faltou, ult && r.pedidoId === ult.id && ult.status === 'parcial' && !ult.retomadoPor ? ult.id : '', 'c|' + a.key) : '')+
+        (avs.length ? '<div class="auto-avisos"><b>⚠ Atenção ('+avs.length+')</b><ul>'+avs.slice(0, state.automacao.ui.mais['a|' + a.key] ? avs.length : 3).map(function(x){ var nc = /^NÃO CADASTRADO:/.test(x); return '<li>'+(nc ? automacaoNcHtml(x) : esc(automacaoCurto(x.replace(/^(Pulado|Falha):\s*/, ''), 80)))+'</li>'; }).join('')+(avs.length > 3 ? automacaoMaisLi('a|' + a.key, !!state.automacao.ui.mais['a|' + a.key], avs.length - 3) : '')+'</ul></div>' : (r && Array.isArray(r.avisos) && r.status !== 'erro' && !(r.faltou && r.faltou.length) ? '<div class="auto-ok">✓ Sem erros nem avisos</div>' : ''))+
       '</div>'+
       automacaoBotoesHtml(a.key, ult, 'auto-btn')+
     '</div>';
@@ -6134,16 +6136,21 @@
     t = String(t || '').split('{')[0].replace(/[\s:—-]+$/, '').trim();
     return t.length > n ? t.slice(0, n - 1).trim() + '…' : t;
   }
-  function automacaoFaltouListaHtml(faltou){
-    var nomes = { checkins:'Check-ins', fotos:'Fotos e medidas', treinos:'Treinos e dietas', engajamento:'Engajamento' };
-    return '<ul>'+faltou.slice(0, 3).map(function(f){
-      return '<li><span class="nome-nc">'+esc(automacaoCurto(f.nome || f.id, 38))+'</span> — '+esc(automacaoCurto(String(f.motivo || 'não concluído').replace(/^(Check-ins|Fotos e medidas|Treinos e dietas|Engajamento):\s*/i, '').replace(/^Claude não conseguiu avaliar:\s*/i, ''), 50))+'</li>';
-    }).join('')+(faltou.length > 3 ? '<li>…e mais '+(faltou.length - 3)+' (veja todos no Histórico)</li>' : '')+'</ul>';
+  /* Botao "ver todos / recolher" das caixinhas dos cards (sempre comeca recolhido). */
+  function automacaoMaisLi(chave, aberto, extra){
+    return '<li class="auto-mais-li"><button type="button" class="auto-mais-btn" data-auto-mais-lista="'+esc(chave)+'">'+(aberto ? 'Recolher' : 'Ver todos (+'+extra+')')+'</button></li>';
   }
-  function automacaoFaltouBoxHtml(faltou, origemId){
+  function automacaoFaltouListaHtml(faltou, chave){
+    var nomes = { checkins:'Check-ins', fotos:'Fotos e medidas', treinos:'Treinos e dietas', engajamento:'Engajamento' };
+    var aberto = !!(chave && state.automacao.ui.mais[chave]), lim = aberto ? faltou.length : 3;
+    return '<ul>'+faltou.slice(0, lim).map(function(f){
+      return '<li><span class="nome-nc">'+esc(automacaoCurto(f.nome || f.id, 38))+'</span> — '+esc(automacaoCurto(String(f.motivo || 'não concluído').replace(/^(Check-ins|Fotos e medidas|Treinos e dietas|Engajamento):\s*/i, '').replace(/^Claude não conseguiu avaliar:\s*/i, ''), 50))+'</li>';
+    }).join('')+(chave && faltou.length > 3 ? automacaoMaisLi(chave, aberto, faltou.length - 3) : '')+'</ul>';
+  }
+  function automacaoFaltouBoxHtml(faltou, origemId, chave){
     if(!faltou || !faltou.length) return '';
     var pode = origemId && automacaoPodeEnfileirar('retomar');
-    return '<div class="auto-faltou"><b>⚠ O que faltou ('+faltou.length+')</b>'+automacaoFaltouListaHtml(faltou)+
+    return '<div class="auto-faltou"><b>⚠ O que faltou ('+faltou.length+')</b>'+automacaoFaltouListaHtml(faltou, chave)+
       (origemId ? '<button type="button" class="btn btn-secondary auto-refazer" data-auto-refazer="'+esc(origemId)+'"'+(pode ? '' : ' disabled')+'>Tentar de novo só o que faltou</button>' : '')+'</div>';
   }
   /* ================= PAINEL DE RESULTADOS (historico organizado) =================
@@ -6413,7 +6420,7 @@
     var filtrando = ui.filtro !== 'todos' || !!ui.busca;
     return '<div class="auto-exec is-aberta">'+head+'<div class="auto-exec-body">'+
       (p.status === 'erro' && r.resumo ? '<div class="auto-exec-msg">'+esc(r.resumo)+'</div>' : '')+
-      (p.status === 'parcial' && r.faltou && r.faltou.length ? (p.retomadoPor ? '<div class="auto-ok" style="margin:0 0 6px;">✓ O que faltou foi refeito depois.</div>' : '')+automacaoFaltouBoxHtml(r.faltou, p.retomadoPor ? '' : p.id) : '')+
+      (p.status === 'parcial' && r.faltou && r.faltou.length ? (p.retomadoPor ? '<div class="auto-ok" style="margin:0 0 6px;">✓ O que faltou foi refeito depois.</div>' : '')+automacaoFaltouBoxHtml(r.faltou, p.retomadoPor ? '' : p.id, 'h|' + p.id) : '')+
       (reg.truncado ? '<div class="auto-tab-nota">Esta execução é antiga e guardou só as 100 primeiras linhas. As próximas guardam todas.</div>' : '')+
       (corpoCats || '<div class="auto-vazio">'+(filtrando ? 'Nenhum registro desta execução passa no filtro atual.' : 'Esta execução não trouxe registros individuais.')+'</div>')+
     '</div></div>';
@@ -6542,7 +6549,7 @@
       '<div class="auto-desc">Executa as quatro automações em sequência (check-ins, fotos e medidas, treinos e dietas, engajamento), com relatório consolidado ao final.</div>'+
       (true ? '<div class="auto-status '+infoTodas.cls+'" style="margin-top:6px;"><span class="auto-dot"></span>'+esc(infoTodas.txt.split(':')[0])+'</div>' : '')+'</div>'+
       automacaoAnelHtml(ultTodas)+
-      (ultTodas && ultTodas.status === 'parcial' && ultTodas.resultado && ultTodas.resultado.faltou && ultTodas.resultado.faltou.length && automacaoMesmoDia(ultTodas.finalizadoEm) ? '<div style="flex:1 1 100%;">'+automacaoFaltouBoxHtml(ultTodas.resultado.faltou, ultTodas.retomadoPor ? '' : ultTodas.id)+'</div>' : '')+
+      (ultTodas && ultTodas.status === 'parcial' && ultTodas.resultado && ultTodas.resultado.faltou && ultTodas.resultado.faltou.length && automacaoMesmoDia(ultTodas.finalizadoEm) ? '<div style="flex:1 1 100%;">'+automacaoFaltouBoxHtml(ultTodas.resultado.faltou, ultTodas.retomadoPor ? '' : ultTodas.id, 't|' + ultTodas.id)+'</div>' : '')+
       automacaoBotoesHtml('todas', ultTodas, 'auto-btn auto-btn-todas')+
     '</div>'+
     automacaoPainelHtml();
@@ -6608,6 +6615,12 @@
     }
     var cn = wrap.querySelector('[data-auto-conectar]');
     if(cn) cn.addEventListener('click', function(){ automacaoCriarPedido('conectar'); });
+    var ms = wrap.querySelectorAll('[data-auto-mais-lista]');
+    for(i = 0; i < ms.length; i++) ms[i].addEventListener('click', function(){
+      var k = this.getAttribute('data-auto-mais-lista');
+      state.automacao.ui.mais[k] = !state.automacao.ui.mais[k];
+      refreshAutomacao();
+    });
     var refaz = wrap.querySelectorAll('[data-auto-refazer]');
     for(var rf=0; rf<refaz.length; rf++){
       if(refaz[rf].closest('#autoPainelLista')) continue; // os do historico sao ligados em bindAutomacaoLista
