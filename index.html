@@ -858,6 +858,11 @@
   .auto-head{display:flex;align-items:center;gap:14px;margin:4px 0 14px;}
   .auto-head-ico{width:52px;height:52px;border-radius:16px;background:linear-gradient(135deg,#EA580C,#C2410C);display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
   .auto-head-ico svg,.auto-ico svg,.auto-todas-ico svg{width:60%;height:60%;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+  .auto-claude{display:inline-flex;align-items:center;gap:6px;margin-left:16px;flex-wrap:wrap;}
+  .auto-claude.is-ok .auto-dot{background:var(--success);} .auto-claude.is-off .auto-dot{background:var(--danger);} .auto-claude.is-pend .auto-dot{background:var(--warning);}
+  .auto-claude .auto-dot{display:inline-block;opacity:1;}
+  .auto-conectar{padding:4px 14px;font-size:12.5px;margin-left:6px;}
+  .auto-claude-erro{color:var(--danger);}
   .auto-aviso{padding:12px 16px;margin:0 0 16px;font-size:13.5px;border-left:4px solid var(--warning);}
   .auto-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:16px;}
   .auto-card{margin:0;padding:16px;display:flex;flex-direction:column;gap:12px;border-top:3px solid var(--auto-cor);}
@@ -5931,7 +5936,9 @@
       mfa.getDoc(mfa.doc(db, 'crmData', 'automacaoConfig'))
     ]).then(function(r){
       var a = state.automacao;
-      a.pedidos = r[0].docs.map(function(d){ var x = d.data(); x.id = d.id; return x; });
+      var todosPed = r[0].docs.map(function(d){ var x = d.data(); x.id = d.id; return x; });
+      a.conectar = todosPed.filter(function(p){ return p.tipo === 'conectar'; })[0] || null; // pedido de login do Claude: fica fora das automacoes e do historico
+      a.pedidos = todosPed.filter(function(p){ return p.tipo !== 'conectar'; });
       a.resumo = {};
       r[1].docs.forEach(function(d){ a.resumo[d.id] = d.data(); });
       a.vigia = r[2].exists() ? r[2].data() : null;
@@ -5972,6 +5979,7 @@
   function automacaoPodeEnfileirar(tipo){
     var at = automacaoAtivos();
     if(state.automacao.enviando) return false;
+    if(tipo === 'conectar') return !(state.automacao.conectar && (state.automacao.conectar.status === 'pendente' || state.automacao.conectar.status === 'executando'));
     if(tipo === 'todas' || tipo === 'retomar') return !at.length;
     return !at.some(function(p){ return p.tipo === tipo || p.tipo === 'todas' || p.tipo === 'retomar'; });
   }
@@ -6498,6 +6506,16 @@
     var lista = document.getElementById('autoPainelLista');
     if(lista) bindAutomacaoLista(lista);
   }
+  /* Login do Claude no Mac (so o engajamento usa). O vigia informa; o botao pede pra ele abrir o navegador. */
+  function automacaoClaudeHtml(){
+    var a = state.automacao, v = a.vigia, est = v && v.claude, c = a.conectar;
+    var conectando = !!(c && (c.status === 'pendente' || c.status === 'executando') && (Date.now() - (c.criadoEm || 0)) < 6 * 60000);
+    var fim = c && c.status === 'erro' && (Date.now() - (c.finalizadoEm || 0)) < 5 * 60000 ? ' <span class="auto-claude-erro">Não deu certo, tente de novo.</span>' : '';
+    if(conectando) return '<span class="auto-claude is-pend"><span class="auto-dot"></span><b>Claude:</b> aguardando você autorizar no navegador…</span>';
+    if(est === 'conectado') return '<span class="auto-claude is-ok"><span class="auto-dot"></span><b>Claude conectado.</b></span>';
+    if(est === 'desconectado') return '<span class="auto-claude is-off"><span class="auto-dot"></span><b>Claude desconectado</b> (o engajamento não vai funcionar).'+fim+' <button type="button" class="btn btn-primary auto-conectar" data-auto-conectar'+(a.enviando ? ' disabled' : '')+'>Conectar</button></span>';
+    return '';
+  }
   function automacaoInnerHtml(){
     var a = state.automacao;
     var online = automacaoVigiaOnline();
@@ -6513,7 +6531,7 @@
     '</div>'+
     (a.erro ? '<div class="card auto-aviso">'+esc(a.erro)+'</div>' : '')+
     '<div class="card auto-aviso '+(online ? 'is-online' : '')+'"><span class="auto-dot" style="display:inline-block;margin-right:8px;background:'+(online ? 'var(--success)' : 'var(--warning)')+';opacity:1;"></span>'+
-      (online ? '<b>Mac conectado.</b> Os pedidos são executados assim que você clica.' : '<b>Mac desconectado.</b> O programa que executa as tarefas ainda não está rodando no MacBook. Se você clicar agora, o pedido fica na fila até ele ligar.')+
+      (online ? '<b>Mac conectado.</b> Os pedidos são executados assim que você clica.'+automacaoClaudeHtml() : '<b>Mac desconectado.</b> O programa que executa as tarefas ainda não está rodando no MacBook. Se você clicar agora, o pedido fica na fila até ele ligar.')+
     '</div>'+
     (ativo ? '<div class="auto-fila"><span>'+automacaoAtivos().length+' na fila/executando'+(ativo.tipo === 'retomar' && ativo.status === 'executando' ? ' — refazendo o que faltou'+(ativo.progresso ? ' ('+ativo.progresso+'%)' : '') : '')+'</span><button type="button" class="btn btn-secondary" data-auto-cancelar-tudo>Cancelar tudo</button></div>' : '')+
     '<div class="auto-modo"><span>Modo de gravação:</span><div class="meta-type-toggle" style="margin:0;">'+modoBtn('previa','Prévia (só mostra o que mudaria)')+modoBtn('direto','Gravar direto')+'</div></div>'+
@@ -6588,6 +6606,8 @@
     for(var i=0; i<runs.length; i++){
       runs[i].addEventListener('click', function(){ automacaoCriarPedido(this.getAttribute('data-auto-run')); });
     }
+    var cn = wrap.querySelector('[data-auto-conectar]');
+    if(cn) cn.addEventListener('click', function(){ automacaoCriarPedido('conectar'); });
     var refaz = wrap.querySelectorAll('[data-auto-refazer]');
     for(var rf=0; rf<refaz.length; rf++){
       if(refaz[rf].closest('#autoPainelLista')) continue; // os do historico sao ligados em bindAutomacaoLista
@@ -6637,7 +6657,8 @@
     // fora da aba Automacao so acompanha enquanto ha algo na fila/executando (pra atualizar os pacientes no fim)
     if(state.tab !== 'automacao' && !automacaoAtivos().length) return;
     // sem nada na fila nao precisa olhar o banco a cada 5 s: de 30 em 30 s basta
-    if(!automacaoAtivos().length && Date.now() - (state.automacao.ultimaCarga || 0) < 30000) return;
+    var conectando = state.automacao.conectar && (state.automacao.conectar.status === 'pendente' || state.automacao.conectar.status === 'executando');
+    if(!automacaoAtivos().length && !conectando && Date.now() - (state.automacao.ultimaCarga || 0) < 30000) return;
     automacaoLoadAsync().then(refreshAutomacao);
   }, 5000);
 

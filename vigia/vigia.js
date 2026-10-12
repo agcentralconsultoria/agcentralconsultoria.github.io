@@ -34,7 +34,7 @@ async function chamar(corpo) {
   const resp = await fetch(URL_FUNCAO, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-automacao-key': CHAVE },
-    body: JSON.stringify(Object.assign({ versao: VERSAO }, corpo)),
+    body: JSON.stringify(Object.assign({ versao: VERSAO, claude: claude.estado() }, corpo)),
   });
   const texto = await resp.text();
   if (!resp.ok) throw new Error(resp.status + ' ' + texto.slice(0, 200));
@@ -341,6 +341,8 @@ async function executarEngajamento(pedido, faixa, somenteIds) {
   if (!pacientes.length) {
     return { analisados: 0, atualizados: 0, pendencias: pulados, falhas: 0, faltou: [], resumo: (previa ? 'PRÉVIA (nada foi gravado). ' : '') + 'Nenhuma semana encerrada sem nota de engajamento.' + (pulados ? ' ' + pulados + ' sem telefone.' : ''), detalhes };
   }
+  // antes de abrir o WhatsApp: confirma que o Claude esta logado (evita perder minutos pra falhar no fim)
+  await claude.testar();
   const { ctx, page } = await whatsapp.abrirWhatsApp();
   try {
     await page.goto('https://web.whatsapp.com/');
@@ -459,6 +461,13 @@ async function executar(pedido) {
   log('Pedido ' + id + ' (' + tipo + ', modo ' + pedido.modo + ') iniciado.');
   try {
     let plano;
+    if (tipo === 'conectar') {
+      await atualizarPedido({ action: 'atualizar', id, etapa: 'Aguardando você autorizar no navegador', progresso: 10 });
+      await claude.entrar();
+      await chamar({ action: 'finalizar', id, status: 'concluido', resultado: { analisados: 0, atualizados: 0, pendencias: 0, falhas: 0, resumo: 'Login do Claude concluído.', detalhes: [], faltou: [] } });
+      log('Login do Claude concluído.');
+      return;
+    }
     if (tipo === 'retomar') {
       // refaz SÓ o que faltou no pedido de origem
       const origem = await chamar({ action: 'origem', id: pedido.deOrigem });
@@ -493,8 +502,10 @@ async function executar(pedido) {
 
 async function main() {
   log('Vigia ligado (' + VERSAO + '). Olhando a fila a cada ' + INTERVALO_MS / 1000 + ' s. Ctrl+C para parar.');
+  let ultimaVerif = 0;
   for (;;) {
     try {
+      if (Date.now() - ultimaVerif > 120000) { ultimaVerif = Date.now(); await claude.verificar(); }
       const r = await chamar({ action: 'proximo' });
       if (r.pedido) { await executar(r.pedido); continue; }
     } catch (err) {

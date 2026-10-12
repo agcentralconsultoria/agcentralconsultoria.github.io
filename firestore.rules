@@ -56,7 +56,7 @@ service cloud.firestore {
       allow read: if admin();
       allow create: if admin()
         && request.resource.data.keys().hasOnly(['tipo', 'modo', 'status', 'criadoEm', 'criadoPor', 'deOrigem'])
-        && request.resource.data.tipo in ['checkins', 'fotos', 'treinos', 'engajamento', 'todas', 'retomar']
+        && request.resource.data.tipo in ['checkins', 'fotos', 'treinos', 'engajamento', 'todas', 'retomar', 'conectar']
         && (request.resource.data.tipo != 'retomar' || request.resource.data.deOrigem is string)
         && (!('deOrigem' in request.resource.data) || request.resource.data.deOrigem is string)
         && request.resource.data.modo in ['previa', 'direto']

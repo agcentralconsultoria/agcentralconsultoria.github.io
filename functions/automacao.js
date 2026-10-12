@@ -72,7 +72,7 @@ exports.automacaoVigia = onRequest({
   try {
     const agora = Date.now();
     // todo contato do vigia vale como "estou vivo" (o CRM mostra Mac conectado/desconectado)
-    await VIGIA_STATUS.set({ ultimoContato: agora, versao: texto(body.versao, 30) }, { merge: true });
+    await VIGIA_STATUS.set({ ultimoContato: agora, versao: texto(body.versao, 30), claude: ['conectado', 'desconectado'].indexOf(body.claude) !== -1 ? body.claude : 'desconhecido' }, { merge: true });
 
     if (body.action === 'ping') {
       res.status(200).json({ ok: true });
@@ -268,6 +268,8 @@ exports.automacaoVigia = onRequest({
           }
           return;
         }
+        // pedido de login do Claude nao e uma automacao: nao vira "ultima execucao"
+        if (d.tipo === 'conectar') return;
         // "Ultima execucao" de cada card (o CRM le isto direto)
         tx.set(db.collection(RESUMO).doc(d.tipo), {
           tipo: d.tipo, pedidoId: id, status, finalizadoEm: agora, modo: d.modo || 'previa',
