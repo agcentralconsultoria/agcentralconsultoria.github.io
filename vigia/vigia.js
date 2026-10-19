@@ -372,7 +372,8 @@ async function executarEngajamento(pedido, faixa, somenteIds) {
           const rotulo = p.nome.slice(0, 26) + ' (' + periodo + ')';
           if (!recebidas.length) {
             entries.push({ email: p.email, monthKey: sem.monthKey, weekIndex: sem.weekIndex, nota: 0 });
-            detalhes.push(rotulo + ' → nota 0 | Fato: nenhuma mensagem do paciente na semana | Sem IA (regra da escala)');
+            const lidaDesde = conv.mensagens.length ? dataCurta(conv.mensagens[0].data) : 'nenhuma mensagem';
+            detalhes.push(rotulo + ' → nota 0 | Fato: nenhuma msg do paciente (' + naJanela.length + ' na semana; conversa lida desde ' + lidaDesde + ') | Sem IA (regra da escala)');
             continue;
           }
           const contexto = conv.mensagens.filter((m) => m.data <= sem.domingo);
