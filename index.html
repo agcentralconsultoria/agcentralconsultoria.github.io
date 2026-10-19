@@ -5908,7 +5908,7 @@
       stats:[['analisados','Pacientes analisados'],['atualizados','Fichas atualizadas'],['pendencias','Vencidas ou próximas']],
       svg:'<path d="M6.5 6.5v11M17.5 6.5v11M3 9v6M21 9v6M6.5 12h11"/>' },
     { key:'engajamento', nome:'Atualizar engajamento', cor:'#7C3AED',
-      desc:'Lê as conversas do WhatsApp e aplica a escala de 0 a 10 do CRM. Não envia mensagens.',
+      desc:'Lê as conversas do WhatsApp e reavalia todos os pacientes nas últimas 4 semanas fechadas (escala de 0 a 10), gravando por cima. Não envia mensagens.',
       stats:[['analisados','Pacientes analisados'],['atualizados','Notas atualizadas'],['pendencias','Atenção necessária']],
       svg:'<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>' }
   ];
@@ -6144,7 +6144,6 @@
         (avs.length ? '<div class="auto-avisos"><b>⚠ Atenção ('+avs.length+')</b><ul>'+avs.slice(0, state.automacao.ui.mais['a|' + a.key] ? avs.length : 3).map(function(x){ var nc = /^NÃO CADASTRADO:/.test(x); return '<li>'+(nc ? automacaoNcHtml(x) : esc(automacaoCurto(x.replace(/^(Pulado|Falha):\s*/, ''), 80)))+'</li>'; }).join('')+(avs.length > 3 ? automacaoMaisLi('a|' + a.key, !!state.automacao.ui.mais['a|' + a.key], avs.length - 3) : '')+'</ul></div>' : (r && Array.isArray(r.avisos) && r.status !== 'erro' && !(r.faltou && r.faltou.length) ? '<div class="auto-ok">✓ Sem erros nem avisos</div>' : ''))+
       '</div>'+
       automacaoBotoesHtml(a.key, ult, 'auto-btn')+
-      (a.key === 'engajamento' ? '<button type="button" class="btn btn-secondary auto-btn auto-reavaliar" data-auto-reavaliar'+(automacaoPodeEnfileirar('reavaliar') ? '' : ' disabled')+'>Reavaliar últimas 4 semanas</button>' : '')+
     '</div>';
   }
   /* "NÃO CADASTRADO: Nome (email) — cadastre no CRM": só o NOME do paciente em vermelho. */

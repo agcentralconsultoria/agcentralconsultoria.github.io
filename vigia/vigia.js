@@ -330,7 +330,8 @@ async function executarEngajamento(pedido, faixa, somenteIds) {
   const previa = pedido.modo !== 'direto';
   const hoje = hojeMenos(0);
   await atualizarPedido({ action: 'atualizar', id, etapa: 'Engajamento: vendo quem precisa de nota', progresso: Math.round(de + (ate - de) * 0.02) });
-  const refazer = pedido.tipo === 'reavaliar';
+  // Pedido do Angelo: toda execucao do engajamento reavalia TODOS (ultimas 4 semanas fechadas) e grava por cima.
+  const refazer = true;
   const pend = await chamarEngaj({ acao: 'pendentes', refazer });
   const pacientes = (pend.pacientes || []).filter((p) => !somenteIds || !somenteIds.length || somenteIds.indexOf('*') !== -1 || somenteIds.indexOf(p.email) !== -1);
   const entries = [];
