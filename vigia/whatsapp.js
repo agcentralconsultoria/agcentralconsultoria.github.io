@@ -46,6 +46,11 @@ async function lerConversa(page, telefone, desdeISO, ateISO, hojeISO) {
     const aviso = await page.evaluate(() => (document.querySelector('[data-animate-modal-popup="true"], div[role="dialog"]') || {}).innerText || '');
     if (/inv[aá]lid|not on whatsapp|n[aã]o est[aá]|invalid/i.test(aviso) || !abriu) return { status: 'sem_conversa', mensagens: [] };
   }
+  return lerConversaAberta(page, desdeISO, ateISO, hojeISO);
+}
+
+// Lê a conversa que já está aberta na tela (mesma leitura de sempre).
+async function lerConversaAberta(page, desdeISO, ateISO, hojeISO) {
   // Ao abrir a conversa o WhatsApp marca tudo como lido; o aviso "N mensagens não lidas" fica no
   // painel enquanto a conversa está aberta. Guardamos isso pra devolver "não lida" no fim.
   const verAviso = () => page.evaluate(() => {
@@ -62,57 +67,93 @@ async function lerConversa(page, telefone, desdeISO, ateISO, hojeISO) {
 
   // carrega mensagens antigas rolando pra cima até passar do início da janela
   const painelSel = '[data-testid="conversation-panel-messages"]';
+  // (so conta separador de dia e data da PROPRIA mensagem; a data de uma mensagem citada enganava antes)
   let ultimoTotal = -1;
-  for (let i = 0; i < 25; i++) {
+  let semMudar = 0;
+  for (let i = 0; i < 40; i++) {
     const info = await page.evaluate((sel) => {
       const painel = document.querySelector(sel);
-      if (!painel) return { total: 0, primeiraData: null };
+      if (!painel) return { total: 0, seps: [], pre: [] };
       let rolavel = painel;
       for (let e = painel; e; e = e.parentElement) { if (e.scrollHeight > e.clientHeight + 20 && /(auto|scroll)/.test(getComputedStyle(e).overflowY)) { rolavel = e; break; } }
-      const datas = [...painel.querySelectorAll('span')].filter((s) => s.children.length === 0 && /^\d{2}\/\d{2}\/\d{4}$/.test(s.innerText.trim())).map((s) => s.innerText.trim());
-      const pre = [...painel.querySelectorAll('[data-pre-plain-text]')].map((e) => (e.getAttribute('data-pre-plain-text').match(/(\d{2}\/\d{2}\/\d{4})/) || [])[1]).filter(Boolean);
-      const todas = datas.concat(pre).map((d) => d.split('/').reverse().join('-')).sort();
+      const re = /^(HOJE|ONTEM|\d{1,2}\/\d{2}\/\d{4}|(SEGUNDA|TERÇA|TERCA|QUARTA|QUINTA|SEXTA|SÁBADO|SABADO|DOMINGO)(-FEIRA)?)$/i;
+      const seps = [...painel.querySelectorAll('span')].filter((s) => s.children.length === 0 && !s.closest('[data-testid="msg-container"]') && re.test(s.innerText.trim())).map((s) => s.innerText.trim());
+      const pre = [...painel.querySelectorAll('[data-pre-plain-text]')].filter((e) => !e.closest('[data-testid="quoted-message"]')).map((e) => (e.getAttribute('data-pre-plain-text').match(/(\d{1,2}\/\d{2}\/\d{4})/) || [])[1]).filter(Boolean);
       rolavel.scrollTop = 0;
-      return { total: painel.querySelectorAll('[role="row"]').length, primeiraData: todas[0] || null };
+      return { total: painel.querySelectorAll('[role="row"]').length, seps, pre };
     }, painelSel);
-    if (info.primeiraData && info.primeiraData <= desdeISO) break; // já carregou até antes da janela
-    if (info.total === ultimoTotal) break;                         // não veio mais nada (começo da conversa)
+    const datas = info.seps.map((t) => separadorParaISO(t, hojeISO)).concat(info.pre.map((d) => d.split('/').reverse().join('-'))).filter(Boolean).sort();
+    if (datas[0] && datas[0] < desdeISO) break;                    // já carregou até antes da janela
+    semMudar = info.total === ultimoTotal ? semMudar + 1 : 0;
+    if (semMudar >= 3) break;                                       // não veio mais nada (começo da conversa)
     ultimoTotal = info.total;
     await page.waitForTimeout(1500);
   }
 
-  const itens = await page.evaluate((sel) => {
+  // O WhatsApp so desenha as mensagens perto da tela (as outras ficam vazias). Entao desce a conversa
+  // do topo ate o fim, aos pouquinhos, guardando cada mensagem (pelo id) quando ela aparece desenhada.
+  // A ordem e os separadores de dia ("12/10/2026", "sábado"...) ficam sempre na pagina.
+  const vistos = {};
+  for (let passo = 0; passo < 400; passo++) {
+    const r = await page.evaluate((sel) => {
+      const painel = document.querySelector(sel);
+      if (!painel) return { fim: true, msgs: [] };
+      let rolavel = painel;
+      for (let e = painel; e; e = e.parentElement) { if (e.scrollHeight > e.clientHeight + 20 && /(auto|scroll)/.test(getComputedStyle(e).overflowY)) { rolavel = e; break; } }
+      const pr = painel.getBoundingClientRect();
+      const msgs = [];
+      painel.querySelectorAll('div[role="row"]').forEach((e) => {
+        const idEl = e.querySelector('[data-testid^="conv-msg-"]');
+        const cont = e.querySelector('[data-testid="msg-container"]');
+        if (!idEl || !cont) return; // ainda nao desenhada
+        const id = idEl.getAttribute('data-testid');
+        const fora = (x) => !x.closest('[data-testid="quoted-message"]');
+        const pre = [...e.querySelectorAll('[data-pre-plain-text]')].filter(fora)[0];
+        const preTxt = pre ? pre.getAttribute('data-pre-plain-text') : '';
+        const m1 = preTxt.match(/\[(\d{1,2}:\d{2}), (\d{1,2}\/\d{2}\/\d{4})\]/);
+        const meta = e.querySelector('[data-testid="msg-meta"]');
+        const horasFolha = [...e.querySelectorAll('span')].filter((s) => s.children.length === 0 && /^\d{1,2}:\d{2}$/.test(s.innerText.trim())).map((s) => s.innerText.trim());
+        const m2 = (meta ? meta.innerText : '').match(/(\d{1,2}:\d{2})/);
+        const cr = cont.getBoundingClientRect();
+        const aria = [...e.querySelectorAll('[aria-label]')].filter(fora).map((x) => x.getAttribute('aria-label')).join('|');
+        const icones = [...e.querySelectorAll('[data-icon]')].filter(fora).map((x) => x.getAttribute('data-icon')).join('|');
+        const txtEl = [...e.querySelectorAll('[data-testid="selectable-text"]')].filter(fora)[0];
+        const sistema = !!e.querySelector('[data-testid="msg-notification-container"], [data-testid="system_message"]');
+        const durTxt = horasFolha.length > 1 ? horasFolha[0] : null;
+        msgs.push({
+          id, sistema,
+          saida: /tail-out/.test(icones) || (!/tail-in/.test(icones) && (cr.left + cr.right) / 2 > (pr.left + pr.right) / 2),
+          data: m1 ? m1[2] : null,
+          hora: m1 ? m1[1] : (m2 ? m2[1] : (horasFolha.length ? horasFolha[horasFolha.length - 1] : null)),
+          texto: txtEl ? txtEl.innerText.trim() : '',
+          audio: /ptt|voz|voice|audio-play|audio-pause/i.test(aria + '|' + icones) || !!e.querySelector('[data-testid="ptt-status"], [data-testid="audio-play"]'),
+          midia: /document|image|video|sticker|gif|media/i.test(icones) || !!e.querySelector('[data-testid="video-content"], [data-testid="image-thumb"], [data-testid="sticker-container"], img[src^="blob:"]'),
+          duracao: durTxt ? Number(durTxt.split(':')[0]) * 60 + Number(durTxt.split(':')[1]) : null,
+        });
+      });
+      const fim = rolavel.scrollTop + rolavel.clientHeight >= rolavel.scrollHeight - 5;
+      if (!fim) rolavel.scrollTop += Math.max(150, Math.round(rolavel.clientHeight * 0.45));
+      return { fim, msgs };
+    }, painelSel);
+    r.msgs.forEach((m) => { vistos[m.id] = m; });
+    if (r.fim) break;
+    await page.waitForTimeout(500);
+  }
+  // ordem final (mensagens + separadores de dia), na sequencia da pagina
+  const ordem = await page.evaluate((sel) => {
     const painel = document.querySelector(sel);
     if (!painel) return [];
-    const pr = painel.getBoundingClientRect();
-    const dataLeaf = (e) => e.tagName === 'SPAN' && e.children.length === 0 && /^(HOJE|ONTEM|\d{1,2}\/\d{2}\/\d{4}|(SEGUNDA|TERÇA|TERCA|QUARTA|QUINTA|SEXTA|SÁBADO|SABADO|DOMINGO)(-FEIRA)?)$/i.test(e.innerText.trim());
-    const nodes = [...painel.querySelectorAll('div[role="row"], span')].filter((e) => e.getAttribute('role') === 'row' || dataLeaf(e));
-    return nodes.map((e) => {
-      if (e.getAttribute('role') !== 'row') return { k: 'sep', txt: e.innerText.trim() };
-      const pre = e.querySelector('[data-pre-plain-text]');
-      const meta = e.querySelector('[data-testid="msg-meta"]');
-      const cont = e.querySelector('[data-testid="msg-container"]') || e;
-      const cr = cont.getBoundingClientRect();
-      const aria = [...e.querySelectorAll('[aria-label]')].map((x) => x.getAttribute('aria-label')).join('|');
-      const icones = [...e.querySelectorAll('[data-icon]')].map((x) => x.getAttribute('data-icon')).join('|');
-      const txtEl = e.querySelector('[data-testid="selectable-text"]');
-      const textoTodo = e.innerText.replace(/\s+/g, ' ').trim();
-      const sistema = !!e.querySelector('[data-testid="msg-notification-container"], [data-testid="system_message"]');
-      const preTxt = pre ? pre.getAttribute('data-pre-plain-text') : '';
-      const m1 = preTxt.match(/\[(\d{1,2}:\d{2}), (\d{2}\/\d{2}\/\d{4})\]/);
-      const m2 = (meta ? meta.innerText : '').match(/(\d{1,2}:\d{2})/);
-      const dur = textoTodo.match(/\b(\d{1,2}):(\d{2})\b/);
-      return {
-        k: 'msg', sistema,
-        saida: /^\s*Você/i.test(aria) || /^You/i.test(aria) || ((cr.left + cr.right) / 2 > (pr.left + pr.right) / 2),
-        data: m1 ? m1[2] : null, hora: m1 ? m1[1] : (m2 ? m2[1] : null),
-        texto: txtEl ? txtEl.innerText.trim() : '',
-        audio: /voz|[aá]udio|voice|ptt|audio-play|audio-pause/i.test(aria + '|' + icones),
-        midia: /document|image|video|sticker|gif|media/i.test(icones) || !!e.querySelector('[data-testid="sticker-container"], img[src^="blob:"]'),
-        duracao: dur ? Number(dur[1]) * 60 + Number(dur[2]) : null,
-      };
-    });
+    const dataLeaf = (e) => e.tagName === 'SPAN' && e.children.length === 0 && !e.closest('div[role="row"] [data-testid="msg-container"]') && /^(HOJE|ONTEM|\d{1,2}\/\d{2}\/\d{4}|(SEGUNDA|TERÇA|TERCA|QUARTA|QUINTA|SEXTA|SÁBADO|SABADO|DOMINGO)(-FEIRA)?)$/i.test(e.innerText.trim());
+    return [...painel.querySelectorAll('[data-testid^="conv-msg-"], span')].filter((e) => e.tagName !== 'SPAN' || dataLeaf(e)).map((e) => (e.tagName === 'SPAN' ? { k: 'sep', txt: e.innerText.trim() } : { k: 'id', id: e.getAttribute('data-testid') }));
   }, painelSel);
+  const itens = [];
+  const usados = {};
+  ordem.forEach((o) => {
+    if (o.k === 'sep') { itens.push(o); return; }
+    if (usados[o.id] || !vistos[o.id]) return;
+    usados[o.id] = 1;
+    itens.push(Object.assign({ k: 'msg' }, vistos[o.id]));
+  });
 
   // monta a linha do tempo com data de cada mensagem (texto traz a data; o resto herda o separador)
   const mensagens = [];
@@ -128,7 +169,8 @@ async function lerConversa(page, telefone, desdeISO, ateISO, hojeISO) {
     if (tipo === 'texto' && !it.texto) return;
     mensagens.push({ data: dia, hora: it.hora, dir: it.saida ? 'coach' : 'paciente', tipo, texto: tipo === 'texto' ? it.texto.slice(0, 500) : '', seg: tipo === 'audio' ? it.duracao : null });
   });
-  return { status: 'ok', mensagens, naoLidas: antes.naoLidas, titulo: antes.titulo };
+  const naPagina = ordem.filter((o) => o.k === 'id').length;
+  return { status: 'ok', mensagens, naoLidas: antes.naoLidas, titulo: antes.titulo, lidas: Object.keys(vistos).length, naPagina, seps: ordem.filter((o) => o.k === 'sep').map((o) => o.txt) };
 }
 
 // Nomes das conversas que JA estao como "nao lida" na lista (bolinha/contador), vistos antes de abrir
@@ -171,4 +213,4 @@ async function marcarComoNaoLida(page, titulo) {
   await page.waitForTimeout(800);
 }
 
-module.exports = { abrirWhatsApp, lerConversa, marcarComoNaoLida, listarNaoLidas };
+module.exports = { abrirWhatsApp, lerConversa, lerConversaAberta, marcarComoNaoLida, listarNaoLidas };

@@ -358,6 +358,9 @@ async function executarEngajamento(pedido, faixa, somenteIds) {
         const ateD = p.semanas.map((x) => x.domingo).sort().slice(-1)[0];
         const conv = await whatsapp.lerConversa(page, p.telefone, desde, ateD, hoje);
         if (conv.status === 'sem_conversa') { pulados++; detalhes.push('Pulado: ' + p.nome + ' — número sem conversa no WhatsApp'); continue; }
+        // nenhuma mensagem (nem sua nem do paciente) no periodo todo: quase sempre e telefone errado ou
+        // conversa que nao carregou. Nao da 0 (seria injusto): deixa pendente pra voce conferir.
+        if (!conv.mensagens.length) { pulados++; detalhes.push('Pulado: ' + p.nome + ' — nenhuma mensagem no período (confira o telefone no CRM)'); continue; }
         analisados++;
         // Se tinha mensagem não lida, devolve a conversa pra "não lida" (notificação do Ângelo)
         if (conv.naoLidas || jaNaoLidas.has(conv.titulo)) {
