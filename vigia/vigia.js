@@ -365,8 +365,12 @@ async function executarEngajamento(pedido, faixa, somenteIds) {
         if (!conv.mensagens.length) { pulados++; detalhes.push('Pulado: ' + p.nome + ' — nenhuma mensagem no período (confira o telefone no CRM)'); continue; }
         analisados++;
         // Se tinha mensagem não lida, devolve a conversa pra "não lida" (notificação do Ângelo)
-        if (conv.naoLidas || jaNaoLidas.has(conv.titulo)) {
-          try { await whatsapp.marcarComoNaoLida(page, conv.titulo); naoLidasDevolvidas++; log('WhatsApp: conversa devolvida para não lida: ' + p.nome); }
+        // REGRA FIXA: estava nao lida OU a ultima mensagem e do paciente (sem resposta sua) => volta como nao lida.
+        if (conv.naoLidas || jaNaoLidas.has(conv.titulo) || conv.ultimaDoPaciente) {
+          try {
+            try { await whatsapp.marcarComoNaoLida(page, conv.titulo); }
+            catch (e1) { await page.waitForTimeout(2000); await whatsapp.marcarComoNaoLida(page, conv.titulo); } // tenta 2x
+            naoLidasDevolvidas++; log('WhatsApp: conversa devolvida para não lida: ' + p.nome); }
           catch (e) { falhas.push('Não consegui deixar "não lida": ' + p.nome.slice(0, 24) + ' — ' + String(e.message).slice(0, 60)); }
         }
         for (const sem of p.semanas) {

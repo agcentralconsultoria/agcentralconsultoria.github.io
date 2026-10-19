@@ -1623,3 +1623,9 @@ Decisão do Ângelo: medidas deixam de ser acompanhadas (muitos pacientes não e
 ("Data das últimas fotos e medidas" = `ultimasFotos`, lido de "Última atualização de fotos" do Treino.io).
 `ultimasMedidas` é apagado dos pacientes ao carregar (`migratePatient`) e sai do perfil, formulário, Atenção de hoje,
 ciclo Essencial e do vigia (que também não abre mais a aba Progresso). Servidor segue aceitando o campo, mas ninguém envia.
+
+### 29.y Engajamento: leitura corrigida e regra fixa de "não lida" (19/10/2026)
+- Leitura do WhatsApp reescrita: o WhatsApp Web só desenha mensagens perto da tela; o vigia agora desce a conversa aos poucos e guarda cada mensagem (antes dava nota 0 errada, ex.: Matheus Morais).
+- "Executar agora" do engajamento reavalia TODOS os pacientes nas últimas 4 semanas fechadas e grava por cima (pedido do Ângelo).
+- Conversa sem nenhuma mensagem no período vira pendência ("confira o telefone"), não nota 0.
+- **REGRA FIXA:** ao sair de uma conversa, se a última mensagem é do paciente (sem resposta) ou ela já estava não lida, o vigia marca como "não lida" (2 tentativas; falha aparece no card).

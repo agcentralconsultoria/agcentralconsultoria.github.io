@@ -170,7 +170,11 @@ async function lerConversaAberta(page, desdeISO, ateISO, hojeISO) {
     mensagens.push({ data: dia, hora: it.hora, dir: it.saida ? 'coach' : 'paciente', tipo, texto: tipo === 'texto' ? it.texto.slice(0, 500) : '', seg: tipo === 'audio' ? it.duracao : null });
   });
   const naPagina = ordem.filter((o) => o.k === 'id').length;
-  return { status: 'ok', mensagens, naoLidas: antes.naoLidas, titulo: antes.titulo, lidas: Object.keys(vistos).length, naPagina, seps: ordem.filter((o) => o.k === 'sep').map((o) => o.txt) };
+  // REGRA FIXA do Angelo: se a ULTIMA mensagem da conversa e do paciente (ainda sem resposta), a conversa
+  // tem que voltar como "nao lida" ao sair, pra ele nunca deixar paciente sem resposta.
+  const ultima = itens.filter((it) => it.k === 'msg' && !it.sistema).slice(-1)[0];
+  const ultimaDoPaciente = !!(ultima && !ultima.saida);
+  return { status: 'ok', mensagens, naoLidas: antes.naoLidas, titulo: antes.titulo, ultimaDoPaciente, lidas: Object.keys(vistos).length, naPagina, seps: ordem.filter((o) => o.k === 'sep').map((o) => o.txt) };
 }
 
 // Nomes das conversas que JA estao como "nao lida" na lista (bolinha/contador), vistos antes de abrir
