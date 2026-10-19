@@ -842,6 +842,8 @@ exports.engajamento = onRequest({
   };
 
   try {
+    // "Reavaliar" (o Angelo pediu): devolve TODAS as semanas encerradas das ultimas 4 e grava por cima.
+    const refazer = body.refazer === true;
     if (body.acao === 'pendentes') {
       const snap = await PATIENTS_DOC.get();
       const list = snap.exists ? (snap.data().list || []) : [];
@@ -859,7 +861,7 @@ exports.engajamento = onRequest({
           if (isTreinoQuinzenal(p) && slot.weekIndex !== 0 && slot.weekIndex !== 2) return;
           const mes = p.meses && p.meses[slot.monthKey];
           const atual = mes && Array.isArray(mes.engajamento) ? mes.engajamento[slot.weekIndex] : null;
-          if (atual !== null && atual !== undefined && atual !== '') return; // ja tem nota
+          if (!refazer && atual !== null && atual !== undefined && atual !== '') return; // ja tem nota ("reavaliar" refaz)
           semanas.push({ sexta, segunda: addDaysIso(sexta, -4), domingo: addDaysIso(sexta, 2), monthKey: slot.monthKey, weekIndex: slot.weekIndex });
         });
         if (!semanas.length) return;
@@ -898,10 +900,11 @@ exports.engajamento = onRequest({
           if (!Array.isArray(mes.engajamento)) mes.engajamento = [];
           while (mes.engajamento.length < wk) mes.engajamento.push(null);
           const atual = mes.engajamento[e.weekIndex];
-          if (atual !== null && atual !== undefined && atual !== '') return; // nunca sobrescreve
+          if (!refazer && atual !== null && atual !== undefined && atual !== '') return; // nunca sobrescreve (so no "reavaliar")
+          if (refazer && Number(atual) === nota && atual !== null && atual !== '') return; // nota igual: nada muda
           mes.engajamento[e.weekIndex] = nota;
           gravadas++;
-          detalhes.push(p.nome + ': ' + e.monthKey + ' semana ' + (e.weekIndex + 1) + ' -> nota ' + nota);
+          detalhes.push(p.nome + ': ' + e.monthKey + ' semana ' + (e.weekIndex + 1) + ' -> nota ' + nota + (refazer && atual !== null && atual !== undefined && atual !== '' ? ' (antes ' + atual + ')' : ''));
         });
         if (gravadas && !dryRun) tx.set(PATIENTS_DOC, { list }, { merge: true });
         return { gravadas, detalhes, pulados };

@@ -865,6 +865,7 @@
   .auto-claude-erro{color:var(--danger);}
   .auto-mais-li{list-style:none;margin-left:-16px;margin-top:4px;}
   .auto-mais-btn{border:0;background:none;padding:0;font:inherit;font-size:12.5px;font-weight:600;color:var(--primary,#ea580c);cursor:pointer;text-decoration:underline;}
+  .auto-reavaliar{width:100%;margin-top:8px;}
   .auto-aviso{padding:12px 16px;margin:0 0 16px;font-size:13.5px;border-left:4px solid var(--warning);}
   .auto-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:16px;}
   .auto-card{margin:0;padding:16px;display:flex;flex-direction:column;gap:12px;border-top:3px solid var(--auto-cor);}
@@ -5911,7 +5912,7 @@
       stats:[['analisados','Pacientes analisados'],['atualizados','Notas atualizadas'],['pendencias','Atenção necessária']],
       svg:'<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>' }
   ];
-  var AUTOMACAO_NOMES = { checkins:'Atualizar check-ins', fotos:'Fotos e medidas', treinos:'Treinos e dietas', engajamento:'Engajamento', todas:'Todas as automações', retomar:'Refazer o que faltou' };
+  var AUTOMACAO_NOMES = { checkins:'Atualizar check-ins', fotos:'Fotos e medidas', treinos:'Treinos e dietas', engajamento:'Engajamento', todas:'Todas as automações', retomar:'Refazer o que faltou', reavaliar:'Reavaliar engajamento (4 semanas)' };
   /* Texto do (i) de cada automacao: qual modelo e esforco ela usa (pra lembrar depois). */
   var AUTOMACAO_INFO = {
     checkins: '<b>Quem faz:</b> programa automático do vigia, no seu Mac.<br><b>Inteligência artificial:</b> nenhuma.<br><b>Modelo:</b> não usa.<br><b>Esforço:</b> não usa.<br><b>Tokens:</b> zero.<br><i>Por quê:</i> ler datas e tabelas não precisa de IA, então é mais rápido e não gasta sua assinatura. <b>Já funciona.</b>',
@@ -6060,6 +6061,7 @@
   function automacaoPedidoDoCard(key){
     return state.automacao.pedidos.filter(function(p){
       if(p.tipo === key) return true;
+      if(p.tipo === 'reavaliar') return key === 'engajamento' && (p.status === 'pendente' || p.status === 'executando' || automacaoFinalizado(p));
       if(p.tipo === 'retomar') return (p.status === 'pendente' || p.status === 'executando') && automacaoRetomaTipo(p, key);
       if(p.tipo !== 'todas') return false;
       if(p.status === 'pendente' || p.status === 'executando') return true;
@@ -6142,6 +6144,7 @@
         (avs.length ? '<div class="auto-avisos"><b>⚠ Atenção ('+avs.length+')</b><ul>'+avs.slice(0, state.automacao.ui.mais['a|' + a.key] ? avs.length : 3).map(function(x){ var nc = /^NÃO CADASTRADO:/.test(x); return '<li>'+(nc ? automacaoNcHtml(x) : esc(automacaoCurto(x.replace(/^(Pulado|Falha):\s*/, ''), 80)))+'</li>'; }).join('')+(avs.length > 3 ? automacaoMaisLi('a|' + a.key, !!state.automacao.ui.mais['a|' + a.key], avs.length - 3) : '')+'</ul></div>' : (r && Array.isArray(r.avisos) && r.status !== 'erro' && !(r.faltou && r.faltou.length) ? '<div class="auto-ok">✓ Sem erros nem avisos</div>' : ''))+
       '</div>'+
       automacaoBotoesHtml(a.key, ult, 'auto-btn')+
+      (a.key === 'engajamento' ? '<button type="button" class="btn btn-secondary auto-btn auto-reavaliar" data-auto-reavaliar'+(automacaoPodeEnfileirar('reavaliar') ? '' : ' disabled')+'>Reavaliar últimas 4 semanas</button>' : '')+
     '</div>';
   }
   /* "NÃO CADASTRADO: Nome (email) — cadastre no CRM": só o NOME do paciente em vermelho. */
@@ -6218,7 +6221,7 @@
     if(a.regCache[chave]) return a.regCache[chave];
     var r = p.resultado || {}, previa = p.modo !== 'direto';
     var rows = [], ncMap = {}, ncLista = [];
-    var tipoCat = AUTO_CAT_NOME[p.tipo] ? p.tipo : null;
+    var tipoCat = p.tipo === 'reavaliar' ? 'engajamento' : (AUTO_CAT_NOME[p.tipo] ? p.tipo : null);
     function add(cat, nome, acao, periodo, status, obs, extra, bruto, nota, marca){
       rows.push({ cat:cat, nome:nome || '—', acao:acao || '', periodo:periodo || '', status:status, obs:obs || '', extra:extra || [], bruto:[bruto], nota:(nota === undefined ? null : nota), marca:marca || '' });
     }
@@ -6636,6 +6639,11 @@
     for(var i=0; i<runs.length; i++){
       runs[i].addEventListener('click', function(){ automacaoCriarPedido(this.getAttribute('data-auto-run')); });
     }
+    var rv = wrap.querySelector('[data-auto-reavaliar]');
+    if(rv) rv.addEventListener('click', function(){
+      if(!confirm('Reavaliar o engajamento das últimas 4 semanas de todos os pacientes?\n\nO vigia lê as conversas de novo e GRAVA A NOTA NOVA POR CIMA da antiga (inclusive notas que você colocou à mão nessas semanas).' + (state.automacao.modo === 'previa' ? '\n\nModo Prévia: só mostra o que mudaria, não grava.' : ''))) return;
+      automacaoCriarPedido('reavaliar');
+    });
     var cn = wrap.querySelector('[data-auto-conectar]');
     if(cn) cn.addEventListener('click', function(){ automacaoCriarPedido('conectar'); });
     var ms = wrap.querySelectorAll('[data-auto-mais-lista]');

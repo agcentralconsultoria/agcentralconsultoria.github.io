@@ -330,7 +330,8 @@ async function executarEngajamento(pedido, faixa, somenteIds) {
   const previa = pedido.modo !== 'direto';
   const hoje = hojeMenos(0);
   await atualizarPedido({ action: 'atualizar', id, etapa: 'Engajamento: vendo quem precisa de nota', progresso: Math.round(de + (ate - de) * 0.02) });
-  const pend = await chamarEngaj({ acao: 'pendentes' });
+  const refazer = pedido.tipo === 'reavaliar';
+  const pend = await chamarEngaj({ acao: 'pendentes', refazer });
   const pacientes = (pend.pacientes || []).filter((p) => !somenteIds || !somenteIds.length || somenteIds.indexOf('*') !== -1 || somenteIds.indexOf(p.email) !== -1);
   const entries = [];
   const detalhes = [];
@@ -406,7 +407,7 @@ async function executarEngajamento(pedido, faixa, somenteIds) {
   }
   await atualizarPedido({ action: 'atualizar', id, etapa: previa ? 'Engajamento: calculando a prévia' : 'Engajamento: gravando no CRM', progresso: Math.round(de + (ate - de) * 0.95) });
   let r = { gravadas: 0, detalhes: [], detalhesPulados: [] };
-  if (entries.length) r = await chamarEngaj({ acao: 'gravar', dryRun: previa, entries });
+  if (entries.length) r = await chamarEngaj({ acao: 'gravar', dryRun: previa, entries, refazer });
   const todos = detalhes.concat((r.detalhesPulados || []).map((x) => 'Pulado: ' + x)).concat(falhas.map((x) => 'Falha: ' + x));
   const resumo = (previa ? 'PRÉVIA (nada foi gravado). ' : '') + r.gravadas + ' nota(s) ' + (previa ? 'entrariam' : 'gravadas') + ' (só em semana encerrada e campo vazio)' +
     (excecoes ? ', ' + excecoes + ' exceção(ões) sem nota (você decide)' : '') + (pulados ? ', ' + pulados + ' pulado(s)' : '') + (naoLidasDevolvidas ? ', ' + naoLidasDevolvidas + ' conversa(s) devolvida(s) para "não lida"' : '') + (falhas.length ? ', ' + falhas.length + ' falha(s)' : '') + '.';
@@ -482,6 +483,8 @@ async function executar(pedido) {
       (origem.faltou || []).forEach((f) => { (porTipo[f.tipo] = porTipo[f.tipo] || []).push(f.id); });
       plano = ORDEM_TIPOS.filter((t) => porTipo[t]).map((t) => ({ tipo: t, ids: porTipo[t] }));
       if (!plano.length) throw new Error('não há nada que faltou nesse pedido');
+    } else if (tipo === 'reavaliar') {
+      plano = [{ tipo: 'engajamento', ids: null }];
     } else if (tipo === 'todas') {
       plano = ORDEM_TIPOS.map((t) => ({ tipo: t, ids: null }));
     } else if (TIPOS_EXEC[tipo]) {
