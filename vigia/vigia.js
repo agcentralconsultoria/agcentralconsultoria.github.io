@@ -414,7 +414,7 @@ async function executarEngajamento(pedido, faixa, somenteIds) {
   let r = { gravadas: 0, detalhes: [], detalhesPulados: [] };
   if (entries.length) r = await chamarEngaj({ acao: 'gravar', dryRun: previa, entries, refazer });
   const todos = detalhes.concat((r.detalhesPulados || []).map((x) => 'Pulado: ' + x)).concat(falhas.map((x) => 'Falha: ' + x));
-  const resumo = (previa ? 'PRÉVIA (nada foi gravado). ' : '') + r.gravadas + ' nota(s) ' + (previa ? 'entrariam' : 'gravadas') + ' (só em semana encerrada e campo vazio)' +
+  const resumo = (previa ? 'PRÉVIA (nada foi gravado). ' : '') + r.gravadas + ' nota(s) ' + (previa ? 'entrariam' : 'gravadas') + ' (reavaliadas: últimas 4 semanas fechadas, por cima da nota antiga)' +
     (excecoes ? ', ' + excecoes + ' exceção(ões) sem nota (você decide)' : '') + (pulados ? ', ' + pulados + ' pulado(s)' : '') + (naoLidasDevolvidas ? ', ' + naoLidasDevolvidas + ' conversa(s) devolvida(s) para "não lida"' : '') + (falhas.length ? ', ' + falhas.length + ' falha(s)' : '') + '.';
   return { analisados, atualizados: r.gravadas, pendencias: excecoes + pulados + (r.detalhesPulados || []).length, falhas: falhas.length, faltou, resumo, detalhes: todos };
 }
