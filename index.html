@@ -3063,8 +3063,34 @@
   }
   setInterval(agcrmPonte, 15000);
   window.addEventListener('message', function(ev){
-    if(ev.source === window && ev.data && ev.data.src === 'mw-quer-pacientes'){ agcrmPonteSig = ''; agcrmPonte(); }
+    if(ev.source !== window || ev.origin !== location.origin || !ev.data) return;
+    if(ev.data.src === 'mw-quer-pacientes'){ agcrmPonteSig = ''; agcrmPonte(); }
+    if(ev.data.src === 'mw-edit') agcrmAplicarEdicao(ev.data);
   });
+  // Edição vinda do WhatsApp: só vencimento, nascimento e telefone; o próprio CRM confere e grava.
+  function agcrmAplicarEdicao(m){
+    function responder(ok, erro){ window.postMessage({ src: 'agcrm-edit-ret', id: m.id, ok: ok, erro: erro || '' }, location.origin); }
+    try {
+      if(!state.loggedIn || !state.patients || !state.patients.length) return; // CRM ainda carregando: a extensão tenta de novo
+      if(typeof eqAdmin === 'function' && !eqAdmin()) return responder(false, 'Sem permissão');
+      var p = state.patients.find(function(x){ return String(x.id) === String(m.pid); });
+      if(!p) return responder(false, 'Paciente não encontrado no CRM');
+      var ch = m.changes || {};
+      if(!('vencimento' in ch) && !('nascimento' in ch) && !('telefone' in ch)) return responder(false, 'Nada para alterar');
+      var dataOk = function(v){ return v === '' || /^\d{4}-\d{2}-\d{2}$/.test(String(v)); };
+      if('vencimento' in ch && !dataOk(ch.vencimento)) return responder(false, 'Vencimento inválido');
+      if('nascimento' in ch && !dataOk(ch.nascimento)) return responder(false, 'Nascimento inválido');
+      if('telefone' in ch && String(ch.telefone).replace(/\D/g, '').length < 10) return responder(false, 'Telefone inválido');
+      if('vencimento' in ch) p.vencimento = ch.vencimento;
+      if('nascimento' in ch) p.nascimento = ch.nascimento;
+      if('telefone' in ch) p.telefone = String(ch.telefone);
+      savePatients();
+      agcrmPonteSig = '';
+      setTimeout(agcrmPonte, 300);
+      if(!state.modal) render();
+      responder(true);
+    } catch(e){ responder(false, e.message); }
+  }
 
   function renovacaoBadge(p){
     var status = renovacaoStatus(p);
