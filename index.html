@@ -3043,6 +3043,29 @@
     if(diff <= DIAS_RENOVACAO_PROXIMA) return 'Renovação próxima';
     return 'Ativo';
   }
+  // Ponte com a extensão "Meu WaSpeed" (só leitura): quando o CRM está aberto e logado,
+  // entrega um resumo dos pacientes para a extensão mostrar no WhatsApp.
+  var agcrmPonteSig = '';
+  function agcrmPonte(){
+    try {
+      if(!state.loggedIn || !state.patients || !state.patients.length) return;
+      if(typeof eqAdmin === 'function' && !eqAdmin()) return;
+      var resumo = state.patients.map(function(p){
+        return { id: p.id || '', nome: p.nome || '', telefone: p.telefone || '', vencimento: p.vencimento || '',
+          nascimento: p.nascimento || '', inicioPlano: p.inicioPlano || '', meses: p.meses || '', plano: p.plano || '',
+          situacao: renovacaoStatus(p) };
+      });
+      var sig = JSON.stringify(resumo);
+      if(sig === agcrmPonteSig) return;
+      agcrmPonteSig = sig;
+      window.postMessage({ src: 'agcrm-ponte', at: Date.now(), patients: resumo }, location.origin);
+    } catch(e){ console.warn('ponte extensão', e); }
+  }
+  setInterval(agcrmPonte, 15000);
+  window.addEventListener('message', function(ev){
+    if(ev.source === window && ev.data && ev.data.src === 'mw-quer-pacientes'){ agcrmPonteSig = ''; agcrmPonte(); }
+  });
+
   function renovacaoBadge(p){
     var status = renovacaoStatus(p);
     var map = { 'Ativo':'badge-success', 'Renovação próxima':'badge-warning', 'Renovação antecipada':'badge-info', 'Em carência':'badge-danger', 'Vencido':'badge-danger', 'Sem vencimento':'badge-gray' };
@@ -4693,6 +4716,7 @@
     }).then(function(results){
       if(!results){ state.booting = false; render(); return; }
       state.patients = results[0];
+      setTimeout(agcrmPonte, 1500);
       state.jornadaTemplates = results[1];
       state.grupoMuscularList = results[2];
       state.captacao = results[3];
