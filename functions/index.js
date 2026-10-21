@@ -380,7 +380,7 @@ exports.syncGoogleCalendarNow = onRequest({
     return;
   }
   try {
-    await runSync();
+    await runSync({ forceFullSync: req.query.full === "1" });
     res.status(200).send('Sincronizacao concluida. Veja o resultado nos logs da funcao (Firebase Console > Functions > Logs).');
   } catch (err) {
     logger.error(err);
