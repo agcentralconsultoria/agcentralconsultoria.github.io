@@ -926,3 +926,6 @@ Object.assign(exports, require('./equipe'));
 
 // Automacao: fila de pedidos executados pelo vigia do MacBook (arquivo separado).
 Object.assign(exports, require('./automacao'));
+
+// Ponte direta com a extensão do WhatsApp (arquivo separado).
+Object.assign(exports, require('./ponte-extensao'));
