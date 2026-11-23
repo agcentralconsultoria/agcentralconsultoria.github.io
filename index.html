@@ -1850,7 +1850,7 @@
     dashQuickTreinoUnit: 'semanas',
     dashQuickDietaUnit: 'dias',
     dashQuickConsultaSort: 'desc',
-    dashCollapsed: { outrosIndicadores: true },
+    dashCollapsed: {},
     atencaoView: 'todos',
     atencaoBusca: '',
     atencaoMarks: { date: '', marks: {} },
@@ -10560,9 +10560,8 @@
     '</div>'+
     '<div class="section-header-row">'+
       '<div><h2 class="section-title" style="margin:0;">Outros indicadores e listas</h2><div class="atencao-subtitle">Visão mensal, vencimentos e histórico</div></div>'+
-      dashToggleBtnHtml('outrosIndicadores')+
     '</div>'+
-    dashWrapOpenHtml('outrosIndicadores')+
+    '<div>'+
     '<div class="form-group" style="max-width:260px;margin:12px 0 16px;"><label>Competência</label><select id="competenciaSelect" class="filter-select">'+monthSelectOptions(monthKey)+'</select></div>'+
     '<div class="kpi-grid">'+
       '<button class="kpi-card destaque'+(state.dashboardFilter==='ativos'?' selected':'')+'" data-kpi="ativos">'+
