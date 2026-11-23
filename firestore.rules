@@ -25,8 +25,6 @@ service cloud.firestore {
       allow read, write: if admin();
       // marcas pessoais da "Atencao de hoje" de cada um
       allow read, write: if membroAtivo() && docId == 'atencaoHoje_' + request.auth.uid;
-      // o que aparece no Dashboard: a equipe so le (so o Angelo muda, em Configuracoes)
-      allow read: if membroAtivo() && docId == 'dashboardConfig';
     }
 
     match /equipe/{uid} {

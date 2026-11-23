@@ -130,13 +130,15 @@ desenvolvimento (o vigia faz isso quando o Ângelo clica).
 
 ## Dashboard simplificado pra Lorena (23/11/2026)
 
-Por padrão hoje estão **ocultos**: "Atenção de hoje" inteiro, o cartão "Consulta Próxima" (em
-Outros indicadores) e 5 dos 6 cartões de Acesso Rápido (só "Sem Atualização Recente — Treino"
-fica). Isso é controlado por `state.dashboardConfig` (doc `crmData/dashboardConfig`, só o
-Ângelo grava — Configurações > 🖥️ Painel; a equipe só lê, pra renderizar igual) — **nunca
-remova o que está oculto do código**, é só uma flag; ver `dashboardConfigPadrao()`. Se o
-Ângelo pedir "Atenção de hoje" de volta, é só ele desmarcar "ocultar" lá, não precisa editar
-código. Ver `CRM_CONTEXT_BACKUP.md` §30.
+**Removidos do código** (não é flag/configuração — foi tirado de verdade, a pedido do Ângelo):
+"Atenção de hoje" inteiro, "Fichas de Treino" (Vencida e A Vencer), o cartão "Consulta Próxima"
+(em Outros indicadores) e 5 dos 6 cartões de Acesso Rápido (só "Sem Atualização Recente —
+Treino" fica). Na Comparação Mensal, "Novos Pacientes" saiu e os meses mostrados começam em
+`COMPARACAO_MENSAL_CORTE = '2026-11'` (cresce mês a mês sozinho, nunca mostra antes disso —
+ver `mesesDesdeCorte()`). Chegou a existir uma versão com toggle em Configurações
+(`crmData/dashboardConfig`), mas o Ângelo pediu pra tirar e deixar fixo — **não recriar essa
+configurabilidade sem ele pedir de novo**. Se quiser algo de volta, é reimplementar na mão. Ver
+`CRM_CONTEXT_BACKUP.md` §30.
 
 ## Pendência em aberto
 

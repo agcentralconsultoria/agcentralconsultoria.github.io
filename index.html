@@ -1198,9 +1198,6 @@
   .checkbox-inline{display:flex;align-items:center;gap:8px;margin-top:4px;}
   .checkbox-inline input{width:16px;height:16px;}
   .checkbox-inline label{margin:0;font-size:13.5px;font-weight:500;color:var(--text);}
-  .painel-toggle-row{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);font-size:13.5px;cursor:pointer;}
-  .painel-toggle-row:last-child{border-bottom:0;}
-  .painel-toggle-row input{width:17px;height:17px;flex-shrink:0;margin-top:2px;}
 
   /* ---------- Profile ---------- */
   .profile-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:6px;}
@@ -1851,7 +1848,6 @@
     dashQuickDietaUnit: 'dias',
     dashQuickConsultaSort: 'desc',
     dashCollapsed: { outrosIndicadores: true },
-    dashboardConfig: dashboardConfigPadrao(),
     atencaoView: 'todos',
     atencaoBusca: '',
     atencaoMarks: { date: '', marks: {} },
@@ -4747,7 +4743,7 @@
     eqCarregarContexto().then(function(){
       if(state.eq && state.eq.papel === 'relogar'){ state.eq = null; return null; }
       if(!eqAdmin() && !eqMembro()) return null;
-      return Promise.all([loadPatientsAsync(), loadJornadaTemplatesAsync(), loadGrupoMuscularListAsync(), loadCaptacaoAsync(), loadCaptacaoTemplatesAsync(), loadFinanceiroAsync(), loadAtencaoMarksAsync(), loadDashboardConfigAsync()]);
+      return Promise.all([loadPatientsAsync(), loadJornadaTemplatesAsync(), loadGrupoMuscularListAsync(), loadCaptacaoAsync(), loadCaptacaoTemplatesAsync(), loadFinanceiroAsync(), loadAtencaoMarksAsync()]);
     }).then(function(results){
       if(!results){ state.booting = false; render(); return; }
       state.patients = results[0];
@@ -4758,7 +4754,6 @@
       state.captacaoTemplates = results[4];
       state.financeiro = results[5];
       state.atencaoMarks = results[6];
-      state.dashboardConfig = results[7];
       eqFotografarTudo();
       if(!eqPodeAba(state.tab)) state.tab = eqPrimeiraAba() || 'dashboard';
       state.booting = false;
@@ -9813,6 +9808,21 @@
     }
     return result;
   }
+  /* Comparacao Mensal comeca a contar so a partir desse mes (pedido do Angelo, 23/11/2026): a
+     Lorena so passou a preencher check-in/engajamento a partir daqui, meses antes nao tem dado
+     de verdade. Cresce mes a mes sozinho, nunca mostra antes disso. */
+  var COMPARACAO_MENSAL_CORTE = '2026-11';
+  function mesesDesdeCorte(corte){
+    var atual = getCurrentMonthKey();
+    if(atual < corte) return [corte];
+    var p = parseMonthKey(corte), result = [];
+    var d = new Date(p.year, p.month, 1);
+    while(monthKeyOf(d) <= atual){
+      result.push(monthKeyOf(d));
+      d.setMonth(d.getMonth()+1);
+    }
+    return result;
+  }
   function monthlyEngagementAvg(monthKey){
     var vals = [];
     state.patients.forEach(function(p){
@@ -9919,13 +9929,12 @@
       '</div>';
   }
   function comparacaoMensalHtml(){
-    var months = lastNMonths(6);
+    var months = mesesDesdeCorte(COMPARACAO_MENSAL_CORTE);
     return ''+
       '<div class="monthly-trend-grid">'+
         trendPanelHtml('engajamento', 'Engajamento Médio', months, monthlyEngagementAvg, function(v){ return v.toFixed(1); }, 'trend-primary')+
         trendPanelHtml('checkin', 'Check-in Enviado', months, monthlyCheckinPct, function(v){ return v+'%'; }, 'trend-primary')+
         trendPanelHtml('risco', 'Pacientes em Risco', months, monthlyRiscoCount, function(v){ return String(v); }, 'trend-danger')+
-        trendPanelHtml('novos', 'Novos Pacientes', months, monthlyNovosCount, function(v){ return String(v); }, 'trend-primary')+
       '</div>';
   }
   /* ================= Atencao de hoje (Dashboard) =================
@@ -10538,7 +10547,6 @@
     '<div class="profile-top" style="margin-bottom:4px;">'+
       '<div><h1 class="page-title" style="margin-bottom:0;">Dashboard</h1></div>'+
     '</div>'+
-    (state.dashboardConfig.ocultarAtencaoHoje ? '' : '<div id="atencaoHojeWrap">'+atencaoHojeInnerHtml()+'</div>')+
     '<div class="section-header-row">'+
       '<div><h2 class="section-title" style="margin:0;">Outros indicadores e listas</h2><div class="atencao-subtitle">Visão mensal, vencimentos e histórico</div></div>'+
       dashToggleBtnHtml('outrosIndicadores')+
@@ -10566,11 +10574,6 @@
         '<div class="kpi-label">Aniversariantes da Semana</div>'+
         '<div class="kpi-value">'+aniversariantesDaSemana().length+'</div>'+
       '</button>'+
-      (state.dashboardConfig.ocultarKpiConsultaProxima ? '' : ''+
-      '<button class="kpi-card info'+(state.dashboardFilter==='consulta'?' selected':'')+'" data-kpi="consulta">'+
-        '<div class="kpi-label">Consulta Próxima</div>'+
-        '<div class="kpi-value">'+k.consultaProximo+'</div>'+
-      '</button>')+
       '<button class="kpi-card dual-priority'+(state.dashboardFilter==='bebezinhoUrgente'?' selected':'')+'" data-kpi="bebezinhoUrgente">'+
         '<div class="kpi-label">Modo Bebezinho<br>Urgente</div>'+
         '<div class="kpi-value">'+dashboardFilterPatients('bebezinhoUrgente').length+'</div>'+
@@ -10578,21 +10581,6 @@
       '<button class="kpi-card muted'+(state.dashboardFilter==='inativos'?' selected':'')+'" data-kpi="inativos">'+
         '<div class="kpi-label">Pacientes Inativos</div>'+
         '<div class="kpi-value">'+dashboardFilterPatients('inativos').length+'</div>'+
-      '</button>'+
-    '</div>'+
-    '<div class="section-header-row">'+
-      '<h2 class="section-title">Fichas de Treino</h2>'+
-      '<button class="info-icon-btn" type="button" data-info-toggle="info-treino">i</button>'+
-    '</div>'+
-    '<div class="info-popover" id="info-treino">Considera a ficha de treino mais recente de cada paciente ativo. Vencida = já passou do vencimento. A Vencer = vence em até 15 dias.</div>'+
-    '<div class="kpi-grid-sm">'+
-      '<button class="kpi-card danger'+(state.dashboardFilter==='treinoVencido'?' selected':'')+'" data-kpi="treinoVencido">'+
-        '<div class="kpi-label">Ficha de Treino Vencida</div>'+
-        '<div class="kpi-value">'+fichaTreinoFilterPatients('treinoVencido').length+'</div>'+
-      '</button>'+
-      '<button class="kpi-card alt'+(state.dashboardFilter==='treinoAVencer'?' selected':'')+'" data-kpi="treinoAVencer">'+
-        '<div class="kpi-label">Ficha de Treino a Vencer</div>'+
-        '<div class="kpi-value">'+fichaTreinoFilterPatients('treinoAVencer').length+'</div>'+
       '</button>'+
     '</div>'+
     (state.dashboardFilter ? (''+
@@ -10636,7 +10624,7 @@
       '<button class="info-icon-btn" type="button" data-info-toggle="info-comparacao">i</button>'+
       dashToggleBtnHtml('comparacao')+
     '</div>'+
-    '<div class="info-popover" id="info-comparacao">Últimos 6 meses lado a lado — engajamento médio, % de check-in enviado, pacientes em risco e novos cadastros. O mês atual fica destacado.</div>'+
+    '<div class="info-popover" id="info-comparacao">Mês a mês a partir de novembro/2026 — engajamento médio, % de check-in enviado e pacientes em risco. O mês atual fica destacado.</div>'+
     dashWrapOpenHtml('comparacao')+
       '<div class="card" style="padding:16px;margin-bottom:32px;">'+comparacaoMensalHtml()+'</div>'+
     '</div>'+
@@ -11270,68 +11258,16 @@
   function dashWrapOpenHtml(key){
     return '<div data-dash-wrap="'+key+'"'+(state.dashCollapsed[key] ? ' style="display:none;"' : '')+'>';
   }
+  /* So o cartao de Treino (pedido do Angelo, 23/11/2026): os outros 5 (Vencimentos, Dieta,
+     Consulta, Vigencia, Resumo de Entrega) saíram — ele já acompanha isso no Treino.io. */
   function dashboardQuickAccessHtml(){
-    var cfg = state.dashboardConfig;
     var qaTreino = semAtualizacaoRows('treino');
-    var cardVenc = cfg.ocultarAcessoVencimentos ? '' : (function(){
-      var qaVenc = vencimentosQuickRows();
-      return '<div class="card" style="padding:16px;">'+
-        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Vencimentos</h3>'+quickSortBtnHtml('vencimentos', state.dashQuickVencSort)+dashToggleBtnHtml('qaVenc')+'</div>'+
-        dashWrapOpenHtml('qaVenc')+
-          '<table><thead><tr><th>Nome</th><th>Vencimento</th></tr></thead><tbody>'+qaVenc.rowsHtml+'</tbody></table>'+
-          qaVenc.pagerHtml+
-        '</div>'+
-      '</div>';
-    })();
-    var cardDieta = cfg.ocultarAcessoDieta ? '' : (function(){
-      var qaDieta = semAtualizacaoRows('dieta');
-      return '<div class="card" style="padding:16px;">'+
-        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Atualização Recente — Dieta</h3><div style="display:flex;gap:6px;">'+quickUnitBtnHtml('dieta', state.dashQuickDietaUnit)+quickSortBtnHtml('dieta', state.dashQuickDietaSort)+'</div>'+dashToggleBtnHtml('qaDieta')+'</div>'+
-        dashWrapOpenHtml('qaDieta')+
-          '<table><thead><tr><th>Nome</th><th>Última atualização</th></tr></thead><tbody>'+qaDieta.rowsHtml+'</tbody></table>'+
-          qaDieta.pagerHtml+
-        '</div>'+
-      '</div>';
-    })();
-    var cardConsulta = cfg.ocultarAcessoConsulta ? '' : (function(){
-      var qaConsulta = semConsultaMarcadaRows();
-      return '<div class="card" style="padding:16px;">'+
-        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Consulta Marcada</h3>'+quickSortBtnHtml('consulta', state.dashQuickConsultaSort)+dashToggleBtnHtml('qaConsulta')+'</div>'+
-        dashWrapOpenHtml('qaConsulta')+
-          '<table><thead><tr><th>Nome</th><th>Status Consulta</th></tr></thead><tbody>'+qaConsulta.rowsHtml+'</tbody></table>'+
-          qaConsulta.pagerHtml+
-        '</div>'+
-      '</div>';
-    })();
-    var cardVigencia = cfg.ocultarAcessoVigencia ? '' : (function(){
-      var qaVigencia = semVigenciaRows();
-      return '<div class="card" style="padding:16px;">'+
-        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Vigência</h3>'+dashToggleBtnHtml('qaVigencia')+'</div>'+
-        dashWrapOpenHtml('qaVigencia')+
-          '<table><thead><tr><th>Nome</th><th>Prioridade</th></tr></thead><tbody>'+qaVigencia.rowsHtml+'</tbody></table>'+
-          qaVigencia.pagerHtml+
-        '</div>'+
-      '</div>';
-    })();
-    var cardResumoEntrega = cfg.ocultarAcessoResumoEntrega ? '' : (function(){
-      var qaResumoEntrega = resumoEntregaRows();
-      return '<div class="card" style="padding:16px;">'+
-        '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Resumo de Entrega de Paciente</h3>'+
-          '<button class="info-icon-btn" type="button" data-info-toggle="info-resumo-entrega">i</button>'+
-          dashToggleBtnHtml('qaResumoEntrega')+'</div>'+
-        '<div class="info-popover" id="info-resumo-entrega">O que ainda falta preencher em cada paciente, pra você fechar o cadastro. Só aparece quem tem pendência, do que falta mais pro que falta menos. Engajamento e check-in contam só as semanas que já passaram, e itens de treino ou dieta só aparecem pra quem contrata aquele serviço.</div>'+
-        dashWrapOpenHtml('qaResumoEntrega')+
-          '<table><thead><tr><th>Nome</th><th>Falta preencher</th></tr></thead><tbody>'+qaResumoEntrega.rowsHtml+'</tbody></table>'+
-          qaResumoEntrega.pagerHtml+
-        '</div>'+
-      '</div>';
-    })();
     return ''+
     '<div class="section-header-row">'+
       '<h2 class="section-title">Acesso Rápido</h2>'+
       '<button class="info-icon-btn" type="button" data-info-toggle="info-acesso-rapido">i</button>'+
     '</div>'+
-    '<div class="info-popover" id="info-acesso-rapido">Pontos de atenção que passam batido no dia a dia: vigência não preenchida, treino/dieta sem atualizar, vencimentos chegando e consultas sem data marcada.</div>'+
+    '<div class="info-popover" id="info-acesso-rapido">Pacientes sem atualização recente de treino.</div>'+
     '<div class="quick-access-grid">'+
       '<div class="card" style="padding:16px;">'+
         '<div class="section-header-row" style="margin-bottom:10px;"><h3 class="section-title" style="font-size:15px;">Sem Atualização Recente — Treino</h3><div style="display:flex;gap:6px;">'+quickUnitBtnHtml('treino', state.dashQuickTreinoUnit)+quickSortBtnHtml('treino', state.dashQuickTreinoSort)+'</div>'+dashToggleBtnHtml('qaTreino')+'</div>'+
@@ -11340,7 +11276,6 @@
           qaTreino.pagerHtml+
         '</div>'+
       '</div>'+
-      cardVenc+cardDieta+cardConsulta+cardVigencia+cardResumoEntrega+
     '</div>';
   }
   function fichaTreinoFilterPatients(key){
@@ -12825,38 +12760,6 @@
     });
     return f;
   }
-  /* O que mostrar/ocultar no Dashboard (pedido do Angelo pra simplificar pra Lorena usar).
-     So ele muda isso (em Configuracoes > Painel); a equipe so le, pra renderizar igual. */
-  function dashboardConfigPadrao(){
-    return {
-      ocultarAtencaoHoje: true,
-      ocultarKpiConsultaProxima: true,
-      ocultarAcessoVencimentos: true,
-      ocultarAcessoDieta: true,
-      ocultarAcessoConsulta: true,
-      ocultarAcessoVigencia: true,
-      ocultarAcessoResumoEntrega: true
-    };
-  }
-  function normalizeDashboardConfig(d){
-    var padrao = dashboardConfigPadrao(), out = {};
-    Object.keys(padrao).forEach(function(k){ out[k] = (d && d[k] !== undefined) ? !!d[k] : padrao[k]; });
-    return out;
-  }
-  function loadDashboardConfigAsync(){
-    return mfa.getDoc(mfa.doc(mfa.db, 'crmData', 'dashboardConfig')).then(function(snap){
-      if(snap.exists()) return normalizeDashboardConfig(snap.data());
-      var padrao = dashboardConfigPadrao();
-      if(eqMembro()) return padrao;
-      return mfa.setDoc(mfa.doc(mfa.db, 'crmData', 'dashboardConfig'), padrao).then(function(){ return padrao; });
-    }).catch(function(err){ console.error('dashboardConfig', err); return dashboardConfigPadrao(); });
-  }
-  function salvarDashboardConfig(){
-    mfa.setDoc(mfa.doc(mfa.db, 'crmData', 'dashboardConfig'), state.dashboardConfig).catch(function(err){
-      console.error('dashboardConfig salvar', err);
-      showToast('Não consegui salvar essa opção. Tente de novo.', 'error');
-    });
-  }
   function loadFinanceiroAsync(){
     return mfa.getDoc(crmRef('financeiro')).then(function(snap){
       if(snap.exists() && snap.data().data) return normalizeFinanceiro(snap.data().data);
@@ -13976,39 +13879,14 @@
       '<button type="button" class="btn btn-primary" id="syncTokenGenerateBtn">Gerar código de sincronização</button>'+
       errHtml;
   }
-  /* "Oculto"/"Mostrar" dos blocos do Dashboard (pedido do Angelo pra simplificar o uso do dia a
-     dia). So o administrador pode mudar; a equipe ve os checkboxes desligados, so pra consulta. */
-  function painelTabBodyHtml(){
-    var cfg = state.dashboardConfig, podeEditar = eqAdmin();
-    var itens = [
-      ['ocultarAtencaoHoje', 'Atenção de hoje', 'O quadro com as colunas por urgência, no topo do Dashboard.'],
-      ['ocultarKpiConsultaProxima', 'Consulta Próxima', 'Cartão de indicador, em "Outros indicadores e listas".'],
-      ['ocultarAcessoVencimentos', 'Vencimentos', 'Cartão de Acesso Rápido.'],
-      ['ocultarAcessoDieta', 'Sem Atualização Recente — Dieta', 'Cartão de Acesso Rápido.'],
-      ['ocultarAcessoConsulta', 'Sem Consulta Marcada', 'Cartão de Acesso Rápido.'],
-      ['ocultarAcessoVigencia', 'Sem Vigência', 'Cartão de Acesso Rápido.'],
-      ['ocultarAcessoResumoEntrega', 'Resumo de Entrega de Paciente', 'Cartão de Acesso Rápido.']
-    ];
-    var linhas = itens.map(function(it){
-      var marcado = !cfg[it[0]]; // checkbox marcado = "mostrar" (oculto e o inverso)
-      return '<label class="painel-toggle-row">'+
-        '<input type="checkbox" data-painel-toggle="'+it[0]+'"'+(marcado?' checked':'')+(podeEditar?'':' disabled')+'>'+
-        '<span><b>'+esc(it[1])+'</b><br><span class="cell-muted" style="font-size:12.5px;">'+esc(it[2])+'</span></span>'+
-      '</label>';
-    }).join('');
-    return ''+
-      '<p class="cell-muted" style="margin:4px 0 14px;">O que aparece no Dashboard pra quem usa o CRM. Desmarcado = oculto.'+(podeEditar ? '' : ' Só o administrador pode mudar.')+'</p>'+
-      '<div>'+linhas+'</div>';
-  }
   function settingsModalHtml(){
     var tabsHtml = ''+
       '<div class="meta-type-toggle">'+
         '<button type="button" class="meta-type-btn'+(state.settingsTab==='seguranca'?' active':'')+'" data-settings-tab="seguranca">🔒 Segurança</button>'+
         '<button type="button" class="meta-type-btn'+(state.settingsTab==='senha'?' active':'')+'" data-settings-tab="senha">🔑 Senha</button>'+
         '<button type="button" class="meta-type-btn'+(state.settingsTab==='sync'?' active':'')+'" data-settings-tab="sync">🔄 Sincronização</button>'+
-        '<button type="button" class="meta-type-btn'+(state.settingsTab==='painel'?' active':'')+'" data-settings-tab="painel">🖥️ Painel</button>'+
       '</div>';
-    var body = state.settingsTab === 'senha' ? passwordTabBodyHtml() : (state.settingsTab === 'sync' ? syncTokenTabBodyHtml() : (state.settingsTab === 'painel' ? painelTabBodyHtml() : securityTabBodyHtml()));
+    var body = state.settingsTab === 'senha' ? passwordTabBodyHtml() : (state.settingsTab === 'sync' ? syncTokenTabBodyHtml() : securityTabBodyHtml());
     return ''+
     '<div class="modal">'+
       '<div class="modal-header">'+
@@ -14347,15 +14225,6 @@
           state.settingsTab = this.getAttribute('data-settings-tab');
           state.securityError = null;
           renderModal();
-        });
-      });
-      document.querySelectorAll('[data-painel-toggle]').forEach(function(chk){
-        chk.addEventListener('change', function(){
-          if(!eqAdmin()) return;
-          var key = this.getAttribute('data-painel-toggle');
-          state.dashboardConfig[key] = !this.checked;
-          salvarDashboardConfig();
-          if(state.tab === 'dashboard') render();
         });
       });
       var passwordResetBtn = document.getElementById('passwordResetBtn');

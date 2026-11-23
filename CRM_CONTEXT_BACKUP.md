@@ -1638,37 +1638,38 @@ CRM todo dia — login próprio via Equipe/Colaborador — e ele passa a só sup
 uma simplificação grande, com a ideia de poder restaurar o que foi ocultado sem precisar me
 pedir de novo.
 
-### 30.1 Mecanismo: `dashboardConfig` (oculto/mostrar configurável)
-- Doc `crmData/dashboardConfig` com uma flag `ocultarX: true/false` por bloco do Dashboard.
-  Carregado no boot (`loadDashboardConfigAsync`, junto com patients/jornadaTemplates/etc.) e
-  guardado em `state.dashboardConfig`.
-- Regra do Firestore: `allow write: if admin()` (já cobre o doc por padrão) e
-  `allow read: if membroAtivo() && docId == 'dashboardConfig'` — a equipe só lê (lê direto de
-  `crmData/dashboardConfig`, sem passar pela `equipeVisao`, que é só pra dados de paciente).
-- Interface: Configurações > aba **🖥️ Painel** (`painelTabBodyHtml`). Checkboxes "mostrar" por
-  bloco; desabilitados (só leitura) pra quem não é admin. Marcar/desmarcar chama
-  `salvarDashboardConfig()` e, se a aba atual for Dashboard, re-renderiza na hora.
-- Valores padrão (`dashboardConfigPadrao()`): tudo oculto — é a configuração que o Ângelo
-  pediu em 23/11/2026. Pra trazer algo de volta, ele mesmo desmarca em Configurações; **nunca
-  apagar o bloco do código**, só a flag controla a visibilidade.
+### 30.1 Primeira versão (revertida no mesmo dia): toggle em Configurações
+A primeira implementação criou `crmData/dashboardConfig` (flag `ocultarX` por bloco,
+`loadDashboardConfigAsync`/`salvarDashboardConfig`) com uma aba **Configurações > 🖥️ Painel**
+pra ele mesmo mostrar/ocultar sem me pedir. No mesmo dia ele pediu pra **tirar esse botão** e
+deixar fixo — achou desnecessário. Tudo isso foi removido (função, doc, aba, regra do
+Firestore). **Não recriar essa configurabilidade** a não ser que ele peça de novo.
 
-### 30.2 O que ficou oculto por padrão (pedido do Ângelo, 23/11/2026)
-- **"Atenção de hoje"** inteiro (o quadro com as colunas por urgência).
-- No bloco "Outros indicadores e listas": só o cartão **"Consulta Próxima"** (os outros 7 —
-  Pacientes Ativos, Vencendo em 15 dias, Renovação Antecipada, Renovação Próxima,
-  Aniversariantes da Semana, Modo Bebezinho Urgente, Pacientes Inativos — ficam visíveis, e
-  também "Fichas de Treino" e "Pacientes em Risco", que ele confirmou que quer manter).
-- Em **Acesso Rápido**: só "Sem Atualização Recente — Treino" fica. Os outros 5 cartões
+### 30.2 O que foi removido de verdade do código (pedido do Ângelo, 23/11/2026)
+- **"Atenção de hoje"** inteiro (o quadro com as colunas por urgência) — sumiu do Dashboard.
+- **"Fichas de Treino"** inteiro (os 2 cartões, Vencida e A Vencer) — ele falou que isso
+  também é redundante com o Treino.io.
+- No bloco "Outros indicadores e listas": só o cartão **"Consulta Próxima"** saiu (os outros
+  7 — Pacientes Ativos, Vencendo em 15 dias, Renovação Antecipada, Renovação Próxima,
+  Aniversariantes da Semana, Modo Bebezinho Urgente, Pacientes Inativos — continuam, e também
+  "Pacientes em Risco", que ele confirmou que quer manter).
+- Em **Acesso Rápido**: só "Sem Atualização Recente — Treino" ficou. Os outros 5 cartões
   (Vencimentos, Sem Atualização Recente — Dieta, Sem Consulta Marcada, Sem Vigência, Resumo
-  de Entrega de Paciente) ficaram ocultos.
-- **Comparação Mensal** (6 meses: engajamento médio, % check-in, pacientes em risco, novos
-  cadastros) não mudou nada — é a parte que ele mais disse que precisa, porque é o que ele
-  usa pra acompanhar o trabalho da Lorena (ela preenche, semana a semana, engajamento e se o
-  paciente enviou check-in, direto no cadastro de cada paciente). A observação de check-in
-  (texto) ela não vai usar — já faz isso no Treino.io — mas o campo continua existindo, só
-  não é passo do fluxo dela.
+  de Entrega de Paciente) saíram — `dashboardQuickAccessHtml()` voltou a ser uma função simples,
+  sem cfg nenhum.
+- **Comparação Mensal:** a coluna/painel "Novos Pacientes" saiu de vez. E os meses mostrados
+  deixaram de ser "os últimos 6 meses rolando": agora começam em
+  `COMPARACAO_MENSAL_CORTE = '2026-11'` (constante perto de `lastNMonths`) e crescem mês a mês
+  sozinhos (`mesesDesdeCorte()`), porque antes de novembro/2026 não tem dado de verdade — a
+  Lorena só passou a preencher engajamento/check-in a partir desse mês. Ela faz isso semana a
+  semana, direto no cadastro de cada paciente (sem usar o campo de observação de check-in em
+  texto, que ela já preenche no Treino.io — o campo continua existindo no CRM, só não é parte
+  do fluxo dela).
 - **Automação:** nada foi mexido. Ele cogitou estreitar "Treinos e dietas" pra só treino, mas
   decidiu deixar tudo como está por enquanto.
+- Funções que ficaram sem uso mas não foram apagadas (reaproveitamento futuro, risco zero):
+  `fichaTreinoFilterPatients`, `vencimentosQuickRows`, `semConsultaMarcadaRows`,
+  `semVigenciaRows`, `resumoEntregaRows`, `monthlyNovosCount`, `lastNMonths`.
 
 ### 30.3 Pendente: importar Jornada
 Ele quer montar a Jornada de um paciente mais rápido: gera o conteúdo no ChatGPT, baixa um
