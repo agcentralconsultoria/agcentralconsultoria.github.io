@@ -7,8 +7,10 @@ dia a dia; aquele é a fonte completa.
 
 ## O que é este projeto
 
-CRM de gestão de pacientes para o Angelo Garcia (treinador/nutricionista). **Só o Ângelo
-usa o CRM** (nunca citar nem perguntar sobre outros usuários). Um único arquivo `index.html` (~630KB+, vanilla
+CRM de gestão de pacientes para o Angelo Garcia (treinador/nutricionista). **Desde 23/11/2026,
+a Lorena (estagiária dele) usa o CRM no dia a dia, com login próprio (Equipe/Colaborador);
+o Ângelo só supervisiona.** Antes disso era só ele. Não perguntar nem citar outros possíveis
+usuários além desses dois sem o Ângelo trazer o assunto. Um único arquivo `index.html` (~630KB+, vanilla
 JS/HTML/CSS, sem build, sem framework) contendo cadastro de pacientes, fichas de
 treino/dieta, check-ins semanais, Dashboard, Jornada (funil de tarefas/kanban), a
 área de Captação (Leads, Parcerias, Indicações, Comunidade, Instagram, Visão
@@ -31,9 +33,11 @@ alternância sol/lua fixa no canto superior direito (ver §15).
 
 ## Quem é o usuário
 
-Ângelo — treinador/nutricionista, **não-técnico**. Toda comunicação em **PT-BR**,
-direta, sem jargão técnico. Plano Claude Pro (efficiency baixo/moderado importa —
-veja seção de token abaixo).
+Ângelo — treinador/nutricionista, **não-técnico**, quem fala com o Claude. Toda comunicação
+em **PT-BR**, direta, sem jargão técnico. Plano Claude Pro (efficiency baixo/moderado importa —
+veja seção de token abaixo). A Lorena (estagiária) opera o CRM no dia a dia a partir de
+23/11/2026, mas é o Ângelo quem decide os ajustes e fala com o Claude — ela nunca é
+interlocutora direta aqui.
 
 ## Regras fixas (não negociáveis, já confirmadas pelo usuário)
 
@@ -124,10 +128,23 @@ LaunchAgent (`vigia/`, instalar/atualizar com `bash vigia/instalar.sh`; log em
 `CRM_CONTEXT_BACKUP.md` §28–29 e subseções. Nunca ler conversas de pacientes no ambiente de
 desenvolvimento (o vigia faz isso quando o Ângelo clica).
 
+## Dashboard simplificado pra Lorena (23/11/2026)
+
+Por padrão hoje estão **ocultos**: "Atenção de hoje" inteiro, o cartão "Consulta Próxima" (em
+Outros indicadores) e 5 dos 6 cartões de Acesso Rápido (só "Sem Atualização Recente — Treino"
+fica). Isso é controlado por `state.dashboardConfig` (doc `crmData/dashboardConfig`, só o
+Ângelo grava — Configurações > 🖥️ Painel; a equipe só lê, pra renderizar igual) — **nunca
+remova o que está oculto do código**, é só uma flag; ver `dashboardConfigPadrao()`. Se o
+Ângelo pedir "Atenção de hoje" de volta, é só ele desmarcar "ocultar" lá, não precisa editar
+código. Ver `CRM_CONTEXT_BACKUP.md` §30.
+
 ## Pendência em aberto
 
-Reformulação pedida pelo Ângelo: **simplificar o CRM** (tirar peso e o que ele não usa).
-Ainda não começou. Esperar o pedido dele antes de mexer.
+Jornada do Paciente: o Ângelo quer importar tarefas (de um texto que ele mesmo gera no ChatGPT
+e arrasta pro CRM) em vez de cadastrar uma por uma. Falta confirmar com ele se o import cria
+um **Modelo de Jornada** reutilizável ou preenche a jornada de **um paciente específico**,
+antes de implementar. Automação: ele pediu pra não mexer em nada por enquanto (deixou os 4
+botões como estão).
 
 ## Arquivos deste diretório
 
