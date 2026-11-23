@@ -1678,3 +1678,22 @@ texto livre com IA). Falta decidir com ele, antes de implementar: o import cria 
 Jornada** (reaproveitável, aplicado como os modelos hoje) ou preenche direto a jornada de **um
 paciente específico**? Daí defino o formato de arquivo e escrevo um prompt pronto pra ele usar
 no ChatGPT.
+
+## §31 — Peso/Meta simplificados e perfil enxuto (23/11/2026)
+- Tirado de vez (pedido do Angelo): peso semanal no formulario (`f_peso_X`), o modo "Meta de
+  Peso" (min/max, janela ate a consulta) e o historico de peso com o selo batida/atrasado na
+  Visao Geral. `mergeWeeklyIntoMonth` parou de reconstruir `peso`/`pesoData` — so preserva o
+  que ja tinha (nunca mais edita, mas nao apaga historico antigo).
+- "Meta da Proxima Consulta" virou texto livre, sem toggle. Ganhou cor automatica pela MESMA
+  regra do Status da Consulta (`consultaStatus`/`metaStatusClass`): verde ≥16 dias, amarelo
+  ≤15 dias, vermelho se a consulta ja passou (meta desatualizada). So colore se tiver texto.
+- Edicao rapida sem abrir Editar Paciente: clicar na celula Meta (ou Observacoes) na Visao
+  Geral, ou na caixa Meta dentro do perfil, abre um modal pequeno (`metaEdit`/`obsEdit`,
+  `openMetaEditModal`/`openObsEditModal`) — mesmo padrao do `weekEdit` ja existente.
+- Removido `bindMetaTypeToggle()`: ele usava `querySelectorAll('.meta-type-btn')` sem escopo
+  e, com os botoes de peso fora, ia colidir com outros toggles do mesmo formulario (ex: Dieta
+  linear/ciclo) e quebrar. Se precisar de um toggle do tipo meta-type-btn de novo, escopar por
+  container, nunca por classe solta no documento inteiro.
+- Perfil do paciente: secoes "Fotos e Medidas" e "Ficha de Dieta" tiradas (ja tem no
+  Treino.io). As automacoes que gravam `ultimasFotos` e as fichas de dieta continuam rodando
+  normalmente — so a exibicao no perfil que saiu.
