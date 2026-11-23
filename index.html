@@ -1254,8 +1254,11 @@
   .obs-cell{
     background:var(--panel);border:1px solid var(--border);border-radius:8px;
     padding:8px 10px;font-size:12.5px;color:var(--text);line-height:1.4;
-    min-width:220px;max-width:320px;white-space:normal;
+    min-width:220px;max-width:320px;white-space:normal;text-align:left;
   }
+  .obs-cell-btn{text-align:left;}
+  .obs-cell-btn:hover .obs-cell{outline:2px solid var(--border-strong);}
+  .obs-cell-btn:hover .cell-muted{text-decoration:underline;}
 
   .confirm-text{font-size:14.5px;color:var(--text);line-height:1.5;}
   .confirm-text b{color:var(--text);}
@@ -2286,6 +2289,14 @@
     m.engajamento[weekIndex] = engVal;
     m.checkin[weekIndex] = chkVal;
     m.obsCheckin[weekIndex] = obsVal;
+    savePatients();
+  }
+  function updateMonthObs(patientId, monthKey, obsVal){
+    var p = getPatient(patientId);
+    if(!p) return;
+    if(!p.meses) p.meses = {};
+    if(!p.meses[monthKey]) p.meses[monthKey] = {};
+    p.meses[monthKey].observacoes = obsVal;
     savePatients();
   }
   function pesoGoalPace(p){
@@ -12324,7 +12335,9 @@
       }
       var avgText = r.avg === null ? '—' : r.avg.toFixed(1);
       var avgCls = avgBadgeClass(r.avg);
-      var obsHtml = data.observacoes ? '<div class="obs-cell">'+esc(data.observacoes)+'</div>' : '<span class="cell-muted">—</span>';
+      var obsHtml = '<button type="button" class="week-cell-btn obs-cell-btn" data-obs-edit="'+p.id+'" title="Clique para editar as observações do mês">'+
+        (data.observacoes ? '<div class="obs-cell">'+esc(data.observacoes)+'</div>' : '<span class="cell-muted">Clique para anotar…</span>')+
+      '</button>';
       var metaHtml = data.metaTipo === 'peso' ? '<div class="obs-cell">'+metaBoxText(data)+'</div>' : (data.metaMes ? '<div class="obs-cell">'+esc(data.metaMes)+'</div>' : '<span class="cell-muted">—</span>');
       var pesoOpen = !!state.pesoHistoryOpen[p.id];
       var rowHtml = '<tr>'+
@@ -12506,6 +12519,11 @@
       if(weekEditBtn){
         var parts = weekEditBtn.getAttribute('data-week-edit').split('|');
         openWeekEditModal(parseInt(parts[0],10), parseInt(parts[1],10));
+        return;
+      }
+      var obsEditBtn = e.target.closest('[data-obs-edit]');
+      if(obsEditBtn){
+        openObsEditModal(parseInt(obsEditBtn.getAttribute('data-obs-edit'),10));
         return;
       }
       var pesoToggle = e.target.closest('[data-peso-toggle]');
@@ -13781,6 +13799,31 @@
       '</div>'+
     '</div>';
   }
+  /* ---- Observacoes do mes: edicao rapida direto na Visao Geral (pedido do Angelo,
+     23/11/2026) — clica na celula e edita ali, sem precisar abrir Editar Paciente. */
+  function openObsEditModal(patientId){
+    state.modal = 'obsEdit';
+    state.activeId = patientId;
+    state.weekEditMonthKey = state.competencia;
+    renderModal();
+  }
+  function obsEditModalHtml(p, monthKey){
+    var data = getMonthData(p, monthKey);
+    return ''+
+    '<div class="modal">'+
+      '<div class="modal-header">'+
+        '<h2>Observações do Mês — '+esc(p.nome)+'</h2>'+
+        '<button class="modal-close" id="modalCloseBtn">&times;</button>'+
+      '</div>'+
+      '<div class="modal-body">'+
+        '<div class="form-group"><label>Observações ('+esc(monthLabel(monthKey))+')</label><textarea id="f_obs_quick" placeholder="Observações sobre esse mês...">'+esc(data.observacoes)+'</textarea></div>'+
+      '</div>'+
+      '<div class="modal-footer">'+
+        '<button class="btn btn-secondary" id="formCancelBtn">Cancelar</button>'+
+        '<button class="btn btn-primary" id="obsEditSaveBtn">Salvar</button>'+
+      '</div>'+
+    '</div>';
+  }
   /* Só esta conta pode trocar a própria senha. Travado de propósito (o pedido foi
      explícito): mesmo que outra conta algum dia faça login neste CRM, o botão de
      trocar senha fica bloqueado pra ela — o link de redefinição só é disparado se
@@ -13940,6 +13983,10 @@
       var pw = getPatient(state.activeId);
       if(!pw){ closeModal(); return; }
       html = weekEditModalHtml(pw, state.weekEditMonthKey, state.weekEditIndex);
+    } else if(state.modal === 'obsEdit'){
+      var po = getPatient(state.activeId);
+      if(!po){ closeModal(); return; }
+      html = obsEditModalHtml(po, state.weekEditMonthKey);
     } else if(state.modal === 'settings'){
       html = settingsModalHtml();
     } else if(state.modal === 'lead'){
@@ -13963,7 +14010,7 @@
     var overlay = document.getElementById('modalOverlay');
     overlay.addEventListener('click', function(e){
       if(e.target !== overlay) return;
-      if(state.modal === 'add' || state.modal === 'edit' || state.modal === 'weekEdit' || state.modal === 'lead' || state.modal === 'financeiro'){
+      if(state.modal === 'add' || state.modal === 'edit' || state.modal === 'weekEdit' || state.modal === 'obsEdit' || state.modal === 'lead' || state.modal === 'financeiro'){
         if(confirm('Tem certeza que deseja sair? As informações preenchidas neste cadastro serão perdidas.')){
           closeModal();
         }
@@ -14199,6 +14246,15 @@
         closeModal();
         render();
         showToast('Semana atualizada.', 'success');
+      });
+    }
+    if(state.modal === 'obsEdit'){
+      document.getElementById('obsEditSaveBtn').addEventListener('click', function(){
+        var obsVal = document.getElementById('f_obs_quick').value.trim();
+        updateMonthObs(state.activeId, state.weekEditMonthKey, obsVal);
+        closeModal();
+        render();
+        showToast('Observações atualizadas.', 'success');
       });
     }
     if(state.modal === 'lead'){
