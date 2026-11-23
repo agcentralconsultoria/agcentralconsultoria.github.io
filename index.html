@@ -1213,6 +1213,11 @@
   .profile-section h3{font-size:13px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);margin:0 0 10px;font-weight:700;}
   .meta-box{background:var(--primary-light);border:1px solid var(--meta-border);color:var(--meta-text);padding:12px 14px;border-radius:9px;font-size:14px;font-weight:600;}
   .meta-box .link-btn{color:var(--meta-text);}
+  .meta-box.meta-emdia{border-left:4px solid var(--success);}
+  .meta-box.meta-proximo{border-left:4px solid var(--warning);}
+  .meta-box.meta-atrasado{border-left:4px solid var(--danger);}
+  button.meta-box{width:100%;text-align:left;cursor:pointer;font-family:inherit;}
+  button.meta-box:hover{outline:2px solid var(--border-strong);}
   .obs-box{background:var(--panel);border:1px solid var(--border);padding:12px 14px;border-radius:9px;font-size:14px;color:var(--text);line-height:1.5;white-space:pre-wrap;}
   .obscheckin-item{margin-bottom:6px;}
   .obscheckin-item:last-child{margin-bottom:0;}
@@ -1259,6 +1264,9 @@
   .obs-cell-btn{text-align:left;}
   .obs-cell-btn:hover .obs-cell{outline:2px solid var(--border-strong);}
   .obs-cell-btn:hover .cell-muted{text-decoration:underline;}
+  .obs-cell.meta-emdia{border-left:4px solid var(--success);}
+  .obs-cell.meta-proximo{border-left:4px solid var(--warning);}
+  .obs-cell.meta-atrasado{border-left:4px solid var(--danger);}
 
   .confirm-text{font-size:14.5px;color:var(--text);line-height:1.5;}
   .confirm-text b{color:var(--text);}
@@ -2015,6 +2023,23 @@
     }
     return esc(data.metaMes || 'Nenhuma meta definida.');
   }
+  /* Cor da Meta da Proxima Consulta pela mesma regra do Status da Consulta (pedido do
+     Angelo, 23/11/2026): verde se a consulta esta longe, amarelo se esta perto, vermelho
+     se a data ja passou — sinal de que a meta escrita e de uma consulta anterior. So
+     colore quando ha meta escrita (sem texto nao faz sentido colorir). */
+  function metaStatusClass(p){
+    var s = consultaStatus(p);
+    return s === 'emdia' ? 'meta-emdia' : s === 'proximo' ? 'meta-proximo' : s === 'atrasado' ? 'meta-atrasado' : '';
+  }
+  /* Celula clicavel da Meta da Proxima Consulta (Visao Geral): abre a mesma edicao rapida
+     das Observacoes, sem precisar entrar em Editar Paciente. */
+  function metaCellHtml(p, data){
+    var temMeta = !!(data.metaMes && data.metaMes.trim());
+    var cls = temMeta ? metaStatusClass(p) : '';
+    return '<button type="button" class="week-cell-btn obs-cell-btn" data-meta-edit="'+p.id+'" title="Clique para editar a meta da próxima consulta">'+
+      '<div class="obs-cell'+(cls?' '+cls:'')+'">'+(temMeta ? esc(data.metaMes) : '<span class="cell-muted">Clique para anotar…</span>')+'</div>'+
+    '</button>';
+  }
   function daysBetween(dateStrA, dateStrB){
     if(!dateStrA || !dateStrB) return null;
     var a = new Date(dateStrA+'T00:00:00');
@@ -2299,6 +2324,15 @@
     p.meses[monthKey].observacoes = obsVal;
     savePatients();
   }
+  function updateMonthMeta(patientId, monthKey, metaVal){
+    var p = getPatient(patientId);
+    if(!p) return;
+    if(!p.meses) p.meses = {};
+    if(!p.meses[monthKey]) p.meses[monthKey] = {};
+    p.meses[monthKey].metaMes = metaVal;
+    p.meses[monthKey].metaTipo = 'outro';
+    savePatients();
+  }
   function pesoGoalPace(p){
     var data = p.meses && p.meses[state.competencia];
     if(!data || data.metaTipo !== 'peso') return null;
@@ -2450,26 +2484,10 @@
   function mergeWeeklyIntoMonth(p, monthKey, weekly){
     if(!p.meses) p.meses = {};
     var anterior = p.meses[monthKey] || {};
-    var wk = weeksInMonth(monthKey);
-    var pesoAntigo = Array.isArray(anterior.peso) ? anterior.peso : [];
-    var dataAntiga = Array.isArray(anterior.pesoData) ? anterior.pesoData : [];
-    var peso = weekly.peso.slice();
-    var pesoData = [];
-    for(var i=0;i<wk;i++){
-      // peso preenchido mantem a data com que foi registrado; peso apagado zera a data.
-      // Peso digitado direto no formulario nao tem data propria e continua caindo na
-      // sexta daquela semana, que e o comportamento de sempre.
-      pesoData.push((peso[i] === null || peso[i] === undefined) ? null : (dataAntiga[i] || null));
-    }
-    for(var j=wk; j<Math.max(pesoAntigo.length, dataAntiga.length); j++){
-      peso.push(pesoAntigo[j] !== undefined ? pesoAntigo[j] : null);
-      pesoData.push(dataAntiga[j] !== undefined ? dataAntiga[j] : null);
-    }
-    // preserva qualquer outro campo ja gravado no mes que o formulario nao edita
-    var merged = Object.assign({}, anterior, weekly);
-    merged.peso = peso;
-    merged.pesoData = pesoData;
-    p.meses[monthKey] = merged;
+    // peso/pesoData nao fazem mais parte do formulario (tirado a pedido do Angelo,
+    // 23/11/2026 — ja tem no Treino.io). O Object.assign preserva o que ja existia
+    // gravado (nunca apaga historico antigo), so para de ser editado por aqui.
+    p.meses[monthKey] = Object.assign({}, anterior, weekly);
   }
   function nextId(){
     return state.patients.length ? Math.max.apply(null, state.patients.map(function(p){return p.id;})) + 1 : 1;
@@ -12337,12 +12355,10 @@
       var obsHtml = '<button type="button" class="week-cell-btn obs-cell-btn" data-obs-edit="'+p.id+'" title="Clique para editar as observações do mês">'+
         (data.observacoes ? '<div class="obs-cell">'+esc(data.observacoes)+'</div>' : '<span class="cell-muted">Clique para anotar…</span>')+
       '</button>';
-      var metaHtml = data.metaTipo === 'peso' ? '<div class="obs-cell">'+metaBoxText(data)+'</div>' : (data.metaMes ? '<div class="obs-cell">'+esc(data.metaMes)+'</div>' : '<span class="cell-muted">—</span>');
-      var pesoOpen = !!state.pesoHistoryOpen[p.id];
+      var metaHtml = metaCellHtml(p, data);
       var rowHtml = '<tr>'+
         '<td>'+
           '<button class="link-btn link-btn-with-emoji" data-open-profile="'+p.id+'" title="'+esc(p.servico)+'"><span>'+esc(p.nome)+'</span><span class="servico-emoji">'+servicoEmoji(p.servico)+' '+bebezinhoEmoji(p)+'</span></button>'+
-          '<button type="button" class="peso-toggle-btn" data-peso-toggle="'+p.id+'">'+(pesoOpen?'▴':'▾')+' kg</button>'+
         '</td>'+
         '<td>'+consultaBadge(p)+'</td>'+
         '<td>'+metaHtml+'</td>'+
@@ -12350,9 +12366,6 @@
         '<td><span class="badge '+avgCls+'">'+avgText+'</span></td>'+
         '<td>'+obsHtml+'</td>'+
       '</tr>';
-      if(pesoOpen){
-        rowHtml += '<tr class="peso-history-tr"><td colspan="'+(wk+5)+'">'+pesoHistoryHtml(p)+'</td></tr>';
-      }
       return rowHtml;
     }).join('');
     if(!list.length){
@@ -12523,6 +12536,11 @@
       var obsEditBtn = e.target.closest('[data-obs-edit]');
       if(obsEditBtn){
         openObsEditModal(parseInt(obsEditBtn.getAttribute('data-obs-edit'),10));
+        return;
+      }
+      var metaEditBtn = e.target.closest('[data-meta-edit]');
+      if(metaEditBtn){
+        openMetaEditModal(parseInt(metaEditBtn.getAttribute('data-meta-edit'),10));
         return;
       }
       var pesoToggle = e.target.closest('[data-peso-toggle]');
@@ -13384,7 +13402,7 @@
         '<div class="form-group" style="max-width:260px;"><label>Competência</label><select id="profileCompetenciaSelect" class="filter-select">'+monthSelectOptions(monthKey)+'</select></div>'+
         '<div class="profile-section">'+
           '<h3>Meta da Próxima Consulta</h3>'+
-          '<div class="meta-box">'+metaBoxText(data)+'</div>'+
+          '<button type="button" class="meta-box'+(data.metaMes && data.metaMes.trim() ? ' '+metaStatusClass(p) : '')+'" data-meta-edit="'+p.id+'" title="Clique para editar">'+metaBoxText(data)+'</button>'+
         '</div>'+
         engagementSectionHtml+
         '<div class="profile-section">'+
@@ -13392,7 +13410,6 @@
           essencialNota+
           '<div class="checkin-grid" style="grid-template-columns:repeat('+activeIdx.length+',1fr);">'+chkHtml+'</div>'+
         '</div>'+
-        fotosMedidasSectionHtml(p)+
         '<div class="profile-section">'+
           '<h3>Observações do Check-in</h3>'+
           '<div class="obs-box">'+(obsCheckinHtml || 'Sem observações de check-in.')+'</div>'+
@@ -13402,7 +13419,6 @@
           '<div class="obs-box">'+esc(data.observacoes || 'Sem observações.')+'</div>'+
         '</div>'+
         fichaTreinoSectionHtml(p)+
-        fichaDietaSectionHtml(p)+
         jornadaSectionHtml(p)+
       '</div>'+
       '<div class="modal-footer">'+
@@ -13469,18 +13485,6 @@
       fichasTreino: [], fichasDieta: []
     };
   }
-  function bindMetaTypeToggle(){
-    var btns = document.querySelectorAll('.meta-type-btn');
-    btns.forEach(function(btn){
-      btn.addEventListener('click', function(){
-        var type = this.getAttribute('data-meta-type');
-        document.getElementById('f_meta_tipo').value = type;
-        document.querySelectorAll('.meta-type-btn').forEach(function(b){ b.classList.toggle('active', b === btn); });
-        document.getElementById('metaOutroFields').style.display = type === 'outro' ? '' : 'none';
-        document.getElementById('metaPesoFields').style.display = type === 'peso' ? '' : 'none';
-      });
-    });
-  }
   function bindObsCheckinAutosize(){
     document.querySelectorAll('.obscheckin-autosize').forEach(function(el){
       el.style.height = 'auto';
@@ -13506,36 +13510,16 @@
     var obsCheckinInputs = (weekly.obsCheckin || []).map(function(v,i){
       return '<div><div class="mini-label">Sem '+(i+1)+'</div><textarea class="obscheckin-autosize" id="f_obscheckin_'+i+'" placeholder="Observação do check-in...">'+esc(v||'')+'</textarea></div>';
     }).join('');
-    var pesoInputs = weekly.peso.map(function(v,i){
-      return '<div><div class="mini-label">Sem '+(i+1)+'</div><input type="number" step="0.1" id="f_peso_'+i+'" value="'+(v===null?'':v)+'" placeholder="kg"></div>';
-    }).join('');
-    var isPeso = weekly.metaTipo === 'peso';
     return ''+
       '<div class="form-group full">'+
         '<label>Meta da Próxima Consulta</label>'+
-        '<div class="meta-type-toggle">'+
-          '<button type="button" class="meta-type-btn'+(!isPeso?' active':'')+'" data-meta-type="outro">Texto</button>'+
-          '<button type="button" class="meta-type-btn'+(isPeso?' active':'')+'" data-meta-type="peso">Meta de Peso</button>'+
-        '</div>'+
-        '<input type="hidden" id="f_meta_tipo" value="'+(isPeso?'peso':'outro')+'">'+
-        '<div id="metaOutroFields" style="'+(isPeso?'display:none;':'')+'">'+
-          '<input type="text" id="f_meta" value="'+esc(weekly.metaMes)+'" placeholder="Ex: -5kg até 24/08">'+
-        '</div>'+
-        '<div id="metaPesoFields" style="'+(isPeso?'':'display:none;')+'">'+
-          '<div class="jornada-select-row">'+
-            '<div><div class="mini-label">Meta Mínima (kg)</div><input type="number" step="0.1" id="f_meta_peso_min" value="'+esc(String(weekly.metaPesoMin))+'" placeholder="Ex: -2"></div>'+
-            '<div><div class="mini-label">Meta Máxima (kg)</div><input type="number" step="0.1" id="f_meta_peso_max" value="'+esc(String(weekly.metaPesoMax))+'" placeholder="Ex: -1"></div>'+
-            '<div><div class="mini-label">Meta Definida Em</div><input type="date" id="f_meta_peso_inicio" value="'+esc(weekly.metaPesoInicio || todayISODate())+'"></div>'+
-          '</div>'+
-          '<div class="mini-label" style="text-align:left;margin-top:4px;">Use negativo pra emagrecimento (ex: -2 a -1) e positivo pra ganho de peso/bulking. Se a meta for um número só (ex: perder 2 kg), preencha só um dos dois campos — o cálculo funciona igual. A janela da meta vai desta data até a Data da Consulta.</div>'+
-        '</div>'+
+        '<input type="text" id="f_meta" value="'+esc(weekly.metaMes)+'" placeholder="Ex: perder 2kg até a consulta">'+
       '</div>'+
       '<div class="form-group full" id="quinzenalFormAviso" style="display:none;"><div class="mini-label" style="text-align:left;">Serviço só Treino: o acompanhamento é a cada 14 dias, então valem só Sem 1 e Sem 3. As outras ficam desativadas.</div></div>'+
-      '<div class="form-group full" id="mensalFormAviso" style="display:none;"><div class="mini-label" style="text-align:left;">Plano Essencial: acompanhamento mensal, sem engajamento — só o check-in do mês (Sem 1) fica disponível. O peso continua semanal.</div></div>'+
+      '<div class="form-group full" id="mensalFormAviso" style="display:none;"><div class="mini-label" style="text-align:left;">Plano Essencial: acompanhamento mensal, sem engajamento — só o check-in do mês (Sem 1) fica disponível.</div></div>'+
       '<div class="form-group full"><label>Engajamento Semanal (0-10 — deixe em branco se ainda não avaliou)</label><div class="field-row5" style="grid-template-columns:repeat('+wk+',1fr);">'+engInputs+'</div></div>'+
       '<div class="form-group full"><label>Check-in Semanal ('+monthLabel(monthKey)+' tem '+wk+' semanas)</label><div class="field-row5" style="grid-template-columns:repeat('+wk+',1fr);">'+chkInputs+'</div></div>'+
       '<div class="form-group full"><label>Observação do Check-in (o que o paciente escreveu, ou sua anotação)</label><div class="field-row5" style="grid-template-columns:repeat('+wk+',1fr);">'+obsCheckinInputs+'</div></div>'+
-      '<div class="form-group full"><label>Peso Semanal (kg)</label><div class="field-row5" style="grid-template-columns:repeat('+wk+',1fr);">'+pesoInputs+'</div></div>'+
       '<div class="form-group full"><label>Observações do Mês</label><textarea id="f_obs" placeholder="Observações sobre esse mês...">'+esc(weekly.observacoes)+'</textarea></div>';
   }
   /* No formulário o Serviço pode ser trocado na hora, então as semanas que valem mudam
@@ -13562,16 +13546,6 @@
         var box = el.parentElement;
         if(box) box.style.opacity = ativoChk ? '' : '.45';
       });
-      // peso continua semanal mesmo no plano Essencial — so check-in/engajamento tem
-      // cadencia diferente; no quinzenal ("so Treino") o peso ja seguia o mesmo padrao
-      // de antes, entao isso so muda pro Essencial.
-      var el2 = document.getElementById('f_peso_'+i);
-      if(el2){
-        var ativoPeso = essencial ? true : ativoChk;
-        el2.disabled = !ativoPeso;
-        var box2 = el2.parentElement;
-        if(box2) box2.style.opacity = ativoPeso ? '' : '.45';
-      }
       var engEl = document.getElementById('f_eng_'+i);
       if(engEl){
         engEl.disabled = !ativoEng;
@@ -13690,16 +13664,10 @@
       var rawChk = document.getElementById('f_chk_'+j).value;
       chk.push(rawChk === 'sim' ? true : rawChk === 'nao' ? false : null);
     }
-    var peso = [];
-    for(var m=0;m<wk;m++){
-      var rawPeso = document.getElementById('f_peso_'+m).value;
-      peso.push(rawPeso === '' ? null : parseFloat(rawPeso));
-    }
     var obsCheckin = [];
     for(var o=0;o<wk;o++){
       obsCheckin.push(document.getElementById('f_obscheckin_'+o).value.trim());
     }
-    var metaTipo = document.getElementById('f_meta_tipo').value;
     var jornadaInicioEl = document.getElementById('f_jornada_inicio');
     var jornadaModeloEl = document.getElementById('f_jornada_modelo');
     return {
@@ -13725,14 +13693,10 @@
       monthKey: monthKey,
       weekly: {
         metaMes: document.getElementById('f_meta').value.trim(),
-        metaTipo: metaTipo,
-        metaPesoMin: metaTipo === 'peso' ? document.getElementById('f_meta_peso_min').value : '',
-        metaPesoMax: metaTipo === 'peso' ? document.getElementById('f_meta_peso_max').value : '',
-        metaPesoInicio: metaTipo === 'peso' ? document.getElementById('f_meta_peso_inicio').value : '',
+        metaTipo: 'outro',
         observacoes: document.getElementById('f_obs').value.trim(),
         engajamento: eng,
         checkin: chk,
-        peso: peso,
         obsCheckin: obsCheckin
       }
     };
@@ -13805,6 +13769,30 @@
     state.activeId = patientId;
     state.weekEditMonthKey = state.competencia;
     renderModal();
+  }
+  function openMetaEditModal(patientId){
+    state.modal = 'metaEdit';
+    state.activeId = patientId;
+    state.weekEditMonthKey = state.competencia;
+    renderModal();
+  }
+  function metaEditModalHtml(p, monthKey){
+    var data = getMonthData(p, monthKey);
+    return ''+
+    '<div class="modal">'+
+      '<div class="modal-header">'+
+        '<h2>Meta da Próxima Consulta — '+esc(p.nome)+'</h2>'+
+        '<button class="modal-close" id="modalCloseBtn">&times;</button>'+
+      '</div>'+
+      '<div class="modal-body">'+
+        '<div class="form-group"><label>Meta</label><input type="text" id="f_meta_quick" value="'+esc(data.metaMes)+'" placeholder="Ex: perder 2kg até a consulta"></div>'+
+        '<div class="mini-label" style="text-align:left;">Data da consulta: '+formatDate(p.consulta)+' — '+consultaBadge(p)+'</div>'+
+      '</div>'+
+      '<div class="modal-footer">'+
+        '<button class="btn btn-secondary" id="formCancelBtn">Cancelar</button>'+
+        '<button class="btn btn-primary" id="metaEditSaveBtn">Salvar</button>'+
+      '</div>'+
+    '</div>';
   }
   function obsEditModalHtml(p, monthKey){
     var data = getMonthData(p, monthKey);
@@ -13986,6 +13974,10 @@
       var po = getPatient(state.activeId);
       if(!po){ closeModal(); return; }
       html = obsEditModalHtml(po, state.weekEditMonthKey);
+    } else if(state.modal === 'metaEdit'){
+      var pm = getPatient(state.activeId);
+      if(!pm){ closeModal(); return; }
+      html = metaEditModalHtml(pm, state.weekEditMonthKey);
     } else if(state.modal === 'settings'){
       html = settingsModalHtml();
     } else if(state.modal === 'lead'){
@@ -14009,7 +14001,7 @@
     var overlay = document.getElementById('modalOverlay');
     overlay.addEventListener('click', function(e){
       if(e.target !== overlay) return;
-      if(state.modal === 'add' || state.modal === 'edit' || state.modal === 'weekEdit' || state.modal === 'obsEdit' || state.modal === 'lead' || state.modal === 'financeiro'){
+      if(state.modal === 'add' || state.modal === 'edit' || state.modal === 'weekEdit' || state.modal === 'obsEdit' || state.modal === 'metaEdit' || state.modal === 'lead' || state.modal === 'financeiro'){
         if(confirm('Tem certeza que deseja sair? As informações preenchidas neste cadastro serão perdidas.')){
           closeModal();
         }
@@ -14036,6 +14028,10 @@
       if(profileEditBtn) profileEditBtn.addEventListener('click', function(){
         var id = state.activeId;
         openFormModal('edit', id);
+      });
+      var metaEditOpenBtn = document.querySelector('[data-meta-edit]');
+      if(metaEditOpenBtn) metaEditOpenBtn.addEventListener('click', function(){
+        openMetaEditModal(parseInt(this.getAttribute('data-meta-edit'),10));
       });
       var copyEmailBtn = document.getElementById('copyEmailBtn');
       if(copyEmailBtn){
@@ -14131,10 +14127,8 @@
         var newKey = this.value;
         var weekly = getMonthData(editingPatient, newKey);
         document.getElementById('weeklyFieldsContainer').innerHTML = weeklyFieldsHtml(newKey, weekly);
-        bindMetaTypeToggle();
         bindObsCheckinAutosize();
       });
-      bindMetaTypeToggle();
       bindObsCheckinAutosize();
       document.getElementById('f_servico').addEventListener('change', function(){
         var treinoWrap = document.getElementById('fichaTreinoFormWrap');
@@ -14254,6 +14248,15 @@
         closeModal();
         render();
         showToast('Observações atualizadas.', 'success');
+      });
+    }
+    if(state.modal === 'metaEdit'){
+      document.getElementById('metaEditSaveBtn').addEventListener('click', function(){
+        var metaVal = document.getElementById('f_meta_quick').value.trim();
+        updateMonthMeta(state.activeId, state.weekEditMonthKey, metaVal);
+        closeModal();
+        render();
+        showToast('Meta atualizada.', 'success');
       });
     }
     if(state.modal === 'lead'){
