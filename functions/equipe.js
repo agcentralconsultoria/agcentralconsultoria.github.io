@@ -230,7 +230,9 @@ function aplicarPacientes(list, ops, ctx, logs) {
     const id = op.id;
     const idx = list.findIndex((p) => String(p.id) === String(id));
     if (op.tipo === 'criar') {
-      if (!podeEditar(ctx.perms, 'pacientes') || Array.isArray(ctx.membro.pacientes)) throw new Recusa('Você não tem permissão para cadastrar pacientes.');
+      // restrito a uma lista tambem pode cadastrar (o novo paciente entra na lista dele
+      // automaticamente, ver equipeSalvar) — so bloqueia quem nao tem "editar" em pacientes.
+      if (!podeEditar(ctx.perms, 'pacientes')) throw new Recusa('Você não tem permissão para cadastrar pacientes.');
       if (idx !== -1) throw new Recusa('Esse paciente já existe.');
       const novo = Object.assign({}, op.paciente || {});
       Object.keys(PARTES).forEach((parte) => {
@@ -303,14 +305,29 @@ exports.equipeSalvar = onRequest({ region: REGION, timeoutSeconds: 60, memory: '
     const alvo = body.alvo;
     const quem = { uid: ctx.uid, nome: ctx.membro.nome, email: ctx.membro.email };
     const ref = db.doc('crmData/' + alvo);
+    const restrito = Array.isArray(ctx.membro.pacientes);
+    const equipeRef = restrito ? db.doc('equipe/' + ctx.uid) : null;
     await db.runTransaction(async (tx) => {
+      // transacao do Firestore exige TODAS as leituras antes de qualquer gravacao
       const snap = await tx.get(ref);
+      const eqSnap = restrito ? await tx.get(equipeRef) : null;
       const atual = snap.exists ? snap.data() : {};
       const logs = [];
       if (alvo === 'patients') {
         const list = Array.isArray(atual.list) ? atual.list.slice() : [];
+        const antesIds = new Set(list.map((p) => String(p.id)));
         aplicarPacientes(list, Array.isArray(body.ops) ? body.ops : [], ctx, logs);
         tx.set(ref, { list }, { merge: true });
+        // funcionario restrito a uma lista: o(s) paciente(s) que ele acabou de criar
+        // entram na lista dele tambem, senao ele perderia o acesso ao que acabou de cadastrar.
+        if (restrito) {
+          const criados = list.filter((p) => !antesIds.has(String(p.id))).map((p) => String(p.id));
+          if (criados.length) {
+            const pacientesAtuais = Array.isArray(eqSnap.data() && eqSnap.data().pacientes) ? eqSnap.data().pacientes.slice() : [];
+            criados.forEach((id) => { if (pacientesAtuais.indexOf(id) === -1) pacientesAtuais.push(id); });
+            tx.set(equipeRef, { pacientes: pacientesAtuais }, { merge: true });
+          }
+        }
       } else if (alvo === 'captacao' || PERM_DOC_SIMPLES[alvo] && alvo !== 'grupoMuscularList') {
         const data = Object.assign({}, atual.data || {});
         const chaves = body.chaves || {};

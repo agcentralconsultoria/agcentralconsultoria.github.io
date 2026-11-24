@@ -4838,8 +4838,10 @@
     return nivel === 'editar' ? v === 'editar' : (v === 'ver' || v === 'editar');
   }
   function eqVePacientes(){ return EQ_AREAS_PACIENTE.some(function(a){ return eqPode(a, 'ver'); }); }
+  /* Mesmo restrito a uma lista especifica de pacientes, o funcionario pode cadastrar
+     (o servidor adiciona o novo paciente na lista dele sozinho, ver functions/equipe.js). */
   function eqPodeCriarPaciente(){
-    return eqPode('pacientes', 'editar') && !(eqMembro() && Array.isArray(state.eq.perfil.pacientes));
+    return eqPode('pacientes', 'editar');
   }
   function eqAreaDaAba(tab){
     return tab; // dashboard, pacientes, jornada, financeiro e cap-* tem o mesmo nome da area
